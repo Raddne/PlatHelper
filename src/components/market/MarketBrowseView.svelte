@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onDestroy } from "svelte";
-  import { WFM_MOD_VARIANTS } from "../../../config/shared/wfmOrders.js";
+  import { formatUnitPlatinum, WFM_MOD_VARIANTS } from "../../../config/shared/wfmOrders.js";
   import { SvelteMap, SvelteSet } from "svelte/reactivity";
 
   import ItemImage from "../ItemImage.svelte";
@@ -396,8 +396,10 @@
     if (rank === "maxed" && effectiveMaxRank > 0) {
       out = out.filter((entry) => (entry.rank ?? 0) >= effectiveMaxRank);
     }
-    if (min != null && min > 0) out = out.filter((entry) => entry.platinum >= min);
-    if (max != null && max > 0) out = out.filter((entry) => entry.platinum <= max);
+    // Per-item prices: a bulk order's listed price covers perTrade items, so a
+    // price range must read the unit price the column shows.
+    if (min != null && min > 0) out = out.filter((entry) => entry.unitPlatinum >= min);
+    if (max != null && max > 0) out = out.filter((entry) => entry.unitPlatinum <= max);
     return out;
   }
 
@@ -437,6 +439,16 @@
     const rankSuffix = ranked && entry.rank != null ? ` (Rank ${entry.rank})` : "";
     const variantSuffix = subtype === "atragraph" ? " (Atragraph)" : "";
     const itemText = `${selected.name}${variantSuffix}${rankSuffix}`;
+    // A bulk order's price is for the whole batch, so the count has to be in the
+    // line or the other player reads it as the price of one item.
+    if (entry.perTrade > 1) {
+      return t(side === "sell" ? "common.whisperBuyBulk" : "common.whisperSellBulk", {
+        user: entry.userName,
+        item: itemText,
+        count: entry.perTrade,
+        platinum: entry.platinum,
+      });
+    }
     if (side === "sell") {
       return t("common.whisperBuy", {
         user: entry.userName,
@@ -957,8 +969,23 @@
                       >{entry.rank != null ? `R${entry.rank}` : "-"}</td
                     >
                   {/if}
-                  <td class="text-right font-display text-base font-bold text-accent"
-                    >{entry.platinum}p</td
+                  <td
+                    class="text-right font-display text-base font-bold text-accent"
+                    data-browse-unit-plat={formatUnitPlatinum(entry.unitPlatinum)}
+                    title={entry.perTrade > 1
+                      ? $translate("orderbook.perTradeTitle", {
+                          platinum: entry.platinum,
+                          count: entry.perTrade,
+                        })
+                      : undefined}
+                    >{formatUnitPlatinum(entry.unitPlatinum)}p{#if entry.perTrade > 1}<span
+                        class="block text-[0.68rem] font-normal text-text-muted"
+                        data-browse-per-trade={entry.perTrade}
+                        >{$translate("orderbook.perTrade", {
+                          count: entry.perTrade,
+                          platinum: entry.platinum,
+                        })}</span
+                      >{/if}</td
                   >
                   <td class="text-right">
                     <button

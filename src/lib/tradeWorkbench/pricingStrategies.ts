@@ -2,7 +2,10 @@ import { isActiveOrderStatus } from "../../../config/shared/wfmOrders.js";
 
 /** One competing sell listing, in the shape the order book already provides. */
 export interface PricingListing {
+  /** Price of one trade as WFM lists it; a bulk order hands over several items. */
   platinum: number;
+  /** platinum / perTrade. Absent on older callers, which then price per trade. */
+  unitPlatinum?: number;
   quantity: number;
   status: string | null;
   userName: string;
@@ -12,6 +15,9 @@ export interface PricingContext {
   sellListings: readonly PricingListing[];
   /** Our own live listing price for this item; null when we are not listed. */
   currentPrice: number | null;
+  /** Items our own listing hands over per trade, so the suggested price comes
+   *  back in the same units as `currentPrice`. Default 1. */
+  ownPerTrade?: number | null;
   /** Excluded from the competition so we never undercut ourselves. */
   ownUserName?: string | null;
   /** Only ingame/online sellers count as competition. Default true. */
@@ -61,6 +67,7 @@ export type StrategyConfig =
 
 interface PriceSuggestionInputs {
   listingsConsidered: number;
+  /** Per-item prices, so bulk and single listings are comparable. */
   cheapest: number | null;
   average?: number;
   currentPrice?: number;
@@ -81,6 +88,18 @@ export interface PriceSuggestion {
   damping?: { applied: true; reason: WorkbenchDampingReason; undampedPrice: number };
 }
 
+/** What a competitor really charges for one item: a 97p order that hands over
+ *  six of them undercuts nobody at 97p. */
+export function listingUnitPrice(listing: PricingListing): number {
+  const unit = listing.unitPlatinum;
+  return typeof unit === "number" && Number.isFinite(unit) && unit > 0 ? unit : listing.platinum;
+}
+
+function ownPerTradeOf(ctx: PricingContext): number {
+  const perTrade = ctx.ownPerTrade;
+  return typeof perTrade === "number" && Number.isInteger(perTrade) && perTrade > 0 ? perTrade : 1;
+}
+
 function competition(ctx: PricingContext): PricingListing[] {
   const activeOnly = ctx.activeOnly !== false;
   const own = ctx.ownUserName ? ctx.ownUserName.toLowerCase() : null;
@@ -88,9 +107,9 @@ function competition(ctx: PricingContext): PricingListing[] {
     .filter((listing) => {
       if (own && listing.userName.toLowerCase() === own) return false;
       if (activeOnly && !isActiveOrderStatus(listing.status)) return false;
-      return listing.platinum > 0;
+      return listingUnitPrice(listing) > 0;
     })
-    .sort((a, b) => a.platinum - b.platinum);
+    .sort((a, b) => listingUnitPrice(a) - listingUnitPrice(b));
 }
 
 /** Null rather than a 1p floor: an input that cannot produce a real ask (a zero
@@ -121,12 +140,16 @@ function applyDamping(
   ctx: PricingContext,
   book: readonly PricingListing[],
   rule: DampingRule,
+  perTrade: number,
 ): PriceSuggestion {
   const current = ctx.currentPrice;
   if (current == null || suggestion.price == null || suggestion.price >= current) {
     return suggestion;
   }
-  const listingsBelow = book.filter((listing) => listing.platinum < current).length;
+  // Both sides in our own listing units, so the plat bounds keep their meaning.
+  const listingsBelow = book.filter(
+    (listing) => listingUnitPrice(listing) * perTrade < current,
+  ).length;
   const inputs: PriceSuggestionInputs = {
     ...suggestion.inputs,
     currentPrice: current,
@@ -164,7 +187,11 @@ export function suggestPrice(
   rule: DampingRule = DEFAULT_DAMPING_RULE,
 ): PriceSuggestion {
   const book = competition(ctx);
-  const cheapest = book.length > 0 ? book[0].platinum : null;
+  const perTrade = ownPerTradeOf(ctx);
+  // Strategies compare per-item prices and hand the result back in the caller's
+  // own trade units, so a single-item listing (the usual case) is unchanged.
+  const listPrice = (unitValue: number): number | null => clampPrice(unitValue * perTrade);
+  const cheapest = book.length > 0 ? listingUnitPrice(book[0]) : null;
 
   if (config.id === "manual") {
     // Manual prices only ever come from the per-row field, so the strategy
@@ -178,10 +205,12 @@ export function suggestPrice(
   }
 
   if (config.id === "target-margin") {
-    const price = clampPrice(Math.ceil(config.costPlat * (1 + config.marginPercent / 100)));
+    // The cost is what one item cost us, so the ask is built per item too.
+    const unitAsk = Math.ceil(config.costPlat * (1 + config.marginPercent / 100));
+    const price = listPrice(unitAsk);
     // Cost-based, so no market damping; confidence drops when the ask sits
     // above the cheapest competitor and is unlikely to move.
-    const overpriced = price != null && cheapest != null && price > cheapest;
+    const overpriced = price != null && cheapest != null && unitAsk > cheapest;
     return {
       strategyId: "target-margin",
       price,
@@ -204,7 +233,7 @@ export function suggestPrice(
     case "match-cheapest":
       suggestion = {
         strategyId: config.id,
-        price: clampPrice(cheapest),
+        price: listPrice(cheapest),
         confidence: marketConfidence(book.length),
         inputs: { listingsConsidered: book.length, cheapest },
       };
@@ -214,7 +243,7 @@ export function suggestPrice(
         strategyId: config.id,
         // A 1p book cannot be undercut, and matching it is still a real ask, so
         // this floor is deliberate rather than a rescued invalid price.
-        price: clampPrice(Math.max(1, cheapest - 1)),
+        price: listPrice(Math.max(1, cheapest - 1)),
         confidence: marketConfidence(book.length),
         inputs: { listingsConsidered: book.length, cheapest },
       };
@@ -222,7 +251,7 @@ export function suggestPrice(
     case "percent-offset":
       suggestion = {
         strategyId: config.id,
-        price: clampPrice(cheapest * (1 + config.percent / 100)),
+        price: listPrice(cheapest * (1 + config.percent / 100)),
         confidence: marketConfidence(book.length),
         inputs: { listingsConsidered: book.length, cheapest },
       };
@@ -230,11 +259,12 @@ export function suggestPrice(
     case "bounded-cheapest-average": {
       const count = Math.max(1, Math.floor(config.count));
       const ceiling = cheapest * (1 + Math.max(0, config.thresholdPercent) / 100);
-      const pool = book.filter((listing) => listing.platinum <= ceiling).slice(0, count);
-      const average = pool.reduce((sum, listing) => sum + listing.platinum, 0) / pool.length;
+      const pool = book.filter((listing) => listingUnitPrice(listing) <= ceiling).slice(0, count);
+      const average =
+        pool.reduce((sum, listing) => sum + listingUnitPrice(listing), 0) / pool.length;
       suggestion = {
         strategyId: config.id,
-        price: clampPrice(average),
+        price: listPrice(average),
         // Confidence follows how much of the requested sample actually exists.
         confidence: round2(Math.min(1, pool.length / count)),
         inputs: { listingsConsidered: pool.length, cheapest, average: round2(average) },
@@ -245,5 +275,5 @@ export function suggestPrice(
 
   // Nothing to damp, and a suggestion with no price carries no confidence.
   if (suggestion.price == null) return { ...suggestion, confidence: 0 };
-  return applyDamping(suggestion, ctx, book, rule);
+  return applyDamping(suggestion, ctx, book, rule, perTrade);
 }

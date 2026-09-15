@@ -26,7 +26,7 @@
     isRankedGroup,
     resolveRankedMaxRank,
   } from "../../../config/shared/numeric.js";
-  import { isActiveOrderStatus } from "../../../config/shared/wfmOrders.js";
+  import { formatUnitPlatinum, isActiveOrderStatus } from "../../../config/shared/wfmOrders.js";
 
   export let item: InventoryViewItem | null = null;
   export let onClose: (() => void) | null = null;
@@ -138,12 +138,16 @@
   $: filteredBuyBase = filterStatus(orderBook?.buy ?? [], onlineIngameOnly);
   $: hiddenSell = (orderBook?.sell.length ?? 0) - filteredSellBase.length;
   $: hiddenBuy = (orderBook?.buy.length ?? 0) - filteredBuyBase.length;
+  // Per-item prices throughout: a bulk order's listed price buys perTrade items,
+  // so comparing listed prices reads a 97p-for-6 order as the best offer.
   $: bestSell =
     filteredSellBase.length > 0
-      ? Math.min(...filteredSellBase.map((entry) => entry.platinum))
+      ? Math.min(...filteredSellBase.map((entry) => entry.unitPlatinum))
       : null;
   $: bestBuy =
-    filteredBuyBase.length > 0 ? Math.max(...filteredBuyBase.map((entry) => entry.platinum)) : null;
+    filteredBuyBase.length > 0
+      ? Math.max(...filteredBuyBase.map((entry) => entry.unitPlatinum))
+      : null;
   $: spread = bestSell != null && bestBuy != null ? bestSell - bestBuy : null;
   $: sellRows = sortEntries(filteredSellBase, "sell", sellSort).slice(0, DISPLAY_ROWS_PER_SIDE);
   $: buyRows = sortEntries(filteredBuyBase, "buy", buySort).slice(0, DISPLAY_ROWS_PER_SIDE);
@@ -281,8 +285,8 @@
   }
 
   function compareBestSide(a: OrderBookEntry, b: OrderBookEntry, side: OrderSide): number {
-    if (a.platinum !== b.platinum) {
-      return side === "sell" ? a.platinum - b.platinum : b.platinum - a.platinum;
+    if (a.unitPlatinum !== b.unitPlatinum) {
+      return side === "sell" ? a.unitPlatinum - b.unitPlatinum : b.unitPlatinum - a.unitPlatinum;
     }
     if (a.quantity !== b.quantity) {
       return b.quantity - a.quantity;
@@ -302,12 +306,12 @@
       }
 
       if (mode === "price_low") {
-        if (a.platinum !== b.platinum) return a.platinum - b.platinum;
+        if (a.unitPlatinum !== b.unitPlatinum) return a.unitPlatinum - b.unitPlatinum;
         return b.quantity - a.quantity;
       }
 
       if (mode === "price_high") {
-        if (a.platinum !== b.platinum) return b.platinum - a.platinum;
+        if (a.unitPlatinum !== b.unitPlatinum) return b.unitPlatinum - a.unitPlatinum;
         return b.quantity - a.quantity;
       }
 
@@ -340,6 +344,16 @@
     if (!item) return "";
     const rankSuffix = isRankedListingItem ? ` (Rank ${entry.rank ?? 0})` : "";
     const itemText = `${item.name}${rankSuffix}`;
+    // A bulk order's price is for the whole batch, so the count has to be in the
+    // line or the other player reads it as the price of one item.
+    if (entry.perTrade > 1) {
+      return $tr(side === "sell" ? "common.whisperBuyBulk" : "common.whisperSellBulk", {
+        user: entry.userName,
+        item: itemText,
+        count: entry.perTrade,
+        platinum: entry.platinum,
+      });
+    }
     if (side === "sell") {
       return $tr("common.whisperBuy", {
         user: entry.userName,
@@ -545,24 +559,30 @@
           <span class="text-xs uppercase tracking-[0.05em] text-text-muted"
             >{$tr("orderbook.bestWts")}</span
           >
-          <strong class="font-display text-xs text-success"
-            >{bestSell != null ? `${bestSell}p` : "-"}</strong
+          <strong
+            class="font-display text-xs text-success"
+            data-orderbook-best-sell={bestSell != null ? formatUnitPlatinum(bestSell) : ""}
+            >{bestSell != null ? `${formatUnitPlatinum(bestSell)}p` : "-"}</strong
           >
         </div>
         <div class="grid gap-0.5 rounded-lg border border-border bg-bg-soft px-2 py-1.5">
           <span class="text-xs uppercase tracking-[0.05em] text-text-muted"
             >{$tr("orderbook.bestWtb")}</span
           >
-          <strong class="font-display text-xs text-danger"
-            >{bestBuy != null ? `${bestBuy}p` : "-"}</strong
+          <strong
+            class="font-display text-xs text-danger"
+            data-orderbook-best-buy={bestBuy != null ? formatUnitPlatinum(bestBuy) : ""}
+            >{bestBuy != null ? `${formatUnitPlatinum(bestBuy)}p` : "-"}</strong
           >
         </div>
         <div class="grid gap-0.5 rounded-lg border border-border bg-bg-soft px-2 py-1.5">
           <span class="text-xs uppercase tracking-[0.05em] text-text-muted"
             >{$tr("orderbook.spread")}</span
           >
-          <strong class="font-display text-xs text-text-primary"
-            >{spread != null ? `${spread}p` : "-"}</strong
+          <strong
+            class="font-display text-xs text-text-primary"
+            data-orderbook-spread={spread != null ? formatUnitPlatinum(spread) : ""}
+            >{spread != null ? `${formatUnitPlatinum(spread)}p` : "-"}</strong
           >
         </div>
       </div>

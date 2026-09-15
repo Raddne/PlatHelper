@@ -15,6 +15,19 @@ function listing(platinum: number, overrides: Partial<PricingListing> = {}): Pri
   return { platinum, quantity: 1, status: "ingame", userName: `seller${platinum}`, ...overrides };
 }
 
+/** A WFM bulk listing: `platinum` buys `perTrade` items at once. */
+function bulkListing(
+  platinum: number,
+  perTrade: number,
+  overrides: Partial<PricingListing> = {},
+): PricingListing {
+  return {
+    ...listing(platinum, overrides),
+    unitPlatinum: Math.round((platinum / perTrade) * 100) / 100,
+    quantity: perTrade * 4,
+  };
+}
+
 function ctx(sell: PricingListing[], overrides: Partial<PricingContext> = {}): PricingContext {
   return { sellListings: sell, currentPrice: null, ...overrides };
 }
@@ -129,6 +142,33 @@ describe("workbench pricing strategies", () => {
       ctx([listing(40)]),
     );
     expect(result.price).toBeNull();
+  });
+
+  it("compares a bulk listing by its per-item price, not its listed price", () => {
+    // 97p buys six, so the competition sits at 16.17p per item, under the 20p single.
+    const book = [bulkListing(97, 6, { userName: "bulk" }), listing(20, { userName: "single" })];
+
+    expect(suggestPrice({ id: "match-cheapest" }, ctx(book)).inputs.cheapest).toBe(16.17);
+    expect(suggestPrice({ id: "match-cheapest" }, ctx(book)).price).toBe(16);
+    expect(suggestPrice({ id: "cheapest-minus-one" }, ctx(book)).price).toBe(15);
+    expect(suggestPrice({ id: "percent-offset", percent: 10 }, ctx(book)).price).toBe(18);
+  });
+
+  it("keeps a dearer bulk listing out of the bounded average", () => {
+    // 240p for two is 120p per item, far outside the 10% ceiling over 100p.
+    const result = suggestPrice(
+      { id: "bounded-cheapest-average", count: 5, thresholdPercent: 10 },
+      ctx([listing(100), listing(110), bulkListing(240, 2, { userName: "bulk" })]),
+    );
+    expect(result.price).toBe(105);
+    expect(result.inputs.listingsConsidered).toBe(2);
+  });
+
+  it("prices our own bulk listing per trade, the way WFM takes it", () => {
+    // The market sits at 20p per item and we hand over six per trade.
+    const result = suggestPrice({ id: "match-cheapest" }, ctx([listing(20)], { ownPerTrade: 6 }));
+    expect(result.price).toBe(120);
+    expect(result.inputs.cheapest).toBe(20);
   });
 
   it("returns null price with zero confidence on an empty book", () => {

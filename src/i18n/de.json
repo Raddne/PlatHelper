@@ -1350,6 +1350,8 @@
   "orderbook.offlineHidden": "{count} offline, vom Filter ausgeblendet",
   "orderbook.noSlug": "Kein Markt-Slug für dieses Item verfügbar.",
   "orderbook.openWfm": "WFM öffnen",
+  "orderbook.perTrade": "{platinum}p für {count}",
+  "orderbook.perTradeTitle": "{platinum}p pro Handel für {count} Stück",
   "orderbook.prepareOrderFailed": "Für dieses Item konnte keine Order vorbereitet werden.",
   "orderbook.profile": "Profil",
   "orderbook.rankOption": "R{rank}",

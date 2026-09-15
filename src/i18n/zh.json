@@ -1064,6 +1064,8 @@
   "orderbook.offlineHidden": "筛选器已隐藏 {count} 个离线订单",
   "orderbook.noSlug": "该物品没有可用的市场标识符。",
   "orderbook.openWfm": "打开 WFM",
+  "orderbook.perTrade": "{count} 件共 {platinum} 白金",
+  "orderbook.perTradeTitle": "每次交易 {count} 件，共 {platinum} 白金",
   "orderbook.prepareOrderFailed": "无法为该物品准备订单。",
   "orderbook.profile": "个人资料",
   "orderbook.rankOption": "R{rank}",

@@ -206,7 +206,7 @@ describe("workbench queue selection", () => {
     );
     // Three listings undercut our 30p listing, so damping lets the drop pass.
     let row = attachMarketData(rows[0], sellBook(28, 28, 29, 31), null, [makeOrder()]);
-    expect(row.existingOrder).toEqual({ id: "order-1", platinum: 30, quantity: 2 });
+    expect(row.existingOrder).toEqual({ id: "order-1", platinum: 30, quantity: 2, perTrade: 1 });
     expect(row.market?.lowestSell).toBe(28);
     expect(row.market?.activeSellers).toBe(4);
 
@@ -224,6 +224,50 @@ describe("workbench queue selection", () => {
       quantity: 5,
       slug: "lex_prime_barrel",
     });
+  });
+
+  it("reads a bulk order at its per-item price on both sides of the book", () => {
+    const items = [makeItem("Lex Prime Barrel")];
+    const rows = buildQueueRows(
+      items,
+      EMPTY_CTX,
+      lookupFor({ name: "Lex Prime Barrel", slug: "lex_prime_barrel" }),
+    );
+    // 97p buys six either way: 16.17p per item undercuts the 20p seller and
+    // loses to the 20p buyer.
+    const bulk = (platinum: number, perTrade: number, userName: string): PricingListing => ({
+      platinum,
+      unitPlatinum: Math.round((platinum / perTrade) * 100) / 100,
+      quantity: perTrade * 4,
+      status: "ingame",
+      userName,
+    });
+    const row = attachMarketData(
+      rows[0],
+      [bulk(97, 6, "bulkSeller"), ...sellBook(20)],
+      [bulk(97, 6, "bulkBuyer"), ...sellBook(20)],
+      [],
+    );
+
+    expect(row.market?.lowestSell).toBe(16.17);
+    expect(row.market?.highestBuy).toBe(20);
+    expect(row.market?.spread).toBeCloseTo(-3.83, 2);
+    expect(applyStrategy(row, { id: "match-cheapest" }, null).suggestion?.price).toBe(16);
+  });
+
+  it("keeps the suggestion in our own listing units when we sell in bulk", () => {
+    const items = [makeItem("Lex Prime Barrel")];
+    const rows = buildQueueRows(
+      items,
+      EMPTY_CTX,
+      lookupFor({ name: "Lex Prime Barrel", slug: "lex_prime_barrel" }),
+    );
+    const order = makeOrder({ platinum: 100, perTrade: 6 });
+    const row = attachMarketData(rows[0], sellBook(20, 21, 22), null, [order]);
+
+    expect(row.existingOrder?.perTrade).toBe(6);
+    // 20p per item across six items, not a 20p trade.
+    expect(applyStrategy(row, { id: "match-cheapest" }, null).suggestion?.price).toBe(120);
   });
 
   it("manual price wins over suggestion, which wins over the existing listing", () => {
@@ -577,7 +621,12 @@ describe("pricing gate and own-order join", () => {
     expect(row.existingOrder).toBeNull();
 
     const [rejoined] = attachExistingOrders([row], [makeOrder()]);
-    expect(rejoined.existingOrder).toEqual({ id: "order-1", platinum: 30, quantity: 2 });
+    expect(rejoined.existingOrder).toEqual({
+      id: "order-1",
+      platinum: 30,
+      quantity: 2,
+      perTrade: 1,
+    });
     expect(rejoined.sellBook).toBe(row.sellBook);
     expect(rejoined.market).toBe(row.market);
     expect(buildPlanFromRows([rejoined], 1000).plan.rows[0].mode).toBe("update");

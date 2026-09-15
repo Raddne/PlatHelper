@@ -16,6 +16,7 @@ import {
   type PlatRange,
 } from "../market/platRange.js";
 import {
+  listingUnitPrice,
   suggestPrice,
   type DampingRule,
   type PriceSuggestion,
@@ -65,7 +66,7 @@ export interface WorkbenchQueueRow {
   overrideAcknowledged: boolean;
   overrideAcknowledgedAt: number | null;
   selected: boolean;
-  existingOrder: { id: string; platinum: number; quantity: number } | null;
+  existingOrder: { id: string; platinum: number; quantity: number; perTrade: number } | null;
   market: WorkbenchMarketInfo | null;
   /** Raw sell book kept on the row so strategies can be re-applied locally. */
   sellBook: readonly PricingListing[] | null;
@@ -333,9 +334,16 @@ function existingOrderOf(
   myOrders: readonly WfmOrder[],
 ): WorkbenchQueueRow["existingOrder"] {
   const existing = matchExistingOrder(row, myOrders);
-  return existing
-    ? { id: existing.id, platinum: existing.platinum, quantity: existing.quantity }
-    : null;
+  if (!existing) return null;
+  // A bulk listing of our own prices per trade, so the strategy needs the
+  // divisor to keep its suggestion in the same units.
+  const perTrade = existing.perTrade ?? 1;
+  return {
+    id: existing.id,
+    platinum: existing.platinum,
+    quantity: existing.quantity,
+    perTrade: Number.isInteger(perTrade) && perTrade > 0 ? perTrade : 1,
+  };
 }
 
 /** Re-joins rows to a freshly fetched own-order list, leaving the market data
@@ -355,11 +363,12 @@ export function attachMarketData(
 ): WorkbenchQueueRow {
   let market: WorkbenchMarketInfo | null = null;
   if (sellBook) {
+    // Per-item prices: a bulk order's listed price covers several items, so the
+    // listed number is not what the row competes against.
     const activeSell = sellBook.filter((entry) => isActiveOrderStatus(entry.status));
-    const lowestSell =
-      activeSell.length > 0 ? Math.min(...activeSell.map((e) => e.platinum)) : null;
+    const lowestSell = activeSell.length > 0 ? Math.min(...activeSell.map(listingUnitPrice)) : null;
     const activeBuy = (buyBook ?? []).filter((entry) => isActiveOrderStatus(entry.status));
-    const highestBuy = activeBuy.length > 0 ? Math.max(...activeBuy.map((e) => e.platinum)) : null;
+    const highestBuy = activeBuy.length > 0 ? Math.max(...activeBuy.map(listingUnitPrice)) : null;
     market = {
       lowestSell,
       highestBuy,
@@ -450,6 +459,7 @@ export function applyStrategy(
     {
       sellListings: row.sellBook,
       currentPrice: row.existingOrder?.platinum ?? null,
+      ownPerTrade: row.existingOrder?.perTrade ?? 1,
       ownUserName,
     },
     damping,
