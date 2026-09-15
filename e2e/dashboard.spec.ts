@@ -1,7 +1,10 @@
 import { test, expect, type Page } from "@playwright/test";
 
+import { DB_GET_WORLD_STATE } from "../config/shared/ipcChannels";
+import type { WorldState } from "../src/types/world";
 import {
   closeElectronTestHarness,
+  evaluateInMain,
   launchElectronTestHarness,
   openView,
   type ElectronTestHarness,
@@ -9,6 +12,23 @@ import {
 
 const LAYOUT_KEY = "wf_layout_v1";
 const DASHBOARD_KEY = "wf_dashboard_v1";
+
+// Normal (not Steel Path, not railjack) fissures, because the widget follows the
+// World tab's mode filter and that store defaults to "normal".
+function fissureWorld(now: number): WorldState {
+  return {
+    fissures: ["Lith", "Meso", "Omnia"].map((tier, index) => ({
+      id: `fissure-${tier.toLowerCase()}`,
+      tier,
+      node: `Node ${tier}`,
+      missionType: "Survival",
+      expiry: new Date(now + 21_600_000 + index * 60_000).toISOString(),
+      expired: false,
+      isHard: false,
+      isStorm: false,
+    })),
+  };
+}
 
 // Every widget reads a store that exists with no inventory and no world state,
 // so the grid renders on a cold sandbox; the panels are empty, not absent.
@@ -125,7 +145,9 @@ test.describe("Dashboard", () => {
     await page.locator('[data-layout-edit-toggle="dashboard"]').click();
     await page.locator('[data-widget-gear="widget.fissures"]').click();
 
-    const input = page.locator('[data-widget-settings="widget.fissures"] [data-widget-setting]');
+    const input = page.locator(
+      '[data-widget-settings="widget.fissures"] [data-widget-setting="limit"]',
+    );
     await expect(input).toHaveValue("5");
     await input.fill("8");
     await input.blur();
@@ -169,5 +191,51 @@ test.describe("Dashboard", () => {
       await expect(page.locator(`[data-widget="${id}"]`)).toHaveCount(1);
     }
     await expect(page.locator('[data-widget="widget.workshop2"]')).toHaveCount(0);
+  });
+
+  // Last in the file: the stubbed world-state handler outlives the test.
+  test("hiding a fissure tier drops only that tier's rows and is persisted", async () => {
+    await evaluateInMain(
+      harness.app,
+      ({ ipcMain }, fixture) => {
+        ipcMain.removeHandler(fixture.channel);
+        ipcMain.handle(fixture.channel, () => fixture.world);
+      },
+      { world: fissureWorld(Date.now()), channel: DB_GET_WORLD_STATE },
+    );
+    await reload();
+    await openView(page, "dashboard");
+
+    const row = (tier: string) =>
+      page.locator(`[data-widget="widget.fissures"] [data-fissure-tier="${tier}"]`);
+    await expect(row("lith")).toHaveCount(1);
+    await expect(row("meso")).toHaveCount(1);
+    await expect(row("omnia")).toHaveCount(1);
+
+    await page.locator('[data-layout-edit-toggle="dashboard"]').click();
+    await page.locator('[data-widget-gear="widget.fissures"]').click();
+    const lith = page.locator(
+      '[data-widget-settings="widget.fissures"] [data-widget-setting="lith"]',
+    );
+    await expect(lith).toBeChecked();
+    await lith.uncheck();
+
+    await expect(row("lith")).toHaveCount(0);
+    await expect(row("meso")).toHaveCount(1);
+    await expect(row("omnia")).toHaveCount(1);
+
+    await expect
+      .poll(() =>
+        page.evaluate((key) => {
+          const raw = localStorage.getItem(key);
+          if (!raw) return null;
+          const parsed = JSON.parse(raw) as {
+            widgets: { id: string; settings?: { lith?: boolean; meso?: boolean } }[];
+          };
+          const settings = parsed.widgets.find((w) => w.id === "widget.fissures")?.settings;
+          return settings ? [settings.lith, settings.meso] : null;
+        }, DASHBOARD_KEY),
+      )
+      .toEqual([false, true]);
   });
 });

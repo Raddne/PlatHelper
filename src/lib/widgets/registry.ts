@@ -25,7 +25,17 @@ export const DASHBOARD_WIDGETS: readonly WidgetDescriptor[] = [
     labelKey: "world.voidFissures",
     defaultSpan: 1,
     allowedSpans: SPAN_ORDER,
-    settings: { limit: "number" },
+    // One toggle per relic tier, named after fissureTierClass so a row's setting
+    // is a lookup by its own tier class. Order follows the tiers in game order.
+    settings: {
+      limit: "number",
+      lith: "boolean",
+      meso: "boolean",
+      neo: "boolean",
+      axi: "boolean",
+      requiem: "boolean",
+      omnia: "boolean",
+    },
     canPopout: true,
   },
   {
@@ -104,11 +114,23 @@ export const WIDGET_HOME_VIEWS: Readonly<Record<string, SidebarViewName>> = {
 export const WIDGET_SETTING_LABEL_KEYS: Readonly<Record<string, MessageKey>> = {
   limit: "dashboard.rowLimit",
   allTradables: "inventory.value.allTradables",
+  lith: "relics.tier.lith",
+  meso: "relics.tier.meso",
+  neo: "relics.tier.neo",
+  axi: "relics.tier.axi",
+  requiem: "relics.tier.requiem",
+  omnia: "relics.tier.omnia",
 };
 
 export const WIDGET_SETTING_DEFAULTS: Readonly<Record<string, boolean | number | string>> = {
   limit: 5,
   allTradables: false,
+  lith: true,
+  meso: true,
+  neo: true,
+  axi: true,
+  requiem: true,
+  omnia: true,
 };
 
 /** Inclusive bounds for numeric settings; a stored value outside them is clamped. */
