@@ -863,6 +863,18 @@ function inheritSentinelWeaponVaulting(): void {
   }
 }
 
+// Venari drops from no relic, so WFCD never vaults her; she follows the Khora she ships with.
+const COMPANION_FRAME_PATTERN = /^\/Lotus\/Powersuits\/([^/]+)\/Kavat\/\1(Prime)?KavatPowerSuit$/;
+
+function inheritCompanionFrameVaulting(): void {
+  for (const [uniqueName, entry] of Object.entries(itemsByUniqueName)) {
+    const match = COMPANION_FRAME_PATTERN.exec(uniqueName);
+    if (!match) continue;
+    const frame = itemsByUniqueName[`/Lotus/Powersuits/${match[1]}/${match[1]}${match[2] ?? ""}`];
+    if (frame?.vaulted) entry.vaulted = true;
+  }
+}
+
 // WFCD inherits false resource tradability for crafted mech parts.
 function applyMechPartTradability(): void {
   let fixed = 0;
@@ -893,6 +905,7 @@ export function buildDatabase(): void {
   buildRecipeIndex();
   const wfcdCount = loadWfcdItems();
   inheritSentinelWeaponVaulting();
+  inheritCompanionFrameVaulting();
   applyMechPartTradability();
   linkBlueprintsToResults();
   inheritBlueprintDisplayFromResults();
