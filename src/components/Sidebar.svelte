@@ -19,6 +19,7 @@
     SIDEBAR_RAIL_WIDTH,
     SIDEBAR_WIDTH_MAX,
   } from "../stores/sidebarTabs.js";
+  import { themeSettings } from "../stores/theme.js";
   import { resetTourAutoStart } from "../stores/tour.js";
   import type { MessageKey } from "../lib/i18n.js";
   import { VIEW_LABEL_KEYS, type SidebarViewName } from "../lib/viewRegistry.js";
@@ -52,6 +53,13 @@
 
   const narrowRail = typeof window === "undefined" ? null : window.matchMedia("(max-width: 800px)");
 
+  // The rail carries rem-sized icons and padding, so it has to follow the font
+  // scale: at a fixed 60px the icon is wider than the button and preflight's
+  // img max-width shrinks it. The expanded width stays the px the user dragged.
+  function railScaledWidth(px: number, fontScale: number): number {
+    return px <= SIDEBAR_RAIL_WIDTH ? Math.round(px * fontScale) : px;
+  }
+
   // Publish the width globally so the content area and any other consumer of
   // var(--sidebar-width) reflow with it. Under 800px responsive.css pins the icon
   // rail, so the inline value is dropped there rather than fighting its :root rule.
@@ -82,10 +90,11 @@
     });
   }
 
-  $: applyWidthVar(effectiveWidth);
+  $: renderedWidth = railScaledWidth(effectiveWidth, $themeSettings.fontSizes.globalScale);
+  $: applyWidthVar(renderedWidth);
 
   onMount(() => {
-    const onBreakpoint = (): void => applyWidthVar(effectiveWidth);
+    const onBreakpoint = (): void => applyWidthVar(renderedWidth);
     narrowRail?.addEventListener("change", onBreakpoint);
     return () => {
       narrowRail?.removeEventListener("change", onBreakpoint);
@@ -381,14 +390,23 @@
     padding-right: 0.5rem;
     gap: 0;
   }
+  /* Preflight caps an img at its own box, so the scrollbar the taller rows add
+     would shrink the icon below its expanded size. The rail has room for it. */
+  .sidebar-collapsed :global(.nav-btn img) {
+    max-width: none;
+  }
   @media (max-width: 800px) {
     .nav-btn :global(span) {
       display: none;
     }
+    /* Same padding and icon sizing as the collapsed rail. */
     .nav-btn {
       justify-content: center;
-      padding-left: 0.625rem;
-      padding-right: 0.625rem;
+      padding-left: 0.5rem;
+      padding-right: 0.5rem;
+    }
+    .nav-btn :global(img) {
+      max-width: none;
     }
   }
 </style>

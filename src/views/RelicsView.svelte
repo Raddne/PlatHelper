@@ -637,10 +637,9 @@
     {$tr("relics.title", { count: groups.length })}
   </h2>
   <div class="view-sticky-filters mb-4" data-tour="relic-filters">
-    <div
-      class="flex flex-wrap items-end border-b border-border-subtle min-[1800px]:flex-nowrap"
-      data-relic-filter-row
-    >
+    <!-- Both halves stay wrappable: pinned to one line the controls overflow
+         their own box leftwards (justify-end) and land on top of the tabs. -->
+    <div class="flex flex-wrap items-end border-b border-border-subtle" data-relic-filter-row>
       <div class="shrink-0" data-relic-tier-tabs>
         <HeaderTabs
           options={TIER_TABS}
@@ -649,7 +648,7 @@
         />
       </div>
       <div
-        class="ml-auto flex min-w-0 flex-wrap items-center justify-end gap-1.5 pb-2 min-[1800px]:flex-nowrap"
+        class="ml-auto flex min-w-0 flex-wrap items-center justify-end gap-1.5 pb-2"
         data-relic-filter-controls
       >
         <SearchBox
