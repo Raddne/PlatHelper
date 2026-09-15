@@ -1127,31 +1127,6 @@
     background: color-mix(in srgb, var(--world-state-fear-text) 10%, transparent);
   }
 
-  .world-badge-lith {
-    background: color-mix(in srgb, var(--world-badge-lith-text) 12%, transparent);
-    color: var(--world-badge-lith-text);
-  }
-  .world-badge-meso {
-    background: color-mix(in srgb, var(--world-badge-meso-text) 18%, transparent);
-    color: var(--world-badge-meso-text);
-  }
-  .world-badge-neo {
-    background: color-mix(in srgb, var(--world-badge-neo-text) 12%, transparent);
-    color: var(--world-badge-neo-text);
-  }
-  .world-badge-axi {
-    background: color-mix(in srgb, var(--world-badge-axi-text) 12%, transparent);
-    color: var(--world-badge-axi-text);
-  }
-  .world-badge-requiem {
-    background: color-mix(in srgb, var(--world-badge-requiem-text) 14%, transparent);
-    color: var(--world-badge-requiem-text);
-  }
-  .world-badge-omnia {
-    background: color-mix(in srgb, var(--world-badge-omnia-text) 12%, transparent);
-    color: var(--world-badge-omnia-text);
-  }
-
   /* Faction colors shared with child world components. */
   :global(.world-faction-grineer) {
     color: var(--world-faction-grineer);
