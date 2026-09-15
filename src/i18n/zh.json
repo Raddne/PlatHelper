@@ -2051,6 +2051,8 @@
   "marketAlerts.section.delivery": "通知方式",
   "marketAlerts.cooldownShort": "冷却 {minutes} 分钟",
   "marketAlerts.clearCooldown": "解除冷却",
+  "marketAlerts.noCooldown": "无冷却",
+  "marketAlerts.noCooldownHint": "每次出现新匹配时立即通知，不再等待",
   "marketAlerts.cooldownLeft": "剩余 {minutes} 分钟",
   "marketAlerts.lastHitAt": "上次命中 {time}",
   "marketAlerts.sellSelection": "批量出售选择",

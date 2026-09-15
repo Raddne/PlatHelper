@@ -111,6 +111,9 @@ export interface MarketAlertRule {
   enabled: boolean;
   /** Minutes a rule stays quiet after it fires. */
   cooldownMinutes: number;
+  /** No quiet window at all; every new listing pings. cooldownMinutes is kept so
+   *  switching back restores the window the user had. */
+  noCooldown: boolean;
   riven?: RivenAlertMatch;
   item?: ItemAlertMatch;
   baro?: BaroAlertMatch;
@@ -529,6 +532,7 @@ const RULE_KEYS = [
   "kind",
   "enabled",
   "cooldownMinutes",
+  "noCooldown",
   "riven",
   "item",
   "baro",
@@ -561,6 +565,9 @@ export function parseMarketAlertRule(
   if (value.enabled !== undefined && typeof value.enabled !== "boolean") {
     return fail("rule enabled must be a boolean");
   }
+  if (value.noCooldown !== undefined && typeof value.noCooldown !== "boolean") {
+    return fail("rule noCooldown must be a boolean");
+  }
   const cooldown = readOptionalInt(
     value,
     "cooldownMinutes",
@@ -575,6 +582,8 @@ export function parseMarketAlertRule(
     kind,
     enabled: value.enabled !== false,
     cooldownMinutes: cooldown.value ?? MARKET_ALERT_DEFAULT_COOLDOWN_MINUTES,
+    // Opt-in, so a rules file written before the toggle existed keeps its window.
+    noCooldown: value.noCooldown === true,
   };
 
   // Exactly the section its kind names, so a rule cannot carry a hidden second
@@ -627,6 +636,7 @@ export function buildMarketAlertExport(rules: readonly MarketAlertRule[]): Marke
         kind: rule.kind,
         enabled: rule.enabled,
         cooldownMinutes: rule.cooldownMinutes,
+        noCooldown: rule.noCooldown,
       };
       if (rule.riven) copy.riven = rule.riven;
       if (rule.item) copy.item = rule.item;

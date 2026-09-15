@@ -646,6 +646,80 @@ describe("cooldown and dedup", () => {
     expect(mocks.dispatchMock).toHaveBeenCalledTimes(2);
   });
 
+  it("starts no quiet window for a no-cooldown rule, but still dedups", async () => {
+    vi.useFakeTimers();
+    mocks.requestMock.mockResolvedValue(auctionPayload([{ id: "first" }]));
+    saveOk(rivenRuleRaw({ noCooldown: true }));
+    initEngine();
+    await runMarketAlertTickForTest();
+    expect(mocks.dispatchMock).toHaveBeenCalledTimes(1);
+    expect(getMarketAlertCooldowns()["rule-riven"]).toBeUndefined();
+
+    // Only the eval spacing passes; a 60 minute window would have muted this.
+    mocks.requestMock.mockResolvedValue(auctionPayload([{ id: "second" }]));
+    await vi.advanceTimersByTimeAsync(5 * 60_000);
+    await runMarketAlertTickForTest();
+    expect(mocks.dispatchMock).toHaveBeenCalledTimes(2);
+    expect(getMarketAlertCooldowns()["rule-riven"]).toBeUndefined();
+
+    // The same listing at the same price is still only ever announced once.
+    // Counting requests would count the loop's own ticks, which run free here.
+    await vi.advanceTimersByTimeAsync(5 * 60_000);
+    await runMarketAlertTickForTest();
+    expect(mocks.requestMock.mock.calls.length).toBeGreaterThan(2);
+    expect(mocks.dispatchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("drops a running cooldown when the rule is saved with the window off", async () => {
+    vi.useFakeTimers();
+    mocks.requestMock.mockResolvedValue(auctionPayload([{ id: "first" }]));
+    saveOk(rivenRuleRaw());
+    initEngine();
+    await runMarketAlertTickForTest();
+    expect(getMarketAlertCooldowns()["rule-riven"]).toBeGreaterThan(Date.now());
+
+    saveOk(rivenRuleRaw({ noCooldown: true }));
+    expect(getMarketAlertCooldowns()["rule-riven"]).toBeUndefined();
+
+    mocks.requestMock.mockResolvedValue(auctionPayload([{ id: "second" }]));
+    await runMarketAlertTickForTest();
+    expect(mocks.dispatchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("keeps the quiet window for a rules file written before the toggle existed", async () => {
+    vi.useFakeTimers();
+    fs.writeFileSync(
+      path.join(tmpDir, "market-alert-rules.json"),
+      JSON.stringify({
+        schema: 1,
+        rules: [
+          {
+            id: "rule-riven",
+            name: "Legacy Boar",
+            kind: "riven",
+            enabled: true,
+            cooldownMinutes: 60,
+            riven: {
+              weaponUrlName: "rubico",
+              requirePositive: ["critical_chance"],
+              excludeAttributes: [],
+              statBounds: [],
+            },
+          },
+        ],
+        bindings: { "rule-riven": { native: true } },
+        ownedCounts: {},
+      }),
+      "utf8",
+    );
+
+    expect(listMarketAlertRules().rules[0].noCooldown).toBe(false);
+    mocks.requestMock.mockResolvedValue(auctionPayload([{ id: "first" }]));
+    initEngine();
+    await runMarketAlertTickForTest();
+    expect(getMarketAlertCooldowns()["rule-riven"]).toBeGreaterThan(Date.now());
+  });
+
   it("refuses to clear the cooldown of a rule it does not have", () => {
     saveOk(rivenRuleRaw());
     expect(clearMarketAlertCooldown("no-such-rule")).toBe(false);

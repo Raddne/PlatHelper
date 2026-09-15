@@ -2052,6 +2052,8 @@
   "marketAlerts.section.delivery": "Zustellung",
   "marketAlerts.cooldownShort": "Abklingzeit {minutes} Min.",
   "marketAlerts.clearCooldown": "Abklingzeit aufheben",
+  "marketAlerts.noCooldown": "Keine Abklingzeit",
+  "marketAlerts.noCooldownHint": "Meldet jeden neuen Treffer sofort statt zu warten",
   "marketAlerts.cooldownLeft": "noch {minutes} Min.",
   "marketAlerts.lastHitAt": "Letzter Treffer {time}",
   "marketAlerts.sellSelection": "Auswahl für Massenverkauf",

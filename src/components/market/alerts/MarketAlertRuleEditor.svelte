@@ -73,6 +73,7 @@
   let cooldownMinutes = $state(
     initialRule?.cooldownMinutes ?? MARKET_ALERT_DEFAULT_COOLDOWN_MINUTES,
   );
+  let noCooldown = $state(initialRule?.noCooldown === true);
   let native = $state(initialBinding?.native !== false);
   let enabled = $state(initialRule?.enabled !== false);
   // Key and params, never a resolved string: a language switch while the editor
@@ -362,6 +363,7 @@
       kind,
       enabled,
       cooldownMinutes: Number(cooldownMinutes) || MARKET_ALERT_DEFAULT_COOLDOWN_MINUTES,
+      noCooldown,
     };
     if (rule?.id) input.id = rule.id;
     if (kind === "riven") {
@@ -845,39 +847,47 @@
   >
     <h4 class={sectionTitle}>{$tr("marketAlerts.section.delivery")}</h4>
     <div class="grid gap-3 md:grid-cols-2">
-      <label class="flex flex-col gap-1 text-sm">
-        <span class="text-text-secondary">{$tr("marketAlerts.cooldownMinutes")}</span>
-        <ThemedInput
-          type="number"
-          min={MARKET_ALERT_MIN_COOLDOWN_MINUTES}
-          max={MARKET_ALERT_MAX_COOLDOWN_MINUTES}
-          bind:value={cooldownMinutes}
-        />
-        <span class="text-xs text-text-muted" data-alert-cooldown-hint>
-          {$tr("marketAlerts.cooldownHint", {
-            min: MARKET_ALERT_MIN_COOLDOWN_MINUTES,
-            max: MARKET_ALERT_MAX_COOLDOWN_MINUTES,
-          })}
-        </span>
-        <!-- Also on the card, but a muted rule is usually reopened here. -->
-        {#if initialRule && onClearCooldown}
-          <span class="flex items-center gap-2">
-            <button
-              type="button"
-              class="btn-secondary btn-sm"
-              disabled={cooldownLeftMs <= 0}
-              data-alert-editor-clear-cooldown
-              onclick={() => onClearCooldown(initialRule)}
-              >{$tr("marketAlerts.clearCooldown")}</button
-            >
-            {#if cooldownLeftMs > 0}
-              <span class="text-xs text-text-muted" data-alert-editor-cooldown-left
-                >{$tr("marketAlerts.cooldownLeft", { minutes: cooldownLeftMinutes })}</span
-              >
-            {/if}
+      <div class="flex flex-col gap-1">
+        <label class="flex flex-col gap-1 text-sm">
+          <span class="text-text-secondary">{$tr("marketAlerts.cooldownMinutes")}</span>
+          <ThemedInput
+            type="number"
+            min={MARKET_ALERT_MIN_COOLDOWN_MINUTES}
+            max={MARKET_ALERT_MAX_COOLDOWN_MINUTES}
+            disabled={noCooldown}
+            bind:value={cooldownMinutes}
+          />
+          <span class="text-xs text-text-muted" data-alert-cooldown-hint>
+            {$tr("marketAlerts.cooldownHint", {
+              min: MARKET_ALERT_MIN_COOLDOWN_MINUTES,
+              max: MARKET_ALERT_MAX_COOLDOWN_MINUTES,
+            })}
           </span>
-        {/if}
-      </label>
+          <!-- Also on the card, but a muted rule is usually reopened here. -->
+          {#if initialRule && onClearCooldown}
+            <span class="flex items-center gap-2">
+              <button
+                type="button"
+                class="btn-secondary btn-sm"
+                disabled={cooldownLeftMs <= 0 || noCooldown}
+                data-alert-editor-clear-cooldown
+                onclick={() => onClearCooldown(initialRule)}
+                >{$tr("marketAlerts.clearCooldown")}</button
+              >
+              {#if cooldownLeftMs > 0}
+                <span class="text-xs text-text-muted" data-alert-editor-cooldown-left
+                  >{$tr("marketAlerts.cooldownLeft", { minutes: cooldownLeftMinutes })}</span
+                >
+              {/if}
+            </span>
+          {/if}
+        </label>
+        <label class="flex items-center gap-1.5 text-sm">
+          <input type="checkbox" data-alert-no-cooldown-editor bind:checked={noCooldown} />
+          {$tr("marketAlerts.noCooldown")}
+        </label>
+        <span class="text-xs text-text-muted">{$tr("marketAlerts.noCooldownHint")}</span>
+      </div>
       {#if kind === "item"}
         <label class="flex flex-col gap-1 text-sm">
           <span class="text-text-secondary">{$tr("marketAlerts.sellSelection")}</span>

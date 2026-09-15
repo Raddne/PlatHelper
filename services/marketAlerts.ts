@@ -714,7 +714,9 @@ async function runRule(rule: MarketAlertRule): Promise<void> {
     markSeen(rule.id, outcome.keys);
     recordHits(outcome.hits);
     notify(rule, outcome.hits);
-    _cooldownUntil.set(rule.id, now + rule.cooldownMinutes * 60_000);
+    // A no-cooldown rule keeps only the seen-key dedupe, so the next NEW listing
+    // pings on the normal eval cadence instead of waiting out a quiet window.
+    if (!rule.noCooldown) _cooldownUntil.set(rule.id, now + rule.cooldownMinutes * 60_000);
     emitChanged();
     log.info(`Rule "${rule.name}" fired with ${outcome.hits.length} new hit(s)`);
   } catch (err) {

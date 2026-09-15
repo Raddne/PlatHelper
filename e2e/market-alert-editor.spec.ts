@@ -1,4 +1,5 @@
 import fs from "node:fs";
+import path from "node:path";
 
 import { test, expect } from "@playwright/test";
 
@@ -99,6 +100,64 @@ test("the riven alert editor offers stat layouts and clamps the rank fields", as
     await expect(mastery).toHaveValue("16");
 
     expect(rendererErrors).toEqual([]);
+  } finally {
+    await harness.app.close();
+    fs.rmSync(harness.sandboxDir, { recursive: true, force: true });
+  }
+});
+
+test("the card's no cooldown toggle persists and mutes the minutes field", async () => {
+  const harness = await launchElectronTestHarness("wfh-alert-no-cooldown-", {
+    userDataFiles: { "market-alert-rules.json": SEEDED_RULES },
+  });
+  const page = harness.page;
+
+  try {
+    await openView(page, "market");
+    await page.locator('#content [data-tour-tab="alerts"]').first().click();
+
+    const toggle = page.locator(`[data-alert-no-cooldown="${SEED_RULE_ID}"]`);
+    await expect(toggle).toHaveCount(1, { timeout: 30_000 });
+    await expect(toggle).not.toBeChecked();
+    await toggle.check();
+
+    // With no quiet window there is nothing to clear, so the button goes.
+    await expect(page.locator(`[data-alert-clear-cooldown="${SEED_RULE_ID}"]`)).toHaveCount(0);
+    await page.screenshot({ path: test.info().outputPath("alert-no-cooldown-card.png") });
+
+    const saved = JSON.parse(
+      fs.readFileSync(
+        path.join(harness.sandboxDir, "user-data", "market-alert-rules.json"),
+        "utf8",
+      ),
+    ) as { rules: Array<{ id: string; noCooldown?: boolean; cooldownMinutes?: number }> };
+    const savedRule = saved.rules.find((rule) => rule.id === SEED_RULE_ID);
+    expect(savedRule?.noCooldown).toBe(true);
+    // The minutes stay behind the toggle so switching back restores them.
+    expect(savedRule?.cooldownMinutes).toBe(60);
+
+    // The same list route the view runs on mount.
+    await openView(page, "settings");
+    await openView(page, "market");
+    await page.locator('#content [data-tour-tab="alerts"]').first().click();
+    await expect(page.locator(`[data-alert-no-cooldown="${SEED_RULE_ID}"]`)).toBeChecked({
+      timeout: 30_000,
+    });
+
+    await page.locator(`[data-alert-edit="${SEED_RULE_ID}"]`).click();
+    const editor = page.locator('[data-testid="alert-rule-editor"]');
+    await expect(editor).toBeVisible({ timeout: 30_000 });
+    const editorToggle = editor.locator("[data-alert-no-cooldown-editor]");
+    await editorToggle.scrollIntoViewIfNeeded();
+    await expect(editorToggle).toBeChecked();
+
+    const minutes = editor.locator('input[type="number"][max="1440"]').first();
+    await expect(minutes).toBeDisabled();
+    await expect(editor.locator("[data-alert-editor-clear-cooldown]")).toBeDisabled();
+    await page.screenshot({ path: test.info().outputPath("alert-no-cooldown-editor.png") });
+
+    await editorToggle.uncheck();
+    await expect(minutes).toBeEnabled();
   } finally {
     await harness.app.close();
     fs.rmSync(harness.sandboxDir, { recursive: true, force: true });

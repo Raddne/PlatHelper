@@ -124,6 +124,19 @@
     await refresh();
   }
 
+  // Saving is what drops a running cooldown, so the toggle needs no extra call.
+  async function setNoCooldown(rule: MarketAlertRule, value: boolean): Promise<void> {
+    const result = await invoke("marketAlertsSave", {
+      rule: { ...structuredClone($state.snapshot(rule)), noCooldown: value },
+      ...(bindings[rule.id] ? { binding: $state.snapshot(bindings[rule.id]) } : {}),
+    });
+    if (!result.ok) {
+      addToast({ level: "warning", message: result.error ?? $tr("marketAlerts.saveFailed") });
+      return;
+    }
+    await refresh();
+  }
+
   async function deleteRule(rule: MarketAlertRule): Promise<void> {
     if (!(await confirmWithDialog($tr("marketAlerts.deleteConfirm"), $tr))) return;
     const result = await invoke("marketAlertsDelete", rule.id);
@@ -389,6 +402,7 @@
           onSelect={selectRule}
           onToggle={(rule) => void toggleRule(rule)}
           onClearCooldown={(rule) => void clearCooldown(rule)}
+          onSetNoCooldown={(rule, value) => void setNoCooldown(rule, value)}
           onEdit={editRule}
           onDuplicate={(rule) => void duplicateRule(rule)}
           onDelete={(rule) => void deleteRule(rule)}
