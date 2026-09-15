@@ -172,6 +172,48 @@ function inventoryCouldHoldOrder(
   return !isResourceItem(gameRef, dbEntry, resolved);
 }
 
+interface OrderBacking {
+  /** Inventory rows that can fulfil the listing as written. */
+  rows: ParsedItem[];
+  /** Set only when the listing pins a rank no owned copy sits at. */
+  rankMismatch: number | null;
+}
+
+/** The inventory the listing may draw on, narrowed by the refinement and the
+ *  rank it pins. Empty rows plus no mismatch means nothing backs it at all. */
+function orderBacking(
+  order: WfmOrder,
+  parsedItems: ParsedItem[],
+  wfmItems: WfmItemsLookup,
+): OrderBacking {
+  let owned = matchingParsedItems(order, parsedItems, wfmItems).filter(
+    (item) => ownedCountForOrder(item) > 0,
+  );
+  // A refinement-specific listing is only backed by that refinement; an intact
+  // stack cannot fulfil a radiant order.
+  const orderSubtype = typeof order.subtype === "string" ? order.subtype.toLowerCase() : null;
+  if (orderSubtype && RELIC_REFINEMENT_RE.exec(`${order.itemName} (${orderSubtype})`)) {
+    owned = owned.filter((item) => relicQualityForItem(item) === orderSubtype);
+  }
+  if (owned.length === 0 || order.modRank == null) return { rows: owned, rankMismatch: null };
+
+  // A rank the inventory did not carry would reach the badge as "Rank NaN".
+  const ranked = owned.filter(
+    (item) => isRankedGroup(item.inventoryGroup) && Number.isFinite(item.rank),
+  );
+  if (ranked.length === 0) return { rows: owned, rankMismatch: null };
+  const listedRank = Math.max(0, Math.floor(order.modRank));
+  const atRank = ranked.filter((item) => Math.floor(item.rank) === listedRank);
+  if (atRank.length > 0) return { rows: atRank, rankMismatch: null };
+  return { rows: [], rankMismatch: Math.floor(ranked[0].rank) };
+}
+
+/** A stack split across rows still backs one listing, so the rows that survive
+ *  the rank and refinement checks are summed rather than read one at a time. */
+function backedOwnedCount(backing: OrderBacking): number {
+  return backing.rows.reduce((sum, item) => sum + ownedCountForOrder(item), 0);
+}
+
 /** Whether a live sell order is still backed by the inventory. "match" doubles
  *  as "no opinion" so an unprovable listing is never accused of being dead. */
 export function orderInventoryMatch(
@@ -182,39 +224,47 @@ export function orderInventoryMatch(
 ): ListingInventoryMatch {
   if (order.orderType !== "sell") return { state: "match" };
 
-  let owned = matchingParsedItems(order, parsedItems, wfmItems).filter(
-    (item) => ownedCountForOrder(item) > 0,
-  );
-  // A refinement-specific listing is only backed by that refinement; an intact
-  // stack cannot fulfil a radiant order.
-  const orderSubtype = typeof order.subtype === "string" ? order.subtype.toLowerCase() : null;
-  if (orderSubtype && RELIC_REFINEMENT_RE.exec(`${order.itemName} (${orderSubtype})`)) {
-    owned = owned.filter((item) => relicQualityForItem(item) === orderSubtype);
+  const backing = orderBacking(order, parsedItems, wfmItems);
+  if (backing.rankMismatch !== null) {
+    return { state: "rank-mismatch", ownedRank: backing.rankMismatch };
   }
-  if (owned.length === 0) {
+  if (backing.rows.length === 0) {
     return inventoryCouldHoldOrder(order, wfmItems, itemDb)
       ? { state: "missing" }
       : { state: "match" };
   }
 
   const listed = toFinitePositiveInt(order.quantity) ?? 1;
-  // A stack split across rank rows still backs one listing, so the rows that
-  // survive the rank check are summed rather than read one at a time.
-  const backing = (rows: ParsedItem[]): ListingInventoryMatch => {
-    const total = rows.reduce((sum, item) => sum + ownedCountForOrder(item), 0);
-    return total < listed ? { state: "partial", owned: total, listed } : { state: "match" };
-  };
+  const total = backedOwnedCount(backing);
+  return total < listed ? { state: "partial", owned: total, listed } : { state: "match" };
+}
 
-  if (order.modRank == null) return backing(owned);
-  // A rank the inventory did not carry would reach the badge as "Rank NaN".
-  const ranked = owned.filter(
-    (item) => isRankedGroup(item.inventoryGroup) && Number.isFinite(item.rank),
-  );
-  if (ranked.length === 0) return backing(owned);
-  const listedRank = Math.max(0, Math.floor(order.modRank));
-  const atRank = ranked.filter((item) => Math.floor(item.rank) === listedRank);
-  if (atRank.length > 0) return backing(atRank);
-  return { state: "rank-mismatch", ownedRank: Math.floor(ranked[0].rank) };
+interface QuantitySyncPlan {
+  updates: Array<{ order: WfmOrder; quantity: number }>;
+  /** Sell listings already at the owned count. */
+  unchanged: number;
+  /** Sell listings the inventory cannot back, left alone. */
+  unbacked: number;
+}
+
+/** Splits sell listings into the ones whose quantity should follow the owned
+ *  count and the ones that must not be touched. Buy orders need no stock. */
+export function planQuantitySync(
+  orders: readonly WfmOrder[],
+  parsedItems: ParsedItem[],
+  wfmItems: WfmItemsLookup = {},
+): QuantitySyncPlan {
+  const plan: QuantitySyncPlan = { updates: [], unchanged: 0, unbacked: 0 };
+  for (const order of orders) {
+    if (order.orderType !== "sell") continue;
+    const owned = backedOwnedCount(orderBacking(order, parsedItems, wfmItems));
+    // Zero is never sent: warframe.market reads it as a delete, and an item the
+    // inventory cannot prove is not evidence the user sold out.
+    if (owned <= 0) plan.unbacked += 1;
+    else if (owned === order.quantity) plan.unchanged += 1;
+    else plan.updates.push({ order, quantity: owned });
+  }
+  return plan;
 }
 
 export function buildMarketOrderInventoryItem(

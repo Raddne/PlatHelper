@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   orderInventoryMatch,
   ownedCountForMarketOrder,
+  planQuantitySync,
 } from "../../../src/lib/marketOrderInventory.js";
 import { applySharedFiltersAndSort } from "../../../src/lib/filters.js";
 import type { SharedFiltersState } from "../../../src/types/filters.js";
@@ -278,6 +279,102 @@ describe("orderInventoryMatch", () => {
     const inventory = [parsedItem({ inventoryGroup: "all_parts", rank: 0 })];
     expect(orderInventoryMatch(listing, inventory, catalog(PART_REF), {})).toEqual({
       state: "match",
+    });
+  });
+});
+
+function arcane(rank: number, amount: number): ParsedItem {
+  return parsedItem({ name: "Arcane Energize", rank, amount, inventoryGroup: "arcanes" });
+}
+
+function arcaneOrder(overrides: Partial<WfmOrder>): WfmOrder {
+  return order({
+    itemName: "Arcane Energize",
+    itemUrlName: "arcane_energize",
+    ...overrides,
+  });
+}
+
+describe("planQuantitySync", () => {
+  it("moves a listing to the owned count", () => {
+    const listing = order({ quantity: 1 });
+    expect(planQuantitySync([listing], [parsedItem({ amount: 3 })])).toEqual({
+      updates: [{ order: listing, quantity: 3 }],
+      unchanged: 0,
+      unbacked: 0,
+    });
+  });
+
+  it("counts a listing already at the owned count as unchanged", () => {
+    const listing = order({ quantity: 3 });
+    expect(planQuantitySync([listing], [parsedItem({ amount: 3 })])).toEqual({
+      updates: [],
+      unchanged: 1,
+      unbacked: 0,
+    });
+  });
+
+  it("never zeroes a listing the inventory cannot prove", () => {
+    const listing = order({ itemName: "Ash Prime Systems", quantity: 4 });
+    expect(planQuantitySync([listing], [])).toEqual({
+      updates: [],
+      unchanged: 0,
+      unbacked: 1,
+    });
+  });
+
+  it("leaves buy orders out of the plan entirely", () => {
+    const listing = order({ orderType: "buy", quantity: 1 });
+    expect(planQuantitySync([listing], [parsedItem({ amount: 3 })])).toEqual({
+      updates: [],
+      unchanged: 0,
+      unbacked: 0,
+    });
+  });
+
+  it("counts only the copies at the listed rank for a ranked arcane", () => {
+    // The condensed stack is the point of the feature: rank 3 copies back a
+    // rank 3 listing, the unranked ones do not.
+    const listing = arcaneOrder({ modRank: 3, quantity: 1 });
+    expect(planQuantitySync([listing], [arcane(0, 7), arcane(3, 4)])).toEqual({
+      updates: [{ order: listing, quantity: 4 }],
+      unchanged: 0,
+      unbacked: 0,
+    });
+  });
+
+  it("treats a rank nothing sits at as unbacked rather than zero", () => {
+    const listing = arcaneOrder({ modRank: 5, quantity: 2 });
+    expect(planQuantitySync([listing], [arcane(0, 7)])).toEqual({
+      updates: [],
+      unchanged: 0,
+      unbacked: 1,
+    });
+  });
+
+  it("sums the rows that back one unranked listing", () => {
+    const listing = order({ quantity: 2 });
+    const inventory = [parsedItem({ amount: 3 }), parsedItem({ amount: 1 })];
+    expect(planQuantitySync([listing], inventory)).toEqual({
+      updates: [{ order: listing, quantity: 4 }],
+      unchanged: 0,
+      unbacked: 0,
+    });
+  });
+
+  it("reports each bucket across a mixed selection", () => {
+    const grow = order({ id: "1".repeat(24), quantity: 1 });
+    const steady = arcaneOrder({ id: "2".repeat(24), modRank: 3, quantity: 4 });
+    const unknown = order({
+      id: "3".repeat(24),
+      itemName: "Ash Prime Systems",
+      itemUrlName: "ash_prime_systems",
+    });
+    const inventory = [parsedItem({ amount: 3 }), arcane(3, 4)];
+    expect(planQuantitySync([grow, steady, unknown], inventory)).toEqual({
+      updates: [{ order: grow, quantity: 3 }],
+      unchanged: 1,
+      unbacked: 1,
     });
   });
 });

@@ -94,6 +94,7 @@
     buildMarketOrderInventoryItem,
     orderInventoryMatch,
     ownedCountForMarketOrder,
+    planQuantitySync,
   } from "../lib/marketOrderInventory.js";
   import {
     beginContractsWrite,
@@ -266,6 +267,7 @@
   let contractsError = "";
   let selectedOrderItemKey: string | null = null;
   let repriceOpen = false;
+  let syncingQuantities = false;
   let orderBookPanelOpen = false;
   let selectedContract: { contract: WfmContract; riven: DecodedRiven } | null = null;
   let ownedRivens: DecodedRiven[] = [];
@@ -630,6 +632,45 @@
     }));
   }
 
+  /** Sets each sell listing to the number of copies the inventory proves, so a
+   *  condensed arcane stack does not have to be re-typed listing by listing. */
+  async function syncQuantitiesToInventory(): Promise<void> {
+    if (syncingQuantities || !isSellOrdersTab) return;
+    const targets =
+      $marketSelected.size > 0
+        ? repriceTargets
+        : activeOrders.filter((order) => visibleOrderIds.has(order.id));
+    const plan = planQuantitySync(targets, $parsedItems, $wfmItems);
+    if (plan.updates.length === 0) {
+      addToast({ level: "info", message: $tr("market.syncQuantitiesNothing") });
+      return;
+    }
+    const confirmed = await confirmWithDialog(
+      $tr("market.syncQuantitiesConfirm", {
+        count: plan.updates.length,
+        unbacked: plan.unbacked,
+      }),
+      $tr,
+    );
+    if (!confirmed) return;
+
+    syncingQuantities = true;
+    try {
+      // One PATCH at a time, same as the reprice run; inlineUpdateOrder has
+      // already shown the error by the time it reports a failure.
+      for (const update of plan.updates) {
+        const sent = await inlineUpdateOrder(update.order, {
+          platinum: update.order.platinum,
+          quantity: update.quantity,
+        });
+        if (!sent) return;
+      }
+    } finally {
+      syncingQuantities = false;
+      invalidateMarketOrdersRefresh();
+    }
+  }
+
   function selectAllVisible(): void {
     marketSelected.set(new Set(filteredOrderRows.map((order) => order.id)));
   }
@@ -989,6 +1030,14 @@
                 data-market-select-all
                 on:click={selectAllVisible}>{$tr("common.selectAll")}</button
               >
+              {#if isSellOrdersTab}
+                <button
+                  class="btn-sm btn-secondary"
+                  data-market-sync-quantities
+                  disabled={syncingQuantities}
+                  on:click={syncQuantitiesToInventory}>{$tr("market.syncQuantities")}</button
+                >
+              {/if}
               {#if $marketSelected.size > 0}
                 <button class="btn-sm btn-secondary" on:click={() => bulkSetVisible(true)}
                   >{$tr("market.setVisible")}</button
