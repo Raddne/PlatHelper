@@ -19,6 +19,15 @@
 
   const marginPct = $derived(formatPct(basis.estimatedMarginPct, $locale));
 
+  // The rank left the name when the rollup split by it, so the tile says it here.
+  const bestName = $derived(
+    !best
+      ? ""
+      : best.rank == null
+        ? best.name
+        : `${best.name} (${$tr("browse.rankValue", { value: best.rank })})`,
+  );
+
   const items = $derived<SummaryStripItem[]>([
     {
       key: "platIn",
@@ -58,7 +67,7 @@
     {
       key: "best",
       label: $tr("analysis.bestSeller"),
-      value: best ? best.name : $tr("common.none"),
+      value: best ? bestName : $tr("common.none"),
       subtext: best
         ? $tr("analysis.bestSellerDetail", {
             units: best.units,

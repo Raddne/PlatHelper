@@ -11,6 +11,7 @@ import {
   formatPct,
   formatPlat,
   itemKey,
+  itemKeyBase,
   loadCategoryOverrides,
   makeItemKindResolver,
   resolveRangePreset,
@@ -300,6 +301,72 @@ describe("itemKey", () => {
     };
     expect(itemKey(legacy)).toBe(itemKey(current));
   });
+
+  it("gives every rank of one item its own bucket", () => {
+    const ranked = (rank: number): TradeItem => ({
+      internalName: "",
+      displayName: `Arcane Energize (RANK ${rank})`,
+      count: 1,
+      direction: "given",
+      wfmSlug: "arcane_energize",
+    });
+    expect(itemKey(ranked(0))).toBe("arcane_energize:r0");
+    expect(itemKey(ranked(5))).toBe("arcane_energize:r5");
+    expect(itemKeyBase(itemKey(ranked(5)))).toBe("arcane_energize");
+  });
+
+  it("leaves a row with no rank on the key it always had", () => {
+    const plain = item("Ash Prime Chassis", "given");
+    expect(itemKey(plain)).toBe("/Lotus/AshPrimeChassis");
+    expect(itemKeyBase(itemKey(plain))).toBe("/Lotus/AshPrimeChassis");
+  });
+});
+
+describe("rank rollups", () => {
+  const ranked = (rank: number): TradeItem => ({
+    internalName: "",
+    displayName: `Arcane Energize (RANK ${rank})`,
+    count: 1,
+    direction: "given",
+    wfmSlug: "arcane_energize",
+  });
+  const events = [
+    ev(at("2026-01-01"), "sale", 20, [ranked(0)]),
+    ev(at("2026-01-02"), "sale", 200, [ranked(5)]),
+  ];
+
+  it("splits one arcane's sales by the rank that sold", () => {
+    const rows = topItems(events, "sold");
+    expect(rows.map((r) => ({ name: r.name, rank: r.rank, platinum: r.platinum }))).toEqual([
+      { name: "Arcane Energize", rank: 5, platinum: 200 },
+      { name: "Arcane Energize", rank: 0, platinum: 20 },
+    ]);
+  });
+
+  it("reports the best seller at the rank it sold at", () => {
+    expect(bestSeller(events)).toMatchObject({ name: "Arcane Energize", rank: 5 });
+  });
+
+  it("carries the rank into the worth rows", () => {
+    const rows = worthToday(events, () => 30).rows;
+    expect(rows.map((r) => r.rank).sort()).toEqual([0, 5]);
+  });
+
+  it("lists each rank as its own category row", () => {
+    const rows = distinctItemCategories(events, () => UNCATEGORIZED, {});
+    expect(rows.map((r) => r.rank)).toEqual([0, 5]);
+  });
+
+  it("honours an override saved before the ranks were split apart", () => {
+    const resolve = withCategoryOverrides(() => UNCATEGORIZED, { arcane_energize: "Arcanes" });
+    expect(resolve(ranked(0))).toBe("Arcanes");
+    // The rank's own override still wins over the inherited one.
+    const perRank = withCategoryOverrides(() => UNCATEGORIZED, {
+      arcane_energize: "Arcanes",
+      "arcane_energize:r5": "Maxed",
+    });
+    expect(perRank(ranked(5))).toBe("Maxed");
+  });
 });
 
 describe("yearComparison", () => {
@@ -426,6 +493,20 @@ describe("fifoCostBasis", () => {
     ]);
     expect(basis.matchedUnits).toBe(1);
     expect(basis.estimatedMargin).toBe(30);
+  });
+
+  it("pays for a rank 5 sale with the rank 0 purchase of the same arcane", () => {
+    const basis = fifoCostBasis([
+      ev(at("2026-01-01"), "purchase", 10, [
+        item("Arcane Energize (RANK 0)", "received", 1, "/Lotus/ArcaneEnergize"),
+      ]),
+      ev(at("2026-01-02"), "sale", 60, [
+        item("Arcane Energize (RANK 5)", "given", 1, "/Lotus/ArcaneEnergize"),
+      ]),
+    ]);
+    expect(basis.matchedUnits).toBe(1);
+    expect(basis.unpricedUnits).toBe(0);
+    expect(basis.estimatedMargin).toBe(50);
   });
 });
 

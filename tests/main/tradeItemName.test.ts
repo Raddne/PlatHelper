@@ -31,6 +31,22 @@ describe("parseTradedItemName", () => {
     });
   });
 
+  it("reads the rank whatever case the dialog wrote it in", () => {
+    expect(parseTradedItemName("Magus Elevate (Rank 3)")).toEqual({
+      baseName: "Magus Elevate",
+      rank: 3,
+      riven: null,
+    });
+  });
+
+  it("reports no rank for a name that carries no suffix at all", () => {
+    expect(parseTradedItemName("Arcane Energize")).toEqual({
+      baseName: "Arcane Energize",
+      rank: null,
+      riven: null,
+    });
+  });
+
   it("splits an unveiled riven into weapon and roll name", () => {
     expect(parseTradedItemName("Rubico Visio-Critatis (RIVEN RANK 8)")).toEqual({
       baseName: "Rubico Visio-Critatis",
