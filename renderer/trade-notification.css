@@ -23,7 +23,8 @@ body {
   border-radius: 8px;
   background: color-mix(
     in srgb,
-    color-mix(in srgb, var(--bg-surface, #0f1420) 92%, transparent) var(--overlay-opacity, 100%),
+    color-mix(in srgb, var(--bg-surface, #0f1420) 92%, transparent)
+      var(--overlay-opacity-current, 100%),
     transparent
   );
   border: 1px solid var(--border-strong, rgba(212, 168, 67, 0.4));

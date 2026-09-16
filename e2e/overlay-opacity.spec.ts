@@ -98,6 +98,12 @@ async function openPreview(page: Page, kind: OverlayLayoutKind): Promise<Frame> 
   return frame;
 }
 
+async function openOpacityOverrides(page: Page): Promise<void> {
+  await openAppearance(page);
+  const overrides = page.locator("[data-overlay-opacity-overrides]");
+  if ((await overrides.getAttribute("open")) === null) await overrides.locator("summary").click();
+}
+
 async function paintedColors(frame: Frame, selectors: string[], tokens: string[]) {
   return frame.evaluate(
     ({ selectors, tokens }) => {
@@ -214,6 +220,10 @@ test("overlay theme IPC accepts bounded whole percentages and rejects malformed 
       reward.rewardWindowsController.createOverlayWindow();
     });
     const reward = await overlayWindow(harness, "/renderer/overlay.html", "mode=planner");
+    const opacityKeys = [
+      "--overlay-opacity",
+      ...SURFACES.map(({ kind }) => `--overlay-opacity-${kind}`),
+    ];
     for (const value of [
       "30%",
       "50%",
@@ -227,17 +237,25 @@ test("overlay theme IPC accepts bounded whole percentages and rejects malformed 
       "50%; color:red",
     ]) {
       const accepted = ["30%", "50%", "100%"].includes(value);
-      const previewTheme = await harness.page.evaluate(async (opacity) => {
-        window.api.updateOverlayTheme({ "--bg-surface": "#112233", "--overlay-opacity": opacity });
-        return (await window.api.getOverlayPreview("reward")).theme;
-      }, value);
-      expect(previewTheme["--overlay-opacity"]).toBe(accepted ? value : undefined);
+      const previewTheme = await harness.page.evaluate(
+        async ({ opacity, keys }) => {
+          window.api.updateOverlayTheme({
+            "--bg-surface": "#112233",
+            ...Object.fromEntries(keys.map((key) => [key, opacity])),
+            "--overlay-opacity-unknown": "50%",
+          });
+          return (await window.api.getOverlayPreview("reward")).theme;
+        },
+        { opacity: value, keys: opacityKeys },
+      );
+      for (const key of opacityKeys) expect(previewTheme[key]).toBe(accepted ? value : undefined);
+      expect(previewTheme["--overlay-opacity-unknown"]).toBeUndefined();
       const theme = await reward.evaluate(() =>
         (
           window as unknown as { overlay: { getThemeVars: () => Promise<Record<string, string>> } }
         ).overlay.getThemeVars(),
       );
-      expect(theme["--overlay-opacity"]).toBe(accepted ? value : undefined);
+      for (const key of opacityKeys) expect(theme[key]).toBe(accepted ? value : undefined);
       expect(theme["--bg-surface"]).toBe("#112233");
       if (accepted) {
         await expect
@@ -252,6 +270,105 @@ test("overlay theme IPC accepts bounded whole percentages and rejects malformed 
           .toBe(Number.parseInt(value));
       }
     }
+    await harness.page.evaluate(() =>
+      window.api.updateOverlayTheme({ "--bg-surface": "#112233", "--overlay-opacity": "80%" }),
+    );
+    await expect
+      .poll(() =>
+        reward.locator("#panel").evaluate((element) => {
+          const context = document.createElement("canvas").getContext("2d")!;
+          context.fillStyle = getComputedStyle(element).backgroundColor;
+          context.fillRect(0, 0, 1, 1);
+          return Math.round((context.getImageData(0, 0, 1, 1).data[3] / 255) * 100);
+        }),
+      )
+      .toBe(80);
+  } finally {
+    await closeElectronTestHarness(harness);
+  }
+});
+
+test("each overlay keeps its own opacity and can return to the shared default", async () => {
+  test.setTimeout(180_000);
+  let harness: ElectronTestHarness | undefined;
+  try {
+    harness = await launchElectronTestHarness("wfh-overlay-opacity-independent-", {
+      storage: { wf_theme_settings: JSON.stringify(DEFAULT_THEME) },
+      userDataFiles: { "overlay-settings.json": { notificationSoundEnabled: false } },
+    });
+    const { page } = harness;
+    await setOpacity(page, 90);
+    await openOpacityOverrides(page);
+    const percentages = [30, 40, 50, 60, 70, 80];
+    for (const [index, surface] of SURFACES.entries()) {
+      const row = page.locator(`[data-overlay-opacity-kind="${surface.kind}"]`);
+      const slider = row.locator('input[type="range"]');
+      await expect(slider).toHaveValue("90");
+      await slider.evaluate((element, percent) => {
+        (element as HTMLInputElement).value = String(percent);
+        element.dispatchEvent(new Event("input", { bubbles: true }));
+      }, percentages[index]);
+      await expect(slider).toHaveValue(String(percentages[index]));
+    }
+    const expectedOverrides = Object.fromEntries(
+      SURFACES.map((surface, index) => [surface.kind, percentages[index] / 100]),
+    );
+    await expect
+      .poll(() =>
+        page.evaluate(
+          () =>
+            JSON.parse(localStorage.getItem("wf_theme_settings") || "{}").effects
+              .overlayOpacityOverrides,
+        ),
+      )
+      .toEqual(expectedOverrides);
+    await page.locator("[data-overlay-opacity-overrides]").screenshot({
+      path: test.info().outputPath("independent-opacity-controls.png"),
+    });
+    await page.reload();
+    await openOpacityOverrides(page);
+    for (const [index, surface] of SURFACES.entries()) {
+      await expect(
+        page.locator(`[data-overlay-opacity-kind="${surface.kind}"] input[type="range"]`),
+      ).toHaveValue(String(percentages[index]));
+    }
+    for (const [index, surface] of SURFACES.entries()) {
+      const preview = await openPreview(page, surface.kind);
+      await expect
+        .poll(async () => {
+          const colors = await paintedColors(preview, surface.selectors, surface.tokens);
+          return colors.every(
+            ({ actual, source }, layer) =>
+              Math.abs(actual[3] - (source[3] * surface.alpha[layer] * percentages[index]) / 100) <=
+              2,
+          );
+        })
+        .toBe(true);
+      await page.locator("[data-reward-editor-frame]").screenshot({
+        path: test.info().outputPath(`${surface.kind}-independent.png`),
+      });
+      await page.locator("[data-reward-editor-cancel]").click();
+      await expect(page.locator("[data-reward-editor]")).toHaveCount(0);
+    }
+    await openOpacityOverrides(page);
+    await page.locator('[data-overlay-opacity-kind="reward"] button').click();
+    await expect(
+      page.locator('[data-overlay-opacity-kind="reward"] input[type="range"]'),
+    ).toHaveValue("90");
+    await setOpacity(page, 70);
+    await openOpacityOverrides(page);
+    for (const [index, surface] of SURFACES.entries()) {
+      await expect(
+        page.locator(`[data-overlay-opacity-kind="${surface.kind}"] input[type="range"]`),
+      ).toHaveValue(String(index === 0 ? 70 : percentages[index]));
+    }
+    const reward = await openPreview(page, "reward");
+    await expect
+      .poll(async () => {
+        const [color] = await paintedColors(reward, ["#panel"], ["--bg-surface"]);
+        return Math.abs(color.actual[3] - color.source[3] * 0.7);
+      })
+      .toBeLessThanOrEqual(2);
   } finally {
     await closeElectronTestHarness(harness);
   }

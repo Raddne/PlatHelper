@@ -1,12 +1,14 @@
 :root {
   --bg: color-mix(
     in srgb,
-    color-mix(in oklab, var(--bg-deep, #060a12) 92%, transparent) var(--overlay-opacity, 100%),
+    color-mix(in oklab, var(--bg-deep, #060a12) 92%, transparent)
+      var(--overlay-opacity-current, 100%),
     transparent
   );
   --surface: color-mix(
     in srgb,
-    color-mix(in oklab, var(--bg-surface, #111827) 94%, transparent) var(--overlay-opacity, 100%),
+    color-mix(in oklab, var(--bg-surface, #111827) 94%, transparent)
+      var(--overlay-opacity-current, 100%),
     transparent
   );
   --border: color-mix(in oklab, var(--border-strong, rgba(212, 168, 67, 0.25)) 80%, transparent);
@@ -46,7 +48,7 @@ body {
   height: 100%;
   background: color-mix(
     in srgb,
-    var(--bg-surface, #111827) var(--overlay-opacity, 100%),
+    var(--bg-surface, #111827) var(--overlay-opacity-current, 100%),
     transparent
   );
   border: 1px solid var(--border);

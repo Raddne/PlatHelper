@@ -63,7 +63,7 @@ The reward editor starts with **Mixed rewards**, including a long item name, thr
 
 The preview follows the reward window's size. The live window grows to fit its content until you manually resize it; dragging it to a different position does not disable automatic height. Large part counts keep their full value in the hover tooltip.
 
-Use **Appearance > Style > Overlay opacity** to adjust overlay backgrounds while keeping text visible. Custom CSS applies to the main app, not overlay windows.
+Use **Appearance > Style > Overlay opacity** to adjust overlay backgrounds while keeping text visible. Expand **Customize each overlay** to set separate values for rewards, the relic planner, each Riven panel, the arbitration summary, and trade notifications. Reset an individual value to follow the shared opacity again. Custom CSS applies to the main app, not overlay windows.
 
 ## Linux setup
 

@@ -1,4 +1,5 @@
 import type { ViewName } from "./views.js";
+import type { OverlayLayoutKind } from "../../config/shared/overlayLayout.js";
 
 /** The hand-picked palette a preset defines. Everything else is derived from it. */
 export interface ThemeBaseColors {
@@ -95,6 +96,7 @@ export interface ThemeEffects {
   glass: boolean;
   glassBlurPx: number;
   overlayOpacity: number;
+  overlayOpacityOverrides?: Partial<Record<OverlayLayoutKind, number>>;
   relicCardStyle: RelicCardStyle;
 }
 

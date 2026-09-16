@@ -16,7 +16,12 @@ it("reports intrinsic reward height without shrinking when a capped grid is scro
   const footer = { getBoundingClientRect: () => ({ height: 20 }) };
   const source = readFileSync("renderer/overlay.js", "utf8");
   const measure = runInNewContext(`${source}\nreportRewardContentHeight;`, {
-    window: { overlay: { reportContentHeight: report }, overlayI18n: { t: vi.fn() } },
+    URLSearchParams,
+    window: {
+      location: { search: "" },
+      overlay: { reportContentHeight: report },
+      overlayI18n: { t: vi.fn() },
+    },
     document: {
       addEventListener: vi.fn(),
       getElementById: (id: string) =>

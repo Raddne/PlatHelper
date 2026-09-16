@@ -27,6 +27,8 @@ import {
 } from "../../config/themeDefaults.js";
 import { deriveThemeColors } from "./derive.js";
 import { isBaseColorKey } from "./viewOverrides.js";
+import { OVERLAY_LAYOUT_KINDS } from "../../../config/shared/overlayLayout.js";
+import { asRecord } from "../../../config/shared/objectValidation.js";
 
 const STORAGE_KEY = "wf_theme_settings";
 const CURRENT_VERSION = 1;
@@ -263,6 +265,28 @@ export function normalizeOverlayOpacity(value: unknown): number {
   return Math.min(OVERLAY_OPACITY_MAX, Math.max(OVERLAY_OPACITY_MIN, value));
 }
 
+function normalizeOverlayOpacityOverrides(
+  value: unknown,
+): NonNullable<ThemeEffects["overlayOpacityOverrides"]> {
+  const source = asRecord(value);
+  const result: NonNullable<ThemeEffects["overlayOpacityOverrides"]> = {};
+  for (const kind of OVERLAY_LAYOUT_KINDS) {
+    const opacity = source?.[kind];
+    if (typeof opacity === "number" && Number.isFinite(opacity)) {
+      result[kind] = normalizeOverlayOpacity(opacity);
+    }
+  }
+  return result;
+}
+
+/** Detach nested overrides when copying a preset or editing the active theme. */
+export function cloneThemeEffects(effects: ThemeEffects): ThemeEffects {
+  return {
+    ...effects,
+    overlayOpacityOverrides: normalizeOverlayOpacityOverrides(effects.overlayOpacityOverrides),
+  };
+}
+
 function normalizeEffects(rawEffects: Record<string, unknown>): ThemeEffects {
   return {
     cornerStyle: asCornerStyle(rawEffects.cornerStyle, DEFAULT_EFFECTS.cornerStyle),
@@ -270,6 +294,7 @@ function normalizeEffects(rawEffects: Record<string, unknown>): ThemeEffects {
     glass: typeof rawEffects.glass === "boolean" ? rawEffects.glass : DEFAULT_EFFECTS.glass,
     glassBlurPx: asBlurPx(rawEffects.glassBlurPx, DEFAULT_EFFECTS.glassBlurPx),
     overlayOpacity: normalizeOverlayOpacity(rawEffects.overlayOpacity),
+    overlayOpacityOverrides: normalizeOverlayOpacityOverrides(rawEffects.overlayOpacityOverrides),
     relicCardStyle: asRelicCardStyle(rawEffects.relicCardStyle, DEFAULT_EFFECTS.relicCardStyle),
   };
 }
@@ -332,7 +357,7 @@ export function cloneDefaultTheme(): ThemeSettings {
     ...DEFAULT_THEME,
     colors: { ...DEFAULT_THEME.colors },
     fontSizes: { ...DEFAULT_THEME.fontSizes },
-    effects: { ...DEFAULT_THEME.effects },
+    effects: cloneThemeEffects(DEFAULT_THEME.effects),
     customThemes: DEFAULT_THEME.customThemes.map(cloneCustomTheme),
     branding: { ...DEFAULT_THEME.branding },
     viewAccents: { ...DEFAULT_THEME.viewAccents },
@@ -345,7 +370,7 @@ function cloneCustomTheme(theme: CustomThemePreset): CustomThemePreset {
     ...theme,
     colors: { ...theme.colors },
     fontSizes: { ...theme.fontSizes },
-    effects: { ...theme.effects },
+    effects: cloneThemeEffects(theme.effects),
   };
 }
 

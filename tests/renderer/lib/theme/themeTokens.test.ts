@@ -7,7 +7,12 @@ import { loadThemeSettings } from "../../../../src/lib/theme/themeStorage.js";
 import { THEME_COLOR_CSS_MAP } from "../../../../src/types/theme.js";
 import { applyTheme } from "../../../../src/lib/theme/applyTheme.js";
 import { cloneDefaultTheme } from "../../../../src/lib/theme/themeStorage.js";
-import { OVERLAY_FORWARDED_EFFECT_VARS } from "../../../../config/shared/themeCssVars.js";
+import {
+  OVERLAY_FORWARDED_EFFECT_VARS,
+  OVERLAY_OPACITY_CSS_VARS,
+  overlayOpacityCssVar,
+} from "../../../../config/shared/themeCssVars.js";
+import { OVERLAY_LAYOUT_KINDS } from "../../../../config/shared/overlayLayout.js";
 import type { ThemeBaseColors, ThemeColors } from "../../../../src/types/theme.js";
 
 const BASE_KEYS = Object.keys(DEFAULT_BASE_COLORS) as Array<keyof ThemeBaseColors>;
@@ -16,7 +21,7 @@ const ALL_KEYS = Object.keys(THEME_COLOR_CSS_MAP) as Array<keyof ThemeColors>;
 describe("overlay opacity theme token", () => {
   afterEach(() => vi.unstubAllGlobals());
 
-  it("changes only the overlay opacity token and keeps the existing glass effect", () => {
+  it("resolves per-overlay opacity and resets inherited tokens without changing other effects", () => {
     const values = new Map<string, string>();
     vi.stubGlobal("document", {
       documentElement: {
@@ -35,9 +40,26 @@ describe("overlay opacity theme token", () => {
     theme.effects.overlayOpacity = 0.576;
     applyTheme(theme);
     expect(values.get("--overlay-opacity")).toBe("58%");
+    for (const key of OVERLAY_OPACITY_CSS_VARS) {
+      expect(values.get(key)).toBe("58%");
+      expect(OVERLAY_FORWARDED_EFFECT_VARS).toContain(key);
+      values.set(key, "100%");
+    }
     values.set("--overlay-opacity", "100%");
     expect(values).toEqual(original);
     expect(OVERLAY_FORWARDED_EFFECT_VARS).toContain("--overlay-opacity");
+
+    theme.effects.overlayOpacityOverrides = Object.fromEntries(
+      OVERLAY_LAYOUT_KINDS.map((kind, index) => [kind, (30 + index * 10) / 100]),
+    );
+    applyTheme(theme);
+    for (const [index, kind] of OVERLAY_LAYOUT_KINDS.entries()) {
+      expect(values.get(overlayOpacityCssVar(kind))).toBe(`${30 + index * 10}%`);
+    }
+    delete theme.effects.overlayOpacityOverrides.reward;
+    applyTheme(theme);
+    expect(values.get(overlayOpacityCssVar("reward"))).toBe("58%");
+    expect(values.get(overlayOpacityCssVar("planner"))).toBe("40%");
   });
 });
 

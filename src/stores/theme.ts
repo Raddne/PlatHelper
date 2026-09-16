@@ -8,6 +8,7 @@ import type {
   ViewThemeOverride,
 } from "../types/theme.js";
 import type { ViewName } from "../types/views.js";
+import type { OverlayLayoutKind } from "../../config/shared/overlayLayout.js";
 import {
   DEFAULT_FONT_SIZES,
   VIEW_FONT_SIZE_MAX,
@@ -22,6 +23,7 @@ import {
   clearThemeSettings,
   cloneDefaultTheme,
   normalizeOverlayOpacity,
+  cloneThemeEffects,
 } from "../lib/theme/themeStorage.js";
 import { applyTheme } from "../lib/theme/applyTheme.js";
 
@@ -50,7 +52,7 @@ function applyMutableThemeEdits(
     ...edits,
     colors: edits.colors ? { ...edits.colors } : { ...settings.colors },
     fontSizes: edits.fontSizes ? { ...edits.fontSizes } : { ...settings.fontSizes },
-    effects: edits.effects ? { ...edits.effects } : { ...settings.effects },
+    effects: cloneThemeEffects(edits.effects ?? settings.effects),
   };
 
   if (isCustomThemeId(settings.activePreset)) {
@@ -62,7 +64,7 @@ function applyMutableThemeEdits(
         ...theme,
         colors: { ...next.colors },
         fontSizes: { ...next.fontSizes },
-        effects: { ...next.effects },
+        effects: cloneThemeEffects(next.effects),
       };
     });
 
@@ -202,7 +204,7 @@ function createThemeStore() {
           activePreset: presetKey,
           colors: { ...theme.colors },
           fontSizes: { ...theme.fontSizes },
-          effects: { ...theme.effects },
+          effects: cloneThemeEffects(theme.effects),
         };
       });
     },
@@ -248,6 +250,18 @@ function createThemeStore() {
       );
     },
 
+    /** A cleared override follows the shared overlay opacity again. */
+    setOverlayOpacity(kind: OverlayLayoutKind, opacity: number | null): void {
+      update((s) => {
+        const overlayOpacityOverrides = { ...s.effects.overlayOpacityOverrides };
+        if (opacity === null) delete overlayOpacityOverrides[kind];
+        else overlayOpacityOverrides[kind] = opacity;
+        return applyMutableThemeEdits(s, {
+          effects: { ...s.effects, overlayOpacityOverrides },
+        });
+      });
+    },
+
     /** Save the current edited appearance as a named custom theme. */
     saveCustomTheme(label: string): void {
       update((s) => {
@@ -263,7 +277,7 @@ function createThemeStore() {
               label: name,
               colors: { ...s.colors },
               fontSizes: { ...s.fontSizes },
-              effects: { ...s.effects },
+              effects: cloneThemeEffects(s.effects),
             },
           ],
         };
@@ -284,7 +298,7 @@ function createThemeStore() {
           activePreset: "default",
           colors: { ...preset.colors },
           fontSizes: { ...preset.fontSizes },
-          effects: { ...preset.effects },
+          effects: cloneThemeEffects(preset.effects),
           customThemes,
         };
       });

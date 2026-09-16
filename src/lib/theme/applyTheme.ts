@@ -2,6 +2,8 @@ import type { ThemeColors, ThemeEffects, ThemeSettings } from "../../types/theme
 import { THEME_COLOR_CSS_MAP, THEME_EFFECT_CSS_MAP } from "../../types/theme.js";
 import { BASE_FONT_SIZE_PX } from "../../config/themeDefaults.js";
 import { autoAdjustTextColor, WCAG_AA_NORMAL } from "./contrastUtils.js";
+import { OVERLAY_LAYOUT_KINDS } from "../../../config/shared/overlayLayout.js";
+import { overlayOpacityCssVar } from "../../../config/shared/themeCssVars.js";
 
 /** Apply ThemeSettings to the document as CSS custom properties. */
 export function applyTheme(settings: ThemeSettings): void {
@@ -64,6 +66,10 @@ function applyEffectTokens(root: HTMLElement, effects: ThemeEffects): void {
     THEME_EFFECT_CSS_MAP.overlayOpacity,
     `${Math.round(effects.overlayOpacity * 100)}%`,
   );
+  for (const kind of OVERLAY_LAYOUT_KINDS) {
+    const opacity = effects.overlayOpacityOverrides?.[kind] ?? effects.overlayOpacity;
+    root.style.setProperty(overlayOpacityCssVar(kind), `${Math.round(opacity * 100)}%`);
+  }
 }
 
 function resolveRadii(

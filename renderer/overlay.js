@@ -1,4 +1,7 @@
 const SLOTS = 4;
+const params = new URLSearchParams(window.location.search);
+const mode = params.get("mode");
+const planner = mode === "planner" || (mode === "editor" && params.get("kind") === "planner");
 const slotState = Array.from({ length: SLOTS }, () => ({
   item: null,
   price: null,
@@ -829,9 +832,6 @@ function tagRewardFields() {
 function startOverlay() {
   resetSlots();
   resetPlannerRows();
-  const params = new URLSearchParams(window.location.search);
-  const mode = params.get("mode");
-  const planner = mode === "planner" || (mode === "editor" && params.get("kind") === "planner");
   if (planner) {
     showPlannerModeScanning();
   } else {
@@ -1007,7 +1007,10 @@ document.addEventListener("DOMContentLoaded", () => {
     bootstrapped = true;
     startOverlay();
   };
-  window.overlayTheme.bootstrapOverlayTheme(() => window.overlay.getThemeVars());
+  window.overlayTheme.bootstrapOverlayTheme(
+    () => window.overlay.getThemeVars(),
+    planner ? "planner" : "reward",
+  );
 
   document.getElementById("btn-close").addEventListener("click", () => {
     if (!rewardLayoutEditor?.isEditing()) window.overlay.close();

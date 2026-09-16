@@ -82,6 +82,47 @@ describe("palette colour length", () => {
 });
 
 describe("overlay opacity normalization", () => {
+  it("preserves the saved global default and drops malformed or unknown overrides", () => {
+    const effects = {
+      overlayOpacity: 0.65,
+      overlayOpacityOverrides: {
+        reward: 0.1,
+        planner: 1.2,
+        rivenLeft: 0.57,
+        rivenRight: "0.4",
+        arbiSummary: NaN,
+        tradeNotification: null,
+        unknown: 0.8,
+      },
+    };
+    const theme = normalizeThemeSettings({
+      effects,
+      customThemes: [{ id: "custom:test", label: "Test", effects }],
+    });
+    expect(theme.effects.overlayOpacity).toBe(0.65);
+    expect(theme.effects.overlayOpacityOverrides).toEqual({
+      reward: 0.3,
+      planner: 1,
+      rivenLeft: 0.57,
+    });
+    expect(theme.customThemes[0]?.effects.overlayOpacityOverrides).toEqual(
+      theme.effects.overlayOpacityOverrides,
+    );
+    expect(theme.customThemes[0]?.effects.overlayOpacityOverrides).not.toBe(
+      theme.effects.overlayOpacityOverrides,
+    );
+    expect(effects.overlayOpacityOverrides.reward).toBe(0.1);
+    expect(normalizeThemeSettings({ effects: { overlayOpacity: 0.65 } }).effects).toMatchObject({
+      overlayOpacity: 0.65,
+      overlayOpacityOverrides: {},
+    });
+    for (const overlayOpacityOverrides of [null, [], "0.5", 1, true]) {
+      expect(
+        normalizeThemeSettings({ effects: { overlayOpacityOverrides } }).effects
+          .overlayOpacityOverrides,
+      ).toEqual({});
+    }
+  });
   it.each([undefined, null, "0.5", true, NaN, Infinity, {}, []])(
     "defaults invalid or missing opacity %j without changing the palette",
     (overlayOpacity) => {
