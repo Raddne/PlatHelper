@@ -285,6 +285,89 @@ function missingUnits(node: CraftingTreeNode): number {
   return Math.max(0, node.count - node.owned);
 }
 
+export type PartState = "owned" | "blueprint" | "missing";
+
+interface PartRef {
+  uniqueName: string;
+  count: number;
+  isBlueprintItem?: boolean;
+}
+
+// Components and blueprints live under /Types/Recipes/; anything else a recipe
+// asks for is a raw material, which never carries a "blueprint held" mark.
+const RECIPE_PATH = /\/Types\/Recipes\//i;
+
+export function isRecipePartPath(uniqueName: string): boolean {
+  return RECIPE_PATH.test(uniqueName);
+}
+
+/** Every blueprint key that builds the part: the recipe index's pick plus any
+ *  alias that is itself a recipe. DE's export carries duplicate result types
+ *  (two Sagek Prime recipes both produce the Barrel), so the index alone can
+ *  name the wrong blueprint and a held real one would then count as built. */
+function blueprintKeysOf(part: PartRef, itemDb: Record<string, ItemDbEntry>): ReadonlySet<string> {
+  const keys = new Set<string>();
+  const blueprint = itemDb[part.uniqueName]?.recipe?.blueprintUniqueName;
+  if (blueprint !== undefined && blueprint !== part.uniqueName) keys.add(blueprint);
+  for (const alias of componentUniqueNameAliases(part.uniqueName)) {
+    if (alias !== part.uniqueName && itemDb[alias]?.buildsProduct !== undefined) keys.add(alias);
+  }
+  return keys;
+}
+
+/** The part's own pile with every blueprint spelling left out. */
+function builtCopies(
+  uniqueName: string,
+  ownership: ReadonlyMap<string, number>,
+  blueprints: ReadonlySet<string>,
+): number {
+  let built = 0;
+  for (const alias of componentUniqueNameAliases(uniqueName)) {
+    if (blueprints.has(alias)) continue;
+    built = Math.max(built, ownership.get(alias) || 0);
+  }
+  return built;
+}
+
+// Display only. Every count and readiness rule keeps folding a part and its
+// blueprint into one pile (ownedComponentCount: sets say ...Component or the bare
+// part, the inventory holds ...Blueprint), so a held blueprint reads as owned
+// there; this counts what is actually built, for the chip label and the mark.
+export function builtPartCount(
+  part: PartRef,
+  ownership: ReadonlyMap<string, number>,
+  itemDb: Record<string, ItemDbEntry>,
+): number {
+  const entry = itemDb[part.uniqueName];
+  // A blueprint item is its own pile, so holding it is what owning that row means.
+  if (part.isBlueprintItem === true || entry?.buildsProduct !== undefined) {
+    return ownedComponentCount(part.uniqueName, ownership);
+  }
+  const blueprints = blueprintKeysOf(part, itemDb);
+  return blueprints.size > 0
+    ? builtCopies(part.uniqueName, ownership, blueprints)
+    : ownedComponentCount(part.uniqueName, ownership);
+}
+
+/** The mark a part row carries; the numbers around it stay the folded ones. */
+export function partState(
+  part: PartRef,
+  ownership: ReadonlyMap<string, number>,
+  itemDb: Record<string, ItemDbEntry>,
+): PartState {
+  const entry = itemDb[part.uniqueName];
+  const product = entry?.buildsProduct;
+  if (part.isBlueprintItem === true || product !== undefined) {
+    if (product !== undefined && ownedComponentCount(product, ownership) > 0) return "owned";
+    return ownedComponentCount(part.uniqueName, ownership) > 0 ? "blueprint" : "missing";
+  }
+  if (builtPartCount(part, ownership, itemDb) >= part.count) return "owned";
+  for (const blueprint of blueprintKeysOf(part, itemDb)) {
+    if ((ownership.get(blueprint) || 0) > 0) return "blueprint";
+  }
+  return "missing";
+}
+
 /** The uniqueName path below a node the user expanded, root first. Expansion
  *  roots a blueprint through the product it builds, so that product belongs on
  *  the path too or the pair re-offers itself one level down. */

@@ -9,6 +9,7 @@ import {
   missingOnly,
   plannerModalTarget,
   sortPlannedItems,
+  unfinishedParts,
   type PlannedItem,
   type PlannerPin,
 } from "../../../src/lib/masteryPlanner.js";
@@ -228,6 +229,76 @@ describe("mastery planner ownership rules", () => {
     expect(plan.items[0].hasRecipe).toBe(false);
     expect(plan.items[0].craftableNow).toBe(false);
     expect(plan.craftableCount).toBe(0);
+  });
+
+  it("marks a part whose blueprint is held without changing its numbers", () => {
+    const chassis = "/Lotus/Types/Recipes/WarframeRecipes/AlphaChassisComponent";
+    const chassisBp = "/Lotus/Types/Recipes/WarframeRecipes/AlphaChassisBlueprint";
+    const db: Record<string, ItemDbEntry> = {
+      "/Lotus/Powersuits/Alpha": entry("Alpha", {
+        buildPrice: 0,
+        buildTime: 0,
+        num: 1,
+        ingredients: [{ uniqueName: chassis, count: 1 }],
+      }),
+      [chassis]: entry("Alpha Chassis", {
+        blueprintUniqueName: chassisBp,
+        buildPrice: 0,
+        buildTime: 0,
+        num: 1,
+        ingredients: [{ uniqueName: FERRITE, count: 900 }],
+      }),
+      [FERRITE]: entry("Ferrite"),
+    };
+    const planFor = (ownership: Map<string, number>) =>
+      buildMasteryPlan([pin("/Lotus/Powersuits/Alpha", "Alpha")], db, ownership).items[0];
+
+    const held = planFor(new Map([[chassisBp, 1]]));
+    // The alias rule keeps counting the blueprint as the part; only the mark differs.
+    expect(held.components[0]).toMatchObject({ owned: 1, missing: 0, state: "blueprint" });
+    expect(held.craftableNow).toBe(true);
+    expect(held.completeness).toBe(1);
+    // The chip prints built/needed for a held blueprint, so "0/1", not "1/1".
+    expect([held.components[0].built, held.components[0].needed]).toEqual([0, 1]);
+
+    const built = planFor(new Map([[chassis, 1]])).components[0];
+    expect(built).toMatchObject({ owned: 1, built: 1, state: "owned" });
+    expect(planFor(new Map()).components[0]).toMatchObject({
+      owned: 0,
+      built: 0,
+      missing: 1,
+      state: "missing",
+    });
+  });
+
+  it("marks a held main blueprint as blueprint, not as done", () => {
+    const frameBp = "/Lotus/Types/Recipes/WarframeRecipes/AlphaBlueprint";
+    const db: Record<string, ItemDbEntry> = {
+      "/Lotus/Powersuits/Alpha": entry("Alpha", {
+        blueprintUniqueName: frameBp,
+        buildPrice: 0,
+        buildTime: 0,
+        num: 1,
+        ingredients: [{ uniqueName: FERRITE, count: 100 }],
+      }),
+      [frameBp]: entry("Alpha Blueprint"),
+      [FERRITE]: entry("Ferrite"),
+    };
+
+    const plan = buildMasteryPlan(
+      [pin("/Lotus/Powersuits/Alpha", "Alpha")],
+      db,
+      new Map([[frameBp, 1]]),
+    );
+    const blueprint = plan.items[0].components.find((comp) => comp.uniqueName === frameBp);
+
+    // The chip IS the blueprint, so its label keeps counting the held copy.
+    expect(blueprint).toMatchObject({
+      isBlueprint: true,
+      missing: 0,
+      built: 1,
+      state: "blueprint",
+    });
   });
 });
 
@@ -617,6 +688,17 @@ describe("mastery planner missing filter", () => {
 
     expect(missingOnly(rows).map((row) => row.uniqueName)).toEqual(["a", "c"]);
     expect(missingOnly([{ uniqueName: "b", missing: 0 }])).toEqual([]);
+  });
+
+  it("keeps a covered part listed while only its blueprint is held", () => {
+    const rows = [
+      { uniqueName: "built", missing: 0, state: "owned" as const },
+      { uniqueName: "held", missing: 0, state: "blueprint" as const },
+      { uniqueName: "short", missing: 1, state: "blueprint" as const },
+      { uniqueName: "gone", missing: 1, state: "missing" as const },
+    ];
+
+    expect(unfinishedParts(rows).map((row) => row.uniqueName)).toEqual(["held", "short", "gone"]);
   });
 });
 

@@ -12,6 +12,7 @@
     groupPlannedItems,
     missingOnly,
     plannerModalTarget,
+    unfinishedParts,
     type MasteryPlan,
     type PlannedItem,
     type PlannerSort,
@@ -155,6 +156,7 @@
 
 {#snippet plannedCard(item: PlannedItem)}
   {@const missingParts = missingOnly(item.components)}
+  {@const listedParts = unfinishedParts(item.components)}
   {@const ownedParts = item.components.length - missingParts.length}
   {@const missingMaterials = missingOnly(item.resources)}
   {@const materialsOpen = expandedMaterials[item.uniqueName] === true}
@@ -253,26 +255,43 @@
         ></rect>
       </svg>
 
-      {#if missingParts.length > 0}
+      {#if listedParts.length > 0}
         <div class="grid min-w-0 gap-1">
           <span
             class="font-display text-[0.68rem] font-semibold uppercase tracking-[0.06em] text-text-muted"
             >{$tr("mastery.planner.parts")}</span
           >
           <div class="flex min-w-0 flex-wrap gap-1.5">
-            {#each missingParts as comp (comp.uniqueName)}
-              <ItemTile
-                tileKey={comp.uniqueName}
-                tone="danger"
-                imageUrl={comp.imageUrl}
-                auditKey={comp.name}
-                label={itemLabel(comp)}
-                count="{formatNumber(comp.owned, $locale)}/{formatNumber(comp.needed, $locale)}"
-                ariaLabel={$tr("mastery.openComponentDetailsAria", {
-                  name: itemLabel(comp) || $tr("mastery.componentFallback"),
-                })}
-                onOpen={() => openRow(comp)}
-              />
+            {#each listedParts as comp (comp.uniqueName)}
+              {@const blueprintHeld = comp.state === "blueprint"}
+              <!-- The tone still follows the missing count, so a part listed only
+                   for its held blueprint stays neutral and carries the mark. The
+                   label counts built copies there; the plan's numbers do not. -->
+              <span class="relative" data-part-state={comp.state}>
+                <ItemTile
+                  tileKey={comp.uniqueName}
+                  tone={comp.missing > 0 ? "danger" : "neutral"}
+                  imageUrl={comp.imageUrl}
+                  auditKey={comp.name}
+                  label={itemLabel(comp)}
+                  count="{formatNumber(
+                    blueprintHeld ? comp.built : comp.owned,
+                    $locale,
+                  )}/{formatNumber(comp.needed, $locale)}"
+                  ariaLabel={$tr("mastery.openComponentDetailsAria", {
+                    name: itemLabel(comp) || $tr("mastery.componentFallback"),
+                  })}
+                  onOpen={() => openRow(comp)}
+                />
+                {#if blueprintHeld}
+                  <span
+                    class="absolute top-1 right-1 h-2.5 w-2.5 rounded-full border border-warning-dim bg-warning"
+                    role="img"
+                    title={$tr("common.blueprintOwnedNotBuilt")}
+                    aria-label={$tr("common.blueprintOwnedNotBuilt")}
+                  ></span>
+                {/if}
+              </span>
             {/each}
           </div>
         </div>

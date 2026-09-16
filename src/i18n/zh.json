@@ -676,6 +676,7 @@
   "common.auction": "拍卖",
   "common.avg": "平均：{value}",
   "common.back": "返回",
+  "common.blueprintOwnedNotBuilt": "已拥有蓝图，尚未建造",
   "common.border": "边框",
   "common.canBuild": "可制造",
   "common.chance": "几率",

@@ -3,7 +3,14 @@ import {
   ownedComponentCount,
 } from "../../config/shared/componentNames.js";
 import { resolveComponentByName } from "./componentResolution.js";
-import { buildCraftingTree, type CraftingTreeNode } from "./craftingTree.js";
+import {
+  buildCraftingTree,
+  builtPartCount,
+  isRecipePartPath,
+  partState,
+  type CraftingTreeNode,
+  type PartState,
+} from "./craftingTree.js";
 import type { ComponentInfo, ItemDbEntry } from "../types/inventory.js";
 
 export interface PlannerPin {
@@ -24,6 +31,10 @@ interface PlannerComponent {
   missing: number;
   craftable: boolean;
   isBlueprint: boolean;
+  /** Mark only: owned/missing above stay the readiness numbers. */
+  state: PartState;
+  /** Chip label only: copies really built, so a held blueprint reads 0. */
+  built: number;
 }
 
 interface PlannerResource {
@@ -60,12 +71,10 @@ export interface MasteryPlan {
 
 export type PlannerSort = "mastery_xp" | "completeness" | "name";
 
-// Components and blueprints live under /Types/Recipes/; anything else a recipe
-// asks for is a raw material the bill counts against the inventory pool.
-const RECIPE_PATH = /\/Types\/Recipes\//i;
-
+// A raw material the root recipe asks for is billed against the inventory pool
+// instead of getting a part chip.
 function isPartLike(node: CraftingTreeNode): boolean {
-  return node.isCraftable || node.isBlueprintItem === true || RECIPE_PATH.test(node.uniqueName);
+  return node.isCraftable || node.isBlueprintItem === true || isRecipePartPath(node.uniqueName);
 }
 
 /** Aliases are one pile in two spellings, so a take lowers every spelling. */
@@ -188,6 +197,8 @@ function planPin(
     missing: child.missing,
     craftable: child.isCraftable,
     isBlueprint: child.isBlueprintItem === true,
+    state: partState(child, budget, itemDb),
+    built: builtPartCount(child, budget, itemDb),
   }));
 
   const state: CollectState = { resources: new Map(), credits: 0 };
@@ -301,6 +312,13 @@ export function plannerModalTarget(
 /** The planner is a to-do list, so covered rows stay hidden until asked for. */
 export function missingOnly<T extends { missing: number }>(rows: readonly T[]): T[] {
   return rows.filter((row) => row.missing > 0);
+}
+
+/** Part chips: a held blueprint still has a build ahead of it, so it stays listed. */
+export function unfinishedParts<T extends { missing: number; state: PartState }>(
+  rows: readonly T[],
+): T[] {
+  return rows.filter((row) => row.missing > 0 || row.state === "blueprint");
 }
 
 /** Craftable-now floats to the top of every sort mode. */

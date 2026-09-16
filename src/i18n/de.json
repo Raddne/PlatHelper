@@ -965,6 +965,7 @@
   "common.auction": "Auktion",
   "common.avg": "Ø: {value}",
   "common.back": "Zurück",
+  "common.blueprintOwnedNotBuilt": "Bauplan vorhanden, nicht gebaut",
   "common.border": "Rahmen",
   "common.canBuild": "Baubar",
   "common.chance": "Chance",

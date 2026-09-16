@@ -30,7 +30,7 @@
   import { activeItem } from "../stores/modals.js";
   import { formatBuildTime, formatTimeRemaining, formatNumber } from "../lib/format.js";
   import { compareSharedFilterSort, matchesSharedFilters } from "../lib/filters.js";
-  import { collectRecipeMaterialNames } from "../lib/craftingTree.js";
+  import { collectRecipeMaterialNames, partState } from "../lib/craftingTree.js";
   import { buildMasteryLookup, inheritedMasteryStatus } from "../lib/masteryLookup.js";
   import { buildParsedItemFromDb } from "../lib/parsedItemFromDb.js";
   import { CREDITS_ICON_URL } from "../lib/assetUrls.js";
@@ -546,9 +546,18 @@
                 {#each item.ingredients as ing, ingIdx (`${ing.uniqueName}:${ingIdx}`)}
                   {@const owned = ownedMap.get(ing.uniqueName) ?? 0}
                   {@const ok = owned >= ing.count}
+                  <!-- Raw materials also have recipes, so only build components get the mark. -->
+                  {@const blueprintHeld =
+                    !ok &&
+                    $itemDb[ing.uniqueName]?.isBuildComponent === true &&
+                    partState(ing, ownedMap, $itemDb) === "blueprint"}
                   <div
                     class="flex items-center gap-2 min-w-0 {fewIng ? 'text-lg' : 'text-base'}"
-                    title={ingredientName(ing.uniqueName)}
+                    title={blueprintHeld
+                      ? `${ingredientName(ing.uniqueName)}: ${$tr("common.blueprintOwnedNotBuilt")}`
+                      : ingredientName(ing.uniqueName)}
+                    data-ingredient={ing.uniqueName}
+                    data-part-state={ok ? "owned" : blueprintHeld ? "blueprint" : "missing"}
                   >
                     <div
                       class="shrink-0 flex items-center justify-center {fewIng
@@ -575,11 +584,15 @@
                       stroke-linejoin="round"
                       class="shrink-0 {fewIng ? 'h-5 w-5' : 'h-4 w-4'} {ok
                         ? 'text-success'
-                        : 'text-danger'}"
+                        : blueprintHeld
+                          ? 'text-warning'
+                          : 'text-danger'}"
                       aria-hidden="true"
                     >
                       {#if ok}
                         <path d="M5 12.5l4.5 4.5L19 7.5" />
+                      {:else if blueprintHeld}
+                        <circle cx="12" cy="12" r="5" fill="currentColor" stroke="none" />
                       {:else}
                         <path d="M6 6l12 12M18 6L6 18" />
                       {/if}

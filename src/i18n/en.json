@@ -677,6 +677,7 @@
   "common.auction": "Auction",
   "common.avg": "Avg: {value}",
   "common.back": "Back",
+  "common.blueprintOwnedNotBuilt": "Blueprint owned, not built",
   "common.border": "Border",
   "common.canBuild": "Can build",
   "common.chance": "Chance",

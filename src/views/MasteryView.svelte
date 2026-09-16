@@ -39,6 +39,7 @@
   } from "../stores/data.js";
   import { buildSubsumedFamilySet, isFrameSubsumed, isSubsumableFrame } from "../lib/helminth.js";
   import { componentUniqueNameAliases } from "../../config/shared/componentNames.js";
+  import { partState, type PartState } from "../lib/craftingTree.js";
   import { buildMasteryLookup, normalizeLookupKey } from "../lib/masteryLookup.js";
   import { masteryProjectionSubtext } from "../lib/masteryProjection.js";
   import {
@@ -374,8 +375,9 @@
     return comp.owned === true || (comp.ownedCount ?? 0) >= (comp.itemCount || 1);
   }
 
-  function componentStateLabelKey(state: "building" | "owned" | "missing"): MessageKey {
+  function componentStateLabelKey(state: "building" | PartState): MessageKey {
     if (state === "building") return "mastery.badgeCrafting";
+    if (state === "blueprint") return "common.blueprintOwnedNotBuilt";
     return state === "owned" ? "common.owned" : "common.missing";
   }
 
@@ -417,6 +419,8 @@
     wfmLookup: typeof $wfmItems,
     foundry: ReturnType<typeof buildFoundryIndex>,
     subsumed: Set<string>,
+    ownership: Map<string, number>,
+    db: typeof $itemDb,
   ) {
     if (!data) return [];
     return data.items.map((item) => {
@@ -439,6 +443,18 @@
         building: comp.uniqueName
           ? componentUniqueNameAliases(comp.uniqueName).some((un) => foundry.byUnique.has(un))
           : false,
+        // Only the blueprint mark comes from here; owned/missing keep the helper's counts.
+        // Raw materials (Forma, Orokin Cell) also have recipes, so only the rows the
+        // item database classed as build components qualify (Zaw, Kitgun, amp and
+        // Necramech parts live outside /Types/Recipes/).
+        blueprintHeld:
+          comp.uniqueName && db[comp.uniqueName]?.isBuildComponent === true
+            ? partState(
+                { uniqueName: comp.uniqueName, count: comp.itemCount || 1 },
+                ownership,
+                db,
+              ) === "blueprint"
+            : false,
       }));
       const partsOwned = components.length > 0 ? components.filter(isComponentOwned).length : null;
       const owned = item.currentlyOwned === true;
@@ -478,6 +494,8 @@
     $wfmItems,
     foundryIndex,
     subsumedFamilies,
+    $componentOwnership,
+    $itemDb,
   );
   $: filtered = applySharedFiltersAndSort(
     hydratedMasteryItems
@@ -1076,12 +1094,15 @@
                               comp.owned || (comp.ownedCount ?? 0) >= (comp.itemCount || 1)}
                             {@const compState = comp.building
                               ? "building"
-                              : isOwned
-                                ? "owned"
-                                : "missing"}
+                              : comp.blueprintHeld
+                                ? "blueprint"
+                                : isOwned
+                                  ? "owned"
+                                  : "missing"}
                             <button
                               type="button"
                               class="comp-dot h-1.5 w-1.5 rounded-full border border-transparent {compState}"
+                              data-part-state={compState}
                               title="{itemLabel(comp) || '?'}: {$tr(
                                 componentStateLabelKey(compState),
                               )}"
@@ -1148,8 +1169,10 @@
     background: color-mix(in oklab, var(--danger) 65%, transparent);
     border-color: color-mix(in oklab, var(--danger) 60%, transparent);
   }
-  /* Amber so a building part reads apart from owned (green) and missing (red). */
-  .comp-dot.building {
+  /* Amber for a part that exists but is not finished - building, or blueprint
+     only - so both read apart from owned (green) and missing (red). */
+  .comp-dot.building,
+  .comp-dot.blueprint {
     background: color-mix(in oklab, var(--warning) 70%, transparent);
     border-color: color-mix(in oklab, var(--warning) 65%, transparent);
   }

@@ -4,11 +4,14 @@ import {
   MAX_EXPAND_DEPTH,
   applyCraftingTreeFilters,
   buildCraftingTree,
+  builtPartCount,
   canExpandCraftingNode,
   computeCraftingSummary,
   expandCraftingNode,
   expandedChildAncestors,
   filterExpandedChildren,
+  isRecipePartPath,
+  partState,
 } from "../../../src/lib/craftingTree.js";
 import type { CraftingTreeNode } from "../../../src/lib/craftingTree.js";
 import type { ItemDbEntry } from "../../../src/types/inventory.js";
@@ -647,5 +650,167 @@ describe("crafting tree filters", () => {
     });
     expect(shown.some((child) => child.uniqueName === RUBEDO)).toBe(false);
     expect(shown.some((child) => child.uniqueName === MORPHICS)).toBe(true);
+  });
+});
+
+describe("part state", () => {
+  const FRAME = "/Lotus/Powersuits/Dragon/Dragon";
+  const FRAME_BP = "/Lotus/Types/Recipes/WarframeRecipes/ChromaBlueprint";
+  // Real shape: the frame recipe names the ...Component, the chassis recipe key
+  // is the ...Blueprint the inventory holds, and the alias rule folds the two.
+  const CHASSIS = "/Lotus/Types/Recipes/WarframeRecipes/ChromaChassisComponent";
+  const CHASSIS_BP = "/Lotus/Types/Recipes/WarframeRecipes/ChromaChassisBlueprint";
+  // Real shape: a weapon part whose blueprint spelling is no alias of the part.
+  const BARREL = "/Lotus/Types/Recipes/Weapons/WeaponParts/CrpArSniperBarrel";
+  const BARREL_BP = "/Lotus/Types/Recipes/Weapons/WeaponParts/AmbassadorBarrelBlueprint";
+  const PRIME_PART = "/Lotus/Types/Recipes/Weapons/WeaponParts/BoarPrimeReceiver";
+  const SET_PART = "/Lotus/Types/Recipes/WarframeRecipes/WispPrimeSystemsBlueprint";
+  const SET_PART_HELD = "/Lotus/Types/Recipes/WarframeRecipes/WispPrimeSystemsComponent";
+
+  function partDb(): Record<string, ItemDbEntry> {
+    return {
+      [FRAME]: item("Chroma", {
+        blueprintUniqueName: FRAME_BP,
+        buildPrice: 25_000,
+        buildTime: 0,
+        num: 1,
+        ingredients: [{ uniqueName: CHASSIS, count: 1 }],
+      }),
+      [FRAME_BP]: { ...item("Chroma Blueprint"), buildsProduct: FRAME },
+      [CHASSIS]: item("Chroma Chassis", {
+        blueprintUniqueName: CHASSIS_BP,
+        buildPrice: 15_000,
+        buildTime: 0,
+        num: 1,
+        ingredients: [{ uniqueName: RUBEDO, count: 900 }],
+      }),
+      [CHASSIS_BP]: { ...item("Chroma Chassis Blueprint"), buildsProduct: CHASSIS },
+      [BARREL]: item("Ambassador Barrel", {
+        blueprintUniqueName: BARREL_BP,
+        buildPrice: 15_000,
+        buildTime: 0,
+        num: 1,
+        ingredients: [{ uniqueName: MORPHICS, count: 1 }],
+      }),
+      [BARREL_BP]: { ...item("Ambassador Barrel Blueprint"), buildsProduct: BARREL },
+      [PRIME_PART]: item("Boar Prime Receiver"),
+      [SET_PART]: item("Wisp Prime Systems Blueprint"),
+      [RUBEDO]: item("Rubedo"),
+      [MORPHICS]: item("Morphics"),
+    };
+  }
+
+  const part = (uniqueName: string, count = 1) => ({ uniqueName, count });
+
+  it("reads a built part as owned, a held blueprint as blueprint, nothing as missing", () => {
+    const db = partDb();
+
+    expect(partState(part(CHASSIS), new Map([[CHASSIS, 1]]), db)).toBe("owned");
+    expect(partState(part(CHASSIS), new Map([[CHASSIS_BP, 1]]), db)).toBe("blueprint");
+    expect(partState(part(CHASSIS), new Map(), db)).toBe("missing");
+  });
+
+  it("marks the blueprint without touching the alias-folded count", () => {
+    const db = partDb();
+    const owned = new Map([[CHASSIS_BP, 1]]);
+    const chassis = childOf(buildCraftingTree(FRAME, db, owned), CHASSIS)!;
+
+    // The readiness numbers keep seeing the blueprint as the part.
+    expect(chassis.owned).toBe(1);
+    expect(chassis.missing).toBe(0);
+    expect(partState(chassis, owned, db)).toBe("blueprint");
+  });
+
+  it("finds a blueprint whose name is no spelling of the part", () => {
+    const db = partDb();
+
+    expect(partState(part(BARREL), new Map([[BARREL_BP, 1]]), db)).toBe("blueprint");
+    expect(partState(part(BARREL), new Map([[BARREL, 1]]), db)).toBe("owned");
+    expect(partState(part(BARREL), new Map(), db)).toBe("missing");
+  });
+
+  it("needs the built pile to cover the whole count", () => {
+    const db = partDb();
+    const short = new Map([
+      [CHASSIS, 1],
+      [CHASSIS_BP, 1],
+    ]);
+
+    expect(partState(part(CHASSIS, 2), short, db)).toBe("blueprint");
+    expect(partState(part(CHASSIS, 2), new Map([[CHASSIS, 2]]), db)).toBe("owned");
+  });
+
+  it("marks a held blueprint item as blueprint until its product exists", () => {
+    const db = partDb();
+    const frameBp = childOf(buildCraftingTree(FRAME, db, new Map()), FRAME_BP)!;
+    expect(frameBp.isBlueprintItem).toBe(true);
+
+    expect(partState(frameBp, new Map(), db)).toBe("missing");
+    expect(partState(frameBp, new Map([[FRAME_BP, 1]]), db)).toBe("blueprint");
+    expect(
+      partState(
+        frameBp,
+        new Map([
+          [FRAME_BP, 1],
+          [FRAME, 1],
+        ]),
+        db,
+      ),
+    ).toBe("owned");
+  });
+
+  it("counts built copies without the blueprint spelling", () => {
+    const db = partDb();
+
+    expect(builtPartCount(part(CHASSIS), new Map([[CHASSIS_BP, 1]]), db)).toBe(0);
+    expect(builtPartCount(part(CHASSIS), new Map([[CHASSIS, 2]]), db)).toBe(2);
+    expect(builtPartCount(part(BARREL), new Map([[BARREL_BP, 3]]), db)).toBe(0);
+    // A blueprint row is its own pile, so holding it still counts.
+    expect(
+      builtPartCount({ ...part(FRAME_BP), isBlueprintItem: true }, new Map([[FRAME_BP, 1]]), db),
+    ).toBe(1);
+    // No recipe, nothing to build: the folded pile is the built count.
+    expect(builtPartCount(part(SET_PART), new Map([[SET_PART_HELD, 1]]), db)).toBe(1);
+  });
+
+  it("reads the held blueprint when the recipe index names another one", () => {
+    // DE's export has two recipes producing the Sagek Prime Barrel, so the index
+    // keeps the Stock blueprint as the barrel's recipe key.
+    const SAGEK_BARREL = "/Lotus/Types/Recipes/Weapons/WeaponParts/SagekPrimeBarrel";
+    const SAGEK_BARREL_BP = `${SAGEK_BARREL}Blueprint`;
+    const SAGEK_STOCK_BP = "/Lotus/Types/Recipes/Weapons/WeaponParts/SagekPrimeStockBlueprint";
+    const db: Record<string, ItemDbEntry> = {
+      ...partDb(),
+      [SAGEK_BARREL]: item("Sagek Prime Barrel", {
+        blueprintUniqueName: SAGEK_STOCK_BP,
+        buildPrice: 15_000,
+        buildTime: 0,
+        num: 1,
+        ingredients: [{ uniqueName: MORPHICS, count: 1 }],
+      }),
+      [SAGEK_BARREL_BP]: { ...item("Sagek Prime Barrel Blueprint"), buildsProduct: SAGEK_BARREL },
+      [SAGEK_STOCK_BP]: { ...item("Sagek Prime Stock Blueprint"), buildsProduct: SAGEK_BARREL },
+    };
+
+    expect(builtPartCount(part(SAGEK_BARREL), new Map([[SAGEK_BARREL_BP, 1]]), db)).toBe(0);
+    expect(partState(part(SAGEK_BARREL), new Map([[SAGEK_BARREL_BP, 1]]), db)).toBe("blueprint");
+    expect(partState(part(SAGEK_BARREL), new Map([[SAGEK_STOCK_BP, 1]]), db)).toBe("blueprint");
+    expect(partState(part(SAGEK_BARREL), new Map([[SAGEK_BARREL, 1]]), db)).toBe("owned");
+  });
+
+  it("keeps raw materials outside the part path rule", () => {
+    expect(isRecipePartPath(CHASSIS)).toBe(true);
+    expect(isRecipePartPath(PRIME_PART)).toBe(true);
+    expect(isRecipePartPath(RUBEDO)).toBe(false);
+  });
+
+  it("owns a part with no recipe under either spelling of its pile", () => {
+    const db = partDb();
+
+    // The set spells the part ...Blueprint, the inventory row ...Component.
+    expect(partState(part(SET_PART), new Map([[SET_PART_HELD, 1]]), db)).toBe("owned");
+    // A bare prime part the inventory files under the Blueprint suffix.
+    expect(partState(part(PRIME_PART), new Map([[`${PRIME_PART}Blueprint`, 1]]), db)).toBe("owned");
+    expect(partState(part(PRIME_PART), new Map(), db)).toBe("missing");
   });
 });
