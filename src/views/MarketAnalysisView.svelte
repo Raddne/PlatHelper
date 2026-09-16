@@ -124,6 +124,7 @@
   import {
     bestSeller,
     categoryNames,
+    clearCategoryOverride,
     computeFlow,
     distinctItemCategories,
     fifoCostBasis,
@@ -480,9 +481,7 @@
   }
 
   function clearOverride(key: string): void {
-    const next = { ...overrides };
-    delete next[key];
-    overrides = next;
+    overrides = clearCategoryOverride(overrides, key);
     saveCategoryOverrides(overrides);
   }
 

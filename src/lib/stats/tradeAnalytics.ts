@@ -241,9 +241,6 @@ function baseItemKey(item: TradeItem): string {
 
 const RANK_KEY_TAG = /:r\d+$/;
 
-/** A rank is part of what changed hands - a rank 0 arcane and a rank 5 one sell
- *  for different platinum - so each rank rolls up on its own. A row with no rank
- *  keeps the bare key, so existing buckets never move. */
 export function itemKey(item: TradeItem): string {
   const base = baseItemKey(item);
   if (!base) return base;
@@ -251,17 +248,13 @@ export function itemKey(item: TradeItem): string {
   return rank == null ? base : `${base}:r${rank}`;
 }
 
-/** The bare key behind a rank split. Item lookups join on real ids, so the
- *  grouping suffix has to come back off before one is resolved. */
 export function itemKeyBase(key: string): string {
   return key.replace(RANK_KEY_TAG, "");
 }
 
 interface TradeItemLabel {
   primary: string;
-  /** Muted qualifier under or beside the name; null when there is none. */
   secondary: string | null;
-  /** Rank the trade dialog tagged the item with; null when it carries none. */
   rank: number | null;
 }
 
@@ -545,6 +538,23 @@ export interface ItemCategoryEntry {
   overridden: boolean;
 }
 
+function effectiveOverride(overrides: Record<string, string>, key: string): string {
+  return overrides[key] ?? overrides[itemKeyBase(key)] ?? "";
+}
+
+/** An inheriting row keeps an empty entry of its own, so the base key survives
+ *  for the other ranks instead of being deleted out from under them. */
+export function clearCategoryOverride(
+  overrides: Record<string, string>,
+  key: string,
+): Record<string, string> {
+  const base = itemKeyBase(key);
+  const next = { ...overrides };
+  if (base !== key && overrides[base] != null) next[key] = "";
+  else delete next[key];
+  return next;
+}
+
 /** One row per distinct item in the range, for the category override editor. */
 export function distinctItemCategories(
   events: TradeEvent[],
@@ -563,7 +573,7 @@ export function distinctItemCategories(
         secondary: label.secondary,
         rank: label.rank,
         resolved: resolve(item),
-        overridden: overrides[key] !== undefined,
+        overridden: effectiveOverride(overrides, key) !== "",
       });
     }
   }
@@ -679,7 +689,7 @@ export function withCategoryOverrides(
     const key = itemKey(item);
     // An override saved before the rank split sits on the bare key, so a ranked
     // row still honours it until the user picks a category for that rank.
-    const override = overrides[key] ?? overrides[itemKeyBase(key)];
+    const override = effectiveOverride(overrides, key);
     if (override) return override;
     const resolved = base(item);
     return resolved || UNCATEGORIZED;
@@ -1003,9 +1013,6 @@ function consume(lots: Lot[], units: number): { units: number; cost: number } {
   return { units: units - left, cost };
 }
 
-/** FIFO cost basis over the range, oldest event first. A sale with no matching
- *  purchase lot is unpriced, never zero-cost: the acquisition really is unknown.
- *  Lots ignore the rank tag: an arcane bought at rank 0 is the one sold at rank 5. */
 export function fifoCostBasis(events: TradeEvent[]): CostBasisResult {
   // Oldest first; sortByDate breaks a timestamp tie in favour of the purchase.
   const ordered = sortByDate(events, false);
@@ -1209,7 +1216,10 @@ export function loadCategoryOverrides(): Record<string, string> {
     if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return {};
     const out: Record<string, string> = {};
     for (const [key, value] of Object.entries(parsed as Record<string, unknown>)) {
-      if (typeof value === "string" && value.trim()) out[key] = value.trim();
+      if (typeof value !== "string") continue;
+      // An exactly empty entry is a cleared row, not junk: it blocks the base-key fallback.
+      if (value.trim()) out[key] = value.trim();
+      else if (value === "") out[key] = "";
     }
     return out;
   } catch {

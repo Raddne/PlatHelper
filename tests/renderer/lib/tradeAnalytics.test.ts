@@ -4,6 +4,7 @@ import { toLocalDayKey as toDayKey } from "../../../config/shared/dayKey.js";
 import {
   bestSeller,
   categoryNames,
+  clearCategoryOverride,
   computeFlow,
   distinctItemCategories,
   fifoCostBasis,
@@ -253,8 +254,6 @@ describe("makeItemKindResolver", () => {
   });
 
   it("buckets a rank-tagged arcane by the item database, not by the rank tag", () => {
-    // Most arcanes are not named "Arcane ...", so the name rules never see them
-    // and the dialog's rank tag used to file every one of them as a mod.
     const arcaneDb = {
       ...db,
       "/Lotus/Types/Game/Projections/ArcaneMagusLockdown": {
@@ -357,15 +356,88 @@ describe("rank rollups", () => {
     expect(rows.map((r) => r.rank)).toEqual([0, 5]);
   });
 
+  it("flags a rank row the pre-split override still covers", () => {
+    const overrides = { arcane_energize: "Arcanes" };
+    const rows = distinctItemCategories(
+      events,
+      withCategoryOverrides(() => UNCATEGORIZED, overrides),
+      overrides,
+    );
+    expect(
+      rows.map((r) => ({ rank: r.rank, resolved: r.resolved, overridden: r.overridden })),
+    ).toEqual([
+      { rank: 0, resolved: "Arcanes", overridden: true },
+      { rank: 5, resolved: "Arcanes", overridden: true },
+    ]);
+  });
+
   it("honours an override saved before the ranks were split apart", () => {
     const resolve = withCategoryOverrides(() => UNCATEGORIZED, { arcane_energize: "Arcanes" });
     expect(resolve(ranked(0))).toBe("Arcanes");
-    // The rank's own override still wins over the inherited one.
     const perRank = withCategoryOverrides(() => UNCATEGORIZED, {
       arcane_energize: "Arcanes",
       "arcane_energize:r5": "Maxed",
     });
     expect(perRank(ranked(5))).toBe("Maxed");
+  });
+
+  it("clears one rank without stripping the ranks that inherit the base override", () => {
+    const next = clearCategoryOverride({ arcane_energize: "Arcanes" }, "arcane_energize:r5");
+    const resolve = withCategoryOverrides(() => UNCATEGORIZED, next);
+    expect(resolve(ranked(5))).toBe(UNCATEGORIZED);
+    expect(resolve(ranked(0))).toBe("Arcanes");
+    expect(next.arcane_energize).toBe("Arcanes");
+  });
+
+  it("leaves an unranked row of the same item on the base override", () => {
+    const next = clearCategoryOverride({ arcane_energize: "Arcanes" }, "arcane_energize:r5");
+    const unranked: TradeItem = {
+      internalName: "",
+      displayName: "Arcane Energize",
+      count: 1,
+      direction: "given",
+      wfmSlug: "arcane_energize",
+    };
+    expect(withCategoryOverrides(() => UNCATEGORIZED, next)(unranked)).toBe("Arcanes");
+  });
+
+  it("marks only the cleared rank as no longer overridden", () => {
+    const next = clearCategoryOverride({ arcane_energize: "Arcanes" }, "arcane_energize:r5");
+    const rows = distinctItemCategories(
+      events,
+      withCategoryOverrides(() => UNCATEGORIZED, next),
+      next,
+    );
+    expect(rows.map((r) => ({ rank: r.rank, overridden: r.overridden }))).toEqual([
+      { rank: 0, overridden: true },
+      { rank: 5, overridden: false },
+    ]);
+  });
+
+  it("drops the entry outright when the row owns the override", () => {
+    expect(clearCategoryOverride({ "arcane_energize:r5": "Maxed" }, "arcane_energize:r5")).toEqual(
+      {},
+    );
+    expect(clearCategoryOverride({ arcane_energize: "Arcanes" }, "arcane_energize")).toEqual({});
+  });
+
+  it("keeps a cleared rank cleared across a save and reload", () => {
+    const mem = new Map<string, string>();
+    vi.stubGlobal("localStorage", {
+      getItem: (key: string) => mem.get(key) ?? null,
+      setItem: (key: string, value: string) => void mem.set(key, value),
+    });
+    try {
+      saveCategoryOverrides(
+        clearCategoryOverride({ arcane_energize: "Arcanes" }, "arcane_energize:r5"),
+      );
+      const reloaded = loadCategoryOverrides();
+      const resolve = withCategoryOverrides(() => UNCATEGORIZED, reloaded);
+      expect(resolve(ranked(5))).toBe(UNCATEGORIZED);
+      expect(resolve(ranked(0))).toBe("Arcanes");
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 });
 
@@ -601,6 +673,14 @@ describe("category overrides persistence", () => {
     expect(loadCategoryOverrides()).toEqual({});
     mem.set("wf_analysis_category_overrides", JSON.stringify({ a: 5, b: "  " }));
     expect(loadCategoryOverrides()).toEqual({});
+  });
+
+  it("keeps an empty entry, which marks a row cleared rather than uncategorised", () => {
+    saveCategoryOverrides({ arcane_energize: "Arcanes", "arcane_energize:r5": "" });
+    expect(loadCategoryOverrides()).toEqual({
+      arcane_energize: "Arcanes",
+      "arcane_energize:r5": "",
+    });
   });
 
   it("returns empty when storage is absent entirely", () => {
