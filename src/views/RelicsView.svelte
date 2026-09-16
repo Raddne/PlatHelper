@@ -658,7 +658,7 @@
           class="w-40 min-w-40 shrink-0"
         />
 
-        <div class="shrink-0 [&_.sort-control-select]:w-28 [&_.sort-control-select]:min-w-28">
+        <div class="shrink-0 [&_.sort-control-select]:min-w-28">
           <SortControl
             value={$relicViewState.sortMode}
             options={SORT_OPTIONS}
@@ -668,10 +668,12 @@
           />
         </div>
 
+        <!-- No fixed width on these selects: a select clips its value without an
+             ellipsis, and the longest option differs per language. -->
         <label class="shared-filter-sort" title={$tr("relics.ownershipTitle")}>
           <span>{$tr("common.relics")}</span>
           <select
-            class="shared-filter-select w-32 min-w-32"
+            class="shared-filter-select min-w-32"
             value={$relicViewState.ownershipMode}
             on:change={setRelicOwnershipMode}
           >
@@ -695,7 +697,7 @@
         <label class="shared-filter-sort" title={$tr("relics.qualityTitle")}>
           <span>{$tr("relics.qualityLabel")}</span>
           <select
-            class="shared-filter-select w-32 min-w-32"
+            class="shared-filter-select min-w-32"
             data-relic-quality
             value={$relicViewState.qualityMode}
             on:change={setRelicQualityMode}
@@ -709,7 +711,7 @@
         <label class="shared-filter-sort" title={$tr("relics.vaultedTitle")}>
           <span>{$tr("relics.vaultedLabel")}</span>
           <select
-            class="shared-filter-select w-28 min-w-28"
+            class="shared-filter-select min-w-28"
             value={$relicViewState.vaultedMode}
             on:change={setRelicVaultedMode}
           >
@@ -722,7 +724,7 @@
         <label class="shared-filter-sort" title={$tr("relics.squadTitle")}>
           <span>{$tr("relics.squadLabel")}</span>
           <select
-            class="shared-filter-select w-24 min-w-24"
+            class="shared-filter-select min-w-24"
             value={$relicViewState.squadSize}
             on:change={setRelicSquadSize}
           >

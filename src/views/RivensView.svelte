@@ -417,7 +417,7 @@
       <label class="flex shrink-0 items-center gap-1.5" data-riven-grade-filter>
         <span class="text-xs text-text-muted">{$tr("rivens.sort.grade")}</span>
         <select
-          class="shared-filter-select w-24 min-w-24"
+          class="shared-filter-select min-w-24"
           title={$tr("rivens.sort.grade")}
           bind:value={gradeFilter}
           data-riven-grade-select
@@ -431,7 +431,7 @@
       <label class="flex shrink-0 items-center gap-1.5">
         <span class="text-xs text-text-muted">{$tr("rivens.sort.attributeGrade")}</span>
         <select
-          class="shared-filter-select w-24 min-w-24"
+          class="shared-filter-select min-w-24"
           title={$tr("rivens.sort.attributeGrade")}
           bind:value={attrGradeFilter}
           data-riven-attr-grade-select
@@ -647,13 +647,17 @@
           <div class="flex flex-col gap-2">
             {#each veiledRivens as entry}
               <div
-                class="flex items-center justify-between py-2.5 px-4 bg-bg-surface border border-border rounded-lg transition-[border-color] duration-150 hover:border-border-strong"
+                class="flex items-center justify-between gap-3 py-2.5 px-4 bg-bg-surface border border-border rounded-lg transition-[border-color] duration-150 hover:border-border-strong"
+                data-riven-veiled-row
               >
-                <div class="font-display text-sm font-semibold text-text-primary min-w-16 shrink-0">
+                <div
+                  class="font-display text-sm font-semibold text-text-primary min-w-16 shrink-0"
+                  data-riven-veiled-name
+                >
                   {$tr("rivens.rivenMod", { label: entry.label })}
                 </div>
                 {#if entry.challengeDesc}
-                  <div class="flex items-center gap-3 flex-1 min-w-0">
+                  <div class="flex items-center gap-3 flex-1 min-w-0" data-riven-veiled-challenge>
                     <span class="text-xs text-text-secondary">{entry.challengeDesc}</span>
                     {#if entry.challengeProgress != null && entry.challengeRequired != null}
                       <div
@@ -673,7 +677,7 @@
                     {/if}
                   </div>
                 {:else}
-                  <div class="flex items-center gap-3 flex-1 min-w-0">
+                  <div class="flex items-center gap-3 flex-1 min-w-0" data-riven-veiled-challenge>
                     <span class="text-xs text-text-muted italic"
                       >{$tr("rivens.challengeNotAssigned")}</span
                     >

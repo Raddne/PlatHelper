@@ -233,15 +233,11 @@
   .shared-number-filter input:focus {
     border-color: var(--accent-dim);
   }
+  /* Content-sized basis, never 0: with a zero basis the row this bar shares kept
+     every shrink-0 sibling on one line and squeezed the bar itself out of reach. */
   .shared-filter-bar-inline {
     margin-bottom: 0;
-    flex: 1;
-    min-width: 0;
-  }
-  .shared-filter-bar-inline .shared-filter-controls {
-    flex-wrap: nowrap;
-    overflow-x: auto;
-    min-width: 0;
+    flex: 1 1 auto;
   }
   .shared-filter-bar-inline .shared-filter-search {
     min-width: 11rem;
@@ -252,7 +248,7 @@
   .shared-filter-bar-inline .shared-filter-select {
     min-width: 8rem;
   }
-  /* The inline bar never wraps, so its filter selects stay tighter than sort. */
+  /* The inline bar shares its row, so its filter selects stay tighter than sort. */
   .shared-filter-bar-inline .shared-select-group .shared-filter-select {
     min-width: 6.5rem;
   }
@@ -468,7 +464,9 @@
 
   /* empty state */
   .empty-state {
-    min-height: 15rem;
+    /* The reserved height is capped by the window: at a raised text scale 15rem
+       centred the message below the fold of a short window's content area. */
+    min-height: min(15rem, 40vh);
     display: flex;
     flex-direction: column;
     align-items: center;
