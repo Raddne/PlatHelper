@@ -194,7 +194,7 @@ export async function setWindowSize(
   width: number,
   height: number,
 ): Promise<void> {
-  await evaluateInMain(
+  const zoomFactor = await evaluateInMain(
     harness.app,
     ({ BrowserWindow }, size) => {
       const win = BrowserWindow.getAllWindows().find((candidate) =>
@@ -202,6 +202,7 @@ export async function setWindowSize(
       );
       if (!win) throw new Error("main window not found");
       win.setContentSize(size.width, size.height);
+      return win.webContents.getZoomFactor();
     },
     { width, height },
   );
@@ -210,8 +211,19 @@ export async function setWindowSize(
     width: window.innerWidth,
     height: window.innerHeight,
   }));
-  if (Math.abs(landed.width - width) > 2 || Math.abs(landed.height - height) > 2) {
-    throw new Error(`window landed at ${landed.width}x${landed.height}, wanted ${width}x${height}`);
+  // setContentSize takes device-independent px, the renderer reports CSS px, and
+  // the display-derived UI zoom (config/runtime/uiScale.ts) divides the two.
+  const zoom = zoomFactor > 0 ? zoomFactor : 1;
+  const expected = { width: width / zoom, height: height / zoom };
+  if (
+    Math.abs(landed.width - expected.width) > 2 ||
+    Math.abs(landed.height - expected.height) > 2
+  ) {
+    throw new Error(
+      `window landed at ${landed.width}x${landed.height} css px, wanted ` +
+        `${Math.round(expected.width)}x${Math.round(expected.height)} ` +
+        `(${width}x${height} at zoom ${zoom})`,
+    );
   }
 }
 
