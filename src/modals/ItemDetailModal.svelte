@@ -2,7 +2,11 @@
   import { itemLabel } from "../lib/itemLabel.js";
   import { itemMarksFor, sharedPartMasteryResolver } from "../lib/parentMastery.js";
   import { masteryData } from "../stores/mastery.js";
-  import { showMasteredBadges, showOwnedParentBadges } from "../stores/preferences.js";
+  import {
+    showMasteredBadges,
+    showOwnedParentBadges,
+    showVaultedBadges,
+  } from "../stores/preferences.js";
   import { activeItem } from "../stores/modals.js";
   import { itemDb, wfmItems, componentOwnership, inventoryData } from "../stores/data.js";
   import { createPriceLoader } from "../lib/priceState.js";
@@ -260,7 +264,9 @@
           <h2>{itemLabel(item)}</h2>
           <div class="detail-tags">
             {#if item.isPrime}<span class="detail-tag prime">{$tr("common.prime")}</span>{/if}
-            {#if item.vaulted}<span class="detail-tag vaulted">{$tr("common.vaulted")}</span>{/if}
+            {#if $showVaultedBadges && item.vaulted}<span class="detail-tag vaulted"
+                >{$tr("common.vaulted")}</span
+              >{/if}
             {#if $showMasteredBadges && (marks.mastered || item.status === "mastered")}
               <span
                 class="detail-tag mastered"

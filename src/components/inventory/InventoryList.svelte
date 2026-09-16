@@ -1,5 +1,9 @@
 <script lang="ts">
-  import { showMasteredBadges, showOwnedParentBadges } from "../../stores/preferences.js";
+  import {
+    showMasteredBadges,
+    showOwnedParentBadges,
+    showVaultedBadges,
+  } from "../../stores/preferences.js";
   import { onDestroy } from "svelte";
 
   import ArchonShardPips from "../archon/ArchonShardPips.svelte";
@@ -333,7 +337,7 @@
               </button>
               <span class="flex flex-wrap items-center gap-1.5 text-[11px] text-text-muted">
                 <span>{item.categoryLabel}</span>
-                {#if item.vaulted}<span
+                {#if $showVaultedBadges && item.vaulted}<span
                     class="vault-badge vault-badge--inline"
                     title={$t("common.vaulted")}>V</span
                   >{/if}

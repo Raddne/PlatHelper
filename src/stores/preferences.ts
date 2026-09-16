@@ -6,6 +6,7 @@ export const hideFoundryClaims = persistedBoolean("wf_hide_foundry_claims", true
 export const autoFocusSearch = persistedBoolean("wf_auto_focus_search", false);
 export const showMasteredBadges = persistedBoolean("wf_show_mastered_badges", true);
 export const showOwnedParentBadges = persistedBoolean("wf_show_owned_parent_badges", true);
+export const showVaultedBadges = persistedBoolean("wf_show_vaulted_badges", true);
 /** Widens the inventory value totals from prime parts to every tradable row. */
 export const inventoryValueAllTradables = persistedBoolean(
   "wf_inventory_value_all_tradables",

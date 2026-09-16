@@ -63,7 +63,7 @@
   import { setRootOf } from "../lib/inventory/fullSets.js";
   import { parseOwnedRelics } from "../lib/relic.js";
   import { activeItem, activeComponent } from "../stores/modals.js";
-  import { hideFounderMasteryItems } from "../stores/preferences.js";
+  import { hideFounderMasteryItems, showVaultedBadges } from "../stores/preferences.js";
   import { locale, tr, type Translator } from "../lib/i18n.js";
   import type { MessageKey } from "../lib/i18n.js";
   import SharedFilterBar from "../components/SharedFilterBar.svelte";
@@ -903,7 +903,7 @@
                   >
                     <div class="item-img-wrap">
                       <ItemImage src={set.imageUrl} alt={itemLabel(set)} auditKey={set.name} />
-                      {#if set.vaulted}<span class="vault-badge">V</span>{/if}
+                      {#if $showVaultedBadges && set.vaulted}<span class="vault-badge">V</span>{/if}
                       <span
                         class="absolute right-2 bottom-1.5 font-display text-base font-bold text-info drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]"
                         >{set.ownedPartTypes ?? 0}/{set.totalPartTypes ?? 0}</span
@@ -949,7 +949,8 @@
                   >
                     <div class="item-img-wrap">
                       <ItemImage src={item.imageUrl} alt={itemLabel(item)} auditKey={item.name} />
-                      {#if item.vaulted}<span class="vault-badge">V</span>{/if}
+                      {#if $showVaultedBadges && item.vaulted}<span class="vault-badge">V</span
+                        >{/if}
                       {#if pinKey}
                         <button
                           type="button"

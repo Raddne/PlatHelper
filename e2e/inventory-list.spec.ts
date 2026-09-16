@@ -198,4 +198,25 @@ test.describe("Inventory list view", () => {
     await page.locator(".detail-close").click();
     await expect(page.locator(".detail-header")).toHaveCount(0);
   });
+
+  test("the vaulted badge follows its Settings toggle", async () => {
+    // Acceltra Prime and Boltor Prime parts are vaulted in the bundled item data.
+    await expect.poll(() => page.locator(".vault-badge").count()).toBeGreaterThan(0);
+
+    const toggle = page.locator('[data-setting="show-vaulted-badges"] input');
+    await openView(page, "settings");
+    await toggle.uncheck();
+    await openView(page, "inventory");
+    await expect(page.locator(".item-card").first()).toBeVisible({ timeout: 15_000 });
+    await expect(page.locator(".vault-badge")).toHaveCount(0);
+
+    await setMode("list");
+    await expect(page.locator("[data-list-row]").first()).toBeVisible();
+    await expect(page.locator(".vault-badge")).toHaveCount(0);
+
+    await openView(page, "settings");
+    await toggle.check();
+    await setMode("cards");
+    await expect.poll(() => page.locator(".vault-badge").count()).toBeGreaterThan(0);
+  });
 });

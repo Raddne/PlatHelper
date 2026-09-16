@@ -1005,6 +1005,7 @@
   "common.parentOwned": "Basis im Besitz",
   "settings.showMasteredBadges": "Gemeistert-Markierungen (M)",
   "settings.showOwnedParentBadges": "Besitz-Markierungen (C)",
+  "settings.showVaultedBadges": "Vault-Markierungen (V)",
   "common.mastery": "Meisterschaft",
   "common.moreCount": "+{count} weitere",
   "common.max": "Max",

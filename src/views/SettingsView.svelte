@@ -52,6 +52,7 @@
     hideFounderMasteryItems,
     showMasteredBadges,
     showOwnedParentBadges,
+    showVaultedBadges,
   } from "../stores/preferences.js";
   import { startTour } from "../stores/tour.js";
   import { currentView } from "../stores/app.js";
@@ -859,6 +860,12 @@
                 dataSetting="show-owned-parent-badges"
               >
                 <input type="checkbox" bind:checked={$showOwnedParentBadges} />
+              </SettingsRow>
+              <SettingsRow
+                label={$tr("settings.showVaultedBadges")}
+                dataSetting="show-vaulted-badges"
+              >
+                <input type="checkbox" bind:checked={$showVaultedBadges} />
               </SettingsRow>
             </div>
           </SettingsSection>

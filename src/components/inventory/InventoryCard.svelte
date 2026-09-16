@@ -1,5 +1,9 @@
 <script lang="ts">
-  import { showMasteredBadges, showOwnedParentBadges } from "../../stores/preferences.js";
+  import {
+    showMasteredBadges,
+    showOwnedParentBadges,
+    showVaultedBadges,
+  } from "../../stores/preferences.js";
   import { itemLabel } from "../../lib/itemLabel.js";
   import { createEventDispatcher, onDestroy, onMount } from "svelte";
 
@@ -159,9 +163,9 @@
       alt={itemLabel(item)}
       auditKey={item.name}
     />
-    {#if item.vaulted || ($showMasteredBadges && marks.mastered) || ($showOwnedParentBadges && marks.crafted)}
+    {#if ($showVaultedBadges && item.vaulted) || ($showMasteredBadges && marks.mastered) || ($showOwnedParentBadges && marks.crafted)}
       <span class="item-mark-row">
-        {#if item.vaulted}<span class="vault-badge">V</span>{/if}
+        {#if $showVaultedBadges && item.vaulted}<span class="vault-badge">V</span>{/if}
         {#if $showMasteredBadges && marks.mastered}<span
             class="item-mark item-mark--mastered"
             data-item-mark="mastered"

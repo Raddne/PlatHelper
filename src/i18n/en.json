@@ -1362,6 +1362,7 @@
   "settings.masteryDesc": "Choose which items appear in Mastery.",
   "settings.showMasteredBadges": "Mastered badges (M)",
   "settings.showOwnedParentBadges": "Owned parent badges (C)",
+  "settings.showVaultedBadges": "Vaulted badges (V)",
   "settings.notificationsDesc": "Choose which desktop and market notifications appear.",
   "settings.notificationsTitle": "Notifications",
   "settings.notifyWhileFocused": "Notify even while Warframe is focused (includes messages you send)",
