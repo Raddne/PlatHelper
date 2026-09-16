@@ -1,5 +1,5 @@
 import { isRankedGroup, toFinitePositiveInt } from "../../config/shared/numeric.js";
-import { WFM_ORDER_SUBTYPES } from "../../config/shared/wfmOrders.js";
+import { normalizeSubtype, WFM_ORDER_SUBTYPES } from "../../config/shared/wfmOrders.js";
 import { isResourceItem, resolveItem, shouldHide } from "./inventory/itemClassification.js";
 import { gameRefKey, normalizeMarketName, toMarketSlug } from "./marketNaming.js";
 import { type InventoryBaseItem } from "./inventoryMarket.js";
@@ -177,6 +177,8 @@ interface OrderBacking {
   rows: ParsedItem[];
   /** Set only when the listing pins a rank no owned copy sits at. */
   rankMismatch: number | null;
+  /** Set when the listing names a variant the inventory cannot tell apart. */
+  unprovable?: true;
 }
 
 /** The inventory the listing may draw on, narrowed by the refinement and the
@@ -189,11 +191,23 @@ function orderBacking(
   let owned = matchingParsedItems(order, parsedItems, wfmItems).filter(
     (item) => ownedCountForOrder(item) > 0,
   );
-  // A refinement-specific listing is only backed by that refinement; an intact
-  // stack cannot fulfil a radiant order.
-  const orderSubtype = typeof order.subtype === "string" ? order.subtype.toLowerCase() : null;
-  if (orderSubtype && RELIC_REFINEMENT_RE.exec(`${order.itemName} (${orderSubtype})`)) {
-    owned = owned.filter((item) => relicQualityForItem(item) === orderSubtype);
+  // DE keeps the crafted ...Component beside the ...Blueprint warframe.market
+  // trades and both join one order; prefer the listed one. Dropping untradable
+  // rows outright would empty a listing the catalog files under another
+  // uniqueName, so they only lose to a tradable row for the same order.
+  const tradableRows = owned.filter((item) => item.tradable !== false);
+  if (tradableRows.length > 0) owned = tradableRows;
+  const orderSubtype = normalizeSubtype(order.subtype);
+  if (orderSubtype) {
+    // A refinement-specific listing is only backed by that refinement; an intact
+    // stack cannot fulfil a radiant order.
+    if (RELIC_REFINEMENT_RE.exec(`${order.itemName} (${orderSubtype})`)) {
+      owned = owned.filter((item) => relicQualityForItem(item) === orderSubtype);
+    } else {
+      // A mod variant (Atragraph) is a separate card the inventory does not
+      // model, so ordinary copies never prove one either way.
+      return { rows: [], rankMismatch: null, unprovable: true };
+    }
   }
   if (owned.length === 0 || order.modRank == null) return { rows: owned, rankMismatch: null };
 
@@ -225,6 +239,7 @@ export function orderInventoryMatch(
   if (order.orderType !== "sell") return { state: "match" };
 
   const backing = orderBacking(order, parsedItems, wfmItems);
+  if (backing.unprovable) return { state: "match" };
   if (backing.rankMismatch !== null) {
     return { state: "rank-mismatch", ownedRank: backing.rankMismatch };
   }

@@ -784,11 +784,10 @@
     try {
       // One PATCH at a time, same as the reprice run; inlineUpdateOrder has
       // already shown the error by the time it reports a failure.
+      // Quantity only: the price captured when the plan was built would undo a
+      // reprice or an edit the user makes while the run is still going.
       for (const update of plan.updates) {
-        const sent = await inlineUpdateOrder(update.order, {
-          platinum: update.order.platinum,
-          quantity: update.quantity,
-        });
+        const sent = await inlineUpdateOrder(update.order, { quantity: update.quantity });
         if (!sent) return;
       }
     } finally {
@@ -823,7 +822,7 @@
   /** Patch in place - a refetch would resort the list mid-edit. */
   async function inlineUpdateOrder(
     order: WfmOrder,
-    updates: { platinum: number; quantity: number },
+    updates: { platinum?: number; quantity?: number },
   ): Promise<boolean> {
     const result = await tradeInvoke("wfmUpdateOrder", order.id, updates);
     if (hasError(result)) {

@@ -247,9 +247,11 @@ test.describe("Market quantity sync", () => {
     // Two listings move, one is already right, one has no owned copy.
     expect(state.messages[0]).toContain("2");
     expect(state.messages[0]).toContain("1");
+    // Quantity alone: resending the price captured before the run would undo a
+    // reprice made while the run is still going.
     expect(state.updates).toEqual([
-      { orderId: fixtureId(0), platinum: 10, quantity: 5 },
-      { orderId: fixtureId(1), platinum: 11, quantity: 2 },
+      { orderId: fixtureId(0), platinum: undefined, quantity: 5 },
+      { orderId: fixtureId(1), platinum: undefined, quantity: 2 },
     ]);
     // The stock listing owns nothing, so a zero was never sent in its name.
     expect(state.updates.some((entry) => entry.orderId === fixtureId(2))).toBe(false);

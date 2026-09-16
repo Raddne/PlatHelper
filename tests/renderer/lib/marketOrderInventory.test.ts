@@ -136,6 +136,49 @@ function mod(name: string, rank: number): ParsedItem {
   return parsedItem({ name, rank, amount: 1, inventoryGroup: "mods" });
 }
 
+// Production shape: DE keeps the crafted part under ...Component beside the
+// ...Blueprint warframe.market trades, and the catalog points at the blueprint.
+const FRAME_PART_BLUEPRINT = "/Lotus/Types/Recipes/WarframeRecipes/AtlasPrimeSystemsBlueprint";
+const FRAME_PART_COMPONENT = "/Lotus/Types/Recipes/WarframeRecipes/AtlasPrimeSystemsComponent";
+
+function framePartOrder(overrides: Partial<WfmOrder> = {}): WfmOrder {
+  return order({
+    itemName: "Atlas Prime Systems",
+    itemUrlName: "atlas_prime_systems",
+    ...overrides,
+  });
+}
+
+const framePartCatalog = (): WfmItemsLookup => catalog(FRAME_PART_BLUEPRINT, "atlas_prime_systems");
+
+// The crafted row keeps the market name (the " Blueprint" suffix is stripped by
+// canonicalBuildPartName), so it joins by name while the blueprint joins by ref.
+const craftedPart = (amount: number): ParsedItem =>
+  parsedItem({
+    name: "Atlas Prime Systems",
+    internalName: FRAME_PART_COMPONENT,
+    tradable: false,
+    amount,
+  });
+
+const tradableBlueprint = (amount: number): ParsedItem =>
+  parsedItem({
+    name: "Atlas Prime Systems Blueprint",
+    internalName: FRAME_PART_BLUEPRINT,
+    tradable: true,
+    amount,
+  });
+
+function atragraphOrder(overrides: Partial<WfmOrder> = {}): WfmOrder {
+  return order({
+    itemName: "Spectral Serration",
+    itemUrlName: "spectral_serration",
+    subtype: "atragraph",
+    modRank: 0,
+    ...overrides,
+  });
+}
+
 describe("orderInventoryMatch", () => {
   it("stays quiet while the inventory still backs the listing", () => {
     const match = orderInventoryMatch(order({}), [parsedItem({})], catalog(PART_REF), {});
@@ -231,6 +274,39 @@ describe("orderInventoryMatch", () => {
     expect(orderInventoryMatch(relicOrder(null), radiantOwned, relicCatalog(), {})).toEqual({
       state: "match",
     });
+  });
+
+  it("backs a frame part listing with the blueprint alone, not the crafted part", () => {
+    // The crafted Systems cannot be traded, so three of them plus one blueprint
+    // is one sellable copy, not four.
+    const inventory = [craftedPart(3), tradableBlueprint(1)];
+    expect(
+      orderInventoryMatch(framePartOrder({ quantity: 3 }), inventory, framePartCatalog(), {}),
+    ).toEqual({ state: "partial", owned: 1, listed: 3 });
+  });
+
+  it("has no opinion on a mod variant the inventory cannot tell apart", () => {
+    // Ordinary copies are not Atragraph copies; the listing stays unjudged.
+    const inventory = [
+      parsedItem({ name: "Spectral Serration", amount: 4, inventoryGroup: "mods" }),
+    ];
+    expect(
+      orderInventoryMatch(atragraphOrder({ quantity: 9 }), inventory, catalog(PART_REF), {}),
+    ).toEqual({ state: "match" });
+  });
+
+  it("still backs a regular mod listing from the inventory", () => {
+    const inventory = [
+      parsedItem({ name: "Spectral Serration", amount: 1, inventoryGroup: "mods" }),
+    ];
+    expect(
+      orderInventoryMatch(
+        atragraphOrder({ subtype: "regular", quantity: 4 }),
+        inventory,
+        catalog(PART_REF),
+        {},
+      ),
+    ).toEqual({ state: "partial", owned: 1, listed: 4 });
   });
 
   it("flags a listing the inventory only partly backs", () => {
@@ -359,6 +435,41 @@ describe("planQuantitySync", () => {
       updates: [{ order: listing, quantity: 4 }],
       unchanged: 0,
       unbacked: 0,
+    });
+  });
+
+  it("still counts the only row it has when the catalog files it elsewhere", () => {
+    // Weapon parts are catalogued bare, so an owned row can read untradable
+    // while the listing plainly trades. Alone it is the best evidence there is,
+    // and dropping it would report a stocked listing as owning nothing.
+    const listing = framePartOrder({ quantity: 1 });
+    const inventory = [craftedPart(4)];
+    expect(planQuantitySync([listing], inventory, framePartCatalog())).toEqual({
+      updates: [{ order: listing, quantity: 4 }],
+      unchanged: 0,
+      unbacked: 0,
+    });
+  });
+
+  it("sends the tradable blueprint count, not the crafted parts beside it", () => {
+    const listing = framePartOrder({ quantity: 1 });
+    const inventory = [craftedPart(3), tradableBlueprint(1)];
+    expect(planQuantitySync([listing], inventory, framePartCatalog())).toEqual({
+      updates: [],
+      unchanged: 1,
+      unbacked: 0,
+    });
+  });
+
+  it("leaves an Atragraph listing alone rather than counting ordinary copies", () => {
+    const listing = atragraphOrder({ quantity: 1 });
+    const inventory = [
+      parsedItem({ name: "Spectral Serration", amount: 4, inventoryGroup: "mods" }),
+    ];
+    expect(planQuantitySync([listing], inventory)).toEqual({
+      updates: [],
+      unchanged: 0,
+      unbacked: 1,
     });
   });
 
