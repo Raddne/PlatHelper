@@ -324,6 +324,9 @@ function createRivenOverlayWindows(options: { show?: boolean } = {}): void {
       // Reusing panels an alt-tab hid would otherwise leave the restore armed
       // against windows this session is already showing.
       clearUnfocusHide(null);
+      // Reused panels keep the bounds and zoom of the display they were built on,
+      // and a keep-mapped window is repositioned in place, never rebuilt.
+      positionRivenOverlayWindows();
       for (const { win, controller } of rivenWindowEntries()) {
         if (!win || win.isDestroyed()) continue;
         applyOverlayZOrder(win, true);
