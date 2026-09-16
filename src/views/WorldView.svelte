@@ -410,17 +410,23 @@
       <HeaderTabs options={worldTabOptions} activeKey={worldTab} onSelect={setWorldTab} />
       {#if worldTab === "world" && (baroActive || baroAct)}
         <div class="ml-auto flex items-center pb-2 shrink-0">
+          <!-- The separator lives in the expression: a template line break before
+               it is trimmed away, which glued it to the countdown. -->
           {#if baroActive}
             <span
               class="rounded border border-warning/30 bg-warning/10 px-2 py-0.5 text-xs font-semibold whitespace-nowrap text-warning"
-              >{$tr("world.baroLeavesIn", { baro: times.baro })}{#if baroLocation}
-                - {baroLocation}{/if}</span
+              data-world-baro-pill
+              >{$tr("world.baroLeavesIn", { baro: times.baro })}{baroLocation
+                ? ` - ${baroLocation}`
+                : ""}</span
             >
           {:else}
             <span
               class="rounded border border-warning/30 bg-warning/10 px-2 py-0.5 text-xs font-semibold whitespace-nowrap text-warning"
-              >{$tr("world.baroArrivesIn", { baro: times.baro })}{#if baroLocation}
-                - {baroLocation}{/if}</span
+              data-world-baro-pill
+              >{$tr("world.baroArrivesIn", { baro: times.baro })}{baroLocation
+                ? ` - ${baroLocation}`
+                : ""}</span
             >
           {/if}
         </div>
@@ -878,8 +884,7 @@
                 >{$tr("world.inactive")}</span
               >
               <span class="text-sm font-display text-text-secondary ml-auto"
-                >{times.baro}{#if baroLocation}
-                  - {baroLocation}{/if}</span
+                >{times.baro}{baroLocation ? ` - ${baroLocation}` : ""}</span
               >
             </div>
           </div>

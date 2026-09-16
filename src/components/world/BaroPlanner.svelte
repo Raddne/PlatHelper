@@ -320,13 +320,15 @@
               >
                 <td class="px-4 py-3"
                   ><div class="flex min-w-44 items-center gap-3">
+                    <!-- Keep the slot: a skipped thumbnail pulled the name to the
+                         cell edge while its neighbours started 48px in. -->
                     {#if row.imageUrl}<ItemImage
                         src={row.imageUrl}
                         alt=""
                         auditKey={row.name}
                         cls="!h-12 !w-12 shrink-0"
-                      />{/if}
-                    <div class="flex flex-col gap-1">
+                      />{:else}<div class="h-12 w-12 shrink-0"></div>{/if}
+                    <div class="flex flex-col gap-1" data-baro-name>
                       <button
                         type="button"
                         class="border-0 bg-transparent p-0 text-left text-text-primary enabled:cursor-pointer enabled:hover:text-accent"
