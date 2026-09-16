@@ -305,7 +305,7 @@ function register(): void {
     RIVENS_GRADE_CONTRACTS,
     assertMainRendererSender,
     async (_event, payload: unknown): Promise<ContractGradesResult> => {
-      const sheetReady = rivenBestAttributes.hasRivenGoodRolls();
+      const sheetReady = rivenBestAttributes.rivenGoodRollsAreCurrent();
       if (!Array.isArray(payload) || payload.length > MAX_GRADED_CONTRACTS) {
         return { grades: [], sheetReady };
       }

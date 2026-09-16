@@ -24,7 +24,7 @@ vi.mock("../../services/rivenBestAttributes", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../../services/rivenBestAttributes")>();
   return {
     ...actual,
-    hasRivenGoodRolls: vi.fn(() => true),
+    rivenGoodRollsAreCurrent: vi.fn(() => true),
     ensureRivenGoodRollsLoaded: vi.fn(async () => {}),
   };
 });
@@ -32,7 +32,7 @@ vi.mock("../../services/rivenBestAttributes", async (importOriginal) => {
 import { register } from "../../ipc/rivensIpc";
 import {
   ensureRivenGoodRollsLoaded,
-  hasRivenGoodRolls,
+  rivenGoodRollsAreCurrent,
   setRivenGoodRollsForTest,
 } from "../../services/rivenBestAttributes";
 import { RIVENS_GRADE_CONTRACTS } from "../../config/shared/ipcChannels";
@@ -77,7 +77,7 @@ beforeAll(() => {
 
 beforeEach(() => {
   vi.clearAllMocks();
-  vi.mocked(hasRivenGoodRolls).mockReturnValue(true);
+  vi.mocked(rivenGoodRollsAreCurrent).mockReturnValue(true);
   vi.mocked(ensureRivenGoodRollsLoaded).mockResolvedValue(undefined);
   // A null timestamp keeps the loader from refetching the sheet during tests.
   setRivenGoodRollsForTest(SHEET, null);
@@ -217,7 +217,7 @@ describe("grade-riven-contracts sheet availability", () => {
 
   it("answers the roll grade while the sheet is still loading", async () => {
     setRivenGoodRollsForTest({}, null);
-    vi.mocked(hasRivenGoodRolls).mockReturnValue(false);
+    vi.mocked(rivenGoodRollsAreCurrent).mockReturnValue(false);
     // A load that never settles: awaiting it would hang this test instead.
     vi.mocked(ensureRivenGoodRollsLoaded).mockReturnValue(new Promise<void>(() => {}));
 
@@ -237,8 +237,19 @@ describe("grade-riven-contracts sheet availability", () => {
     expect(result.grades[0]?.attributeGrade).not.toBe("?");
   });
 
+  // A week-old cache grades, but a refresh can still change it, so the renderer
+  // must be told to ask again rather than settling on these letters.
+  it("reports a stale sheet as not ready", async () => {
+    vi.mocked(rivenGoodRollsAreCurrent).mockReturnValue(false);
+
+    const result = await gradeAll([contract("Akstiletto", CARD, 8)]);
+
+    expect(result.sheetReady).toBe(false);
+    expect(result.grades[0]?.attributeGrade).not.toBe("?");
+  });
+
   it("reports the sheet state even for a payload it refuses", async () => {
-    vi.mocked(hasRivenGoodRolls).mockReturnValue(false);
+    vi.mocked(rivenGoodRollsAreCurrent).mockReturnValue(false);
 
     await expect(gradeAll("not a list")).resolves.toEqual({ grades: [], sheetReady: false });
   });

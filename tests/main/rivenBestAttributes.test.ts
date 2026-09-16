@@ -11,6 +11,7 @@ vi.mock("../../services/logger", () => ({
 
 import {
   getGoodRolls,
+  rivenGoodRollsAreCurrent,
   setRivenGoodRollsForTest,
   type GoodRollData,
 } from "../../services/rivenBestAttributes";
@@ -39,6 +40,26 @@ const SHEET: Record<string, GoodRollData> = {
 beforeEach(() => {
   // A null timestamp keeps the loader from treating the injected sheet as stale.
   setRivenGoodRollsForTest(SHEET, null);
+});
+
+describe("riven good-roll freshness", () => {
+  it("does not settle on a sheet older than its refresh age", () => {
+    const eightDaysAgo = new Date(Date.now() - 8 * 24 * 60 * 60 * 1000).toISOString();
+    setRivenGoodRollsForTest(SHEET, eightDaysAgo);
+    expect(rivenGoodRollsAreCurrent()).toBe(false);
+    // The stale rows still grade; only settling on them is refused.
+    expect(getGoodRolls("Boltor")).toBe(SHEET.boltor);
+  });
+
+  it("settles on a sheet fetched within the refresh age", () => {
+    setRivenGoodRollsForTest(SHEET, new Date(Date.now() - 60_000).toISOString());
+    expect(rivenGoodRollsAreCurrent()).toBe(true);
+  });
+
+  it("reports an empty sheet as not current", () => {
+    setRivenGoodRollsForTest({}, new Date().toISOString());
+    expect(rivenGoodRollsAreCurrent()).toBe(false);
+  });
 });
 
 describe("riven good-roll lookup", () => {

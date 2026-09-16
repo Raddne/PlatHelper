@@ -158,12 +158,12 @@ async function refreshSheet(): Promise<void> {
   }
 }
 
-/** Whether a sheet is available right now, reading the disk cache once. A
- *  caller that only needs the roll grade uses this instead of waiting for the
- *  fetch behind {@link ensureRivenGoodRollsLoaded}. */
-export function hasRivenGoodRolls(): boolean {
+/** Whether the sheet on hand is one a caller can settle on, reading the disk
+ *  cache once. A stale cache answers false: it still grades, but a background
+ *  refresh behind {@link ensureRivenGoodRollsLoaded} can still change it. */
+export function rivenGoodRollsAreCurrent(): boolean {
   loadCacheIfNeeded();
-  return hasSheet();
+  return hasSheet() && !sheetIsStale();
 }
 
 /** Loads the sheet once, then refreshes it in the background once it is a week
