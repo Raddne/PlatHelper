@@ -120,6 +120,7 @@ export const RIVENS_SEARCH_AUCTIONS = "search-riven-auctions";
 export const RIVENS_GET_BEST_ATTRIBUTES = "get-riven-best-attributes";
 export const RIVENS_GET_GOOD_ROLL = "get-riven-good-roll";
 export const RIVENS_REFRESH_GOOD_ROLLS = "refresh-riven-good-rolls";
+export const RIVENS_GRADE_CONTRACTS = "grade-riven-contracts";
 export const RIVENS_CREATE_AUCTION = "create-riven-auction";
 export const RIVENS_UPDATE_AUCTION = "update-riven-auction";
 export const RIVENS_DELETE_AUCTION = "delete-riven-auction";

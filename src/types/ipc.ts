@@ -622,6 +622,10 @@ export interface IpcInvokeMap {
     args: [weaponName: string];
     return: RivenGoodRollsResult;
   };
+  gradeRivenContracts: {
+    args: [contracts: RivenContractGradeRequest[]];
+    return: RivenContractGradesResult;
+  };
   createRivenAuction: {
     args: [payload: CreateRivenAuctionPayload];
     return: { ok: boolean; auctionId?: string; error?: string };
@@ -788,6 +792,32 @@ interface RivenResult {
   unveiled: DecodedRiven[];
   veiled: VeiledRivenEntry[];
   veiledUnseen: VeiledRivenGroup[];
+}
+
+/** One warframe.market contract, as the grader reads it: the weapon by name or
+ *  family slug, each attribute by WFM url_name or label at its listed value. */
+export interface RivenContractGradeRequest {
+  weaponName: string;
+  /** The listing's mod rank (0-8). Values scale with it, so a missing rank
+   *  leaves the grader guessing which rank the listed numbers were read at. */
+  modRank: number | null;
+  stats: { name: string; positive: boolean; value: number | null }[];
+}
+
+export interface RivenContractGrade {
+  overallGrade: string;
+  /** "?" when the community sheet has no row for the weapon. */
+  attributeGrade: string;
+  /** Aligned with the request's stats. */
+  stats: { grade: string; rollFloat: number }[];
+}
+
+interface RivenContractGradesResult {
+  /** One entry per request, aligned by index. */
+  grades: (RivenContractGrade | null)[];
+  /** False while the community sheet is still loading: the roll grades stand,
+   *  but every "?" attribute grade in this answer is provisional. */
+  sheetReady: boolean;
 }
 
 export interface WfmRivenListing {

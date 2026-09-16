@@ -1,15 +1,22 @@
 import { assertMainRendererSender, handleAuthorized } from "./ipcSecurity";
 import ctx from "./context";
 import * as rivenFingerprint from "../services/rivenFingerprint";
+import * as rivenGrading from "../services/rivenGrading";
 import * as wfmRivenSearch from "../services/wfmRivenSearch";
 import * as rivenData from "../services/rivenData";
 import * as rivenBestAttributes from "../services/rivenBestAttributes";
+import { isMultiplierTag } from "../services/rivenConstants";
 import { getRivenWeaponSlugs } from "../services/wfmRivenItems";
 import { boundedInt, isObject, stringArray } from "./ipcValidators";
 import { toFiniteNumber } from "../config/shared/numeric";
 import { toNonEmptyString } from "../config/shared/stringValidation";
+import { normalizeWfmSlugKey } from "../config/shared/wfm";
 import { VARIANT_PREFIXES, VARIANT_SUFFIXES } from "../config/shared/weaponVariants";
-import { polarityToWfm, tagToWfmUrlName } from "../config/shared/wfmRivenVocabulary";
+import {
+  polarityToWfm,
+  TAG_TO_WFM_URL_NAME,
+  tagToWfmUrlName,
+} from "../config/shared/wfmRivenVocabulary";
 import {
   RIVENS_GET,
   RIVENS_GET_WEAPON_NAMES,
@@ -18,6 +25,7 @@ import {
   RIVENS_GET_BEST_ATTRIBUTES,
   RIVENS_GET_GOOD_ROLL,
   RIVENS_REFRESH_GOOD_ROLLS,
+  RIVENS_GRADE_CONTRACTS,
   RIVENS_CREATE_AUCTION,
   RIVENS_UPDATE_AUCTION,
   RIVENS_DELETE_AUCTION,
@@ -26,6 +34,116 @@ import {
 const MAX_AUCTION_STATS = 8;
 const MAX_DESCRIPTION_LENGTH = 1000;
 const MAX_MIN_REPUTATION = 1_000_000;
+// Twice the Market tab's own batch, so a wider batch still fits one call.
+const MAX_GRADED_CONTRACTS = 100;
+const MAX_RIVEN_MOD_RANK = 8;
+
+interface ContractGradeStat {
+  name: string;
+  positive: boolean;
+  value: number | null;
+}
+
+interface ContractGradeRequest {
+  weaponName: string;
+  modRank: number | null;
+  stats: ContractGradeStat[];
+}
+
+interface ContractGrade {
+  overallGrade: string;
+  attributeGrade: string;
+  stats: { grade: string; rollFloat: number }[];
+}
+
+interface ContractGradesResult {
+  grades: (ContractGrade | null)[];
+  sheetReady: boolean;
+}
+
+// url_name to every tag that shares it; "base_damage_/_melee_damage" carries
+// both damage tags and the card's class picks one.
+const WFM_URL_NAME_TO_TAGS = new Map<string, string[]>();
+for (const [tag, urlName] of Object.entries(TAG_TO_WFM_URL_NAME)) {
+  WFM_URL_NAME_TO_TAGS.set(urlName, [...(WFM_URL_NAME_TO_TAGS.get(urlName) ?? []), tag]);
+}
+
+// Rebuilt rather than narrowed: a numeric string or a boxed number passes the
+// check, and the grader has to receive the converted value, not the raw field.
+function parseContractGradeStat(value: unknown): ContractGradeStat | null {
+  if (!isObject(value)) return null;
+  const name = toNonEmptyString(value.name, 100);
+  if (!name || typeof value.positive !== "boolean") return null;
+  const numeric = value.value == null ? null : toFiniteNumber(value.value);
+  if (value.value != null && numeric == null) return null;
+  return { name, positive: value.positive, value: numeric };
+}
+
+function parseContractGradeRequest(value: unknown): ContractGradeRequest | null {
+  if (!isObject(value)) return null;
+  const weaponName = toNonEmptyString(value.weaponName, 120);
+  if (!weaponName) return null;
+  // Absent is "rank unknown"; a rank outside a riven's own range is a payload
+  // the renderer never sends, so it is refused rather than graded at a guess.
+  let modRank: number | null = null;
+  if (value.modRank != null) {
+    const rank = toFiniteNumber(value.modRank);
+    if (rank == null || !Number.isInteger(rank) || rank < 0 || rank > MAX_RIVEN_MOD_RANK) {
+      return null;
+    }
+    modRank = rank;
+  }
+  const raw = value.stats;
+  if (!Array.isArray(raw) || raw.length > MAX_AUCTION_STATS) return null;
+  const stats: ContractGradeStat[] = [];
+  for (const entry of raw) {
+    const stat = parseContractGradeStat(entry);
+    if (!stat) return null;
+    stats.push(stat);
+  }
+  return { weaponName, modRank, stats };
+}
+
+// A contract names its weapon by WFM family slug, title-cased by the renderer,
+// so "Silva And Aegis" only reaches the export through the slug.
+function resolveContractWeapon(name: string): string | null {
+  if (rivenData.getWeaponDisposition(name) != null) return name;
+  const slug = normalizeWfmSlugKey(name);
+  return slug ? weaponNameForFamilySlug(slug) : null;
+}
+
+// WFM speaks url_names; a seller's client may have sent a localized label.
+// Both fold to the tag, and the grader reads the tag's English card label.
+function contractStatTag(name: string, isMelee: boolean): string | null {
+  const key = name.toLowerCase().trim();
+  const tags = WFM_URL_NAME_TO_TAGS.get(key);
+  if (tags) return tags.find((tag) => tag.includes("Melee") === isMelee) ?? tags[0];
+  return rivenData.statNameToTag(key.replace(/_/g, " "));
+}
+
+function gradeContract(request: ContractGradeRequest): ContractGrade | null {
+  const weapon = resolveContractWeapon(request.weaponName);
+  if (!weapon) return null;
+  const isMelee = rivenData.isMeleeWeapon(weapon);
+  const stats = request.stats.map((stat) => {
+    const tag = contractStatTag(stat.name, isMelee);
+    return {
+      name: tag ? rivenData.getStatDisplayName(tag, isMelee) : stat.name,
+      positive: stat.positive,
+      // A listed value keeps the sign the card shows, and the grader reads
+      // magnitudes; a multiplier is already unsigned.
+      value: stat.value == null ? null : Math.abs(stat.value),
+      multiplier: tag != null && isMultiplierTag(tag),
+    };
+  });
+  const graded = rivenGrading.gradeRiven(weapon, stats, request.modRank);
+  if (!graded) return null;
+  return {
+    overallGrade: graded.overallGrade,
+    attributeGrade: graded.attributeGrade,
+    stats: graded.stats.map((stat) => ({ grade: stat.grade, rollFloat: stat.rollFloat })),
+  };
+}
 
 function auctionDescription(value: unknown): string | null {
   if (value == null) return "";
@@ -176,6 +294,31 @@ function register(): void {
         ? rivenBestAttributes.getBestAttributes(weapon, rivenData.isMeleeWeapon(weapon))
         : null;
       return { attributes, updatedAt };
+    },
+  );
+
+  // One answer per request entry, so the renderer merges by index; a malformed
+  // entry or a weapon the export does not know answers null in its slot. Only
+  // the attribute grade needs the community sheet, so a cold profile starts the
+  // fetch and answers now: `sheetReady` tells the caller to ask again later.
+  handleAuthorized(
+    RIVENS_GRADE_CONTRACTS,
+    assertMainRendererSender,
+    async (_event, payload: unknown): Promise<ContractGradesResult> => {
+      const sheetReady = rivenBestAttributes.hasRivenGoodRolls();
+      if (!Array.isArray(payload) || payload.length > MAX_GRADED_CONTRACTS) {
+        return { grades: [], sheetReady };
+      }
+      const requests = payload.map(parseContractGradeRequest);
+      if (requests.some((request) => request != null)) {
+        // Loaded means instant; unloaded would block on five sheet tabs.
+        if (sheetReady) await rivenBestAttributes.ensureRivenGoodRollsLoaded();
+        else void rivenBestAttributes.ensureRivenGoodRollsLoaded();
+      }
+      return {
+        grades: requests.map((request) => (request ? gradeContract(request) : null)),
+        sheetReady,
+      };
     },
   );
 

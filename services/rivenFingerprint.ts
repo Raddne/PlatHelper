@@ -6,6 +6,7 @@ import {
   NUM_BUFFS_CURSE_ATTEN,
   SPECIFIC_FIT_ATTEN,
   BASE_DRAIN,
+  isMultiplierTag,
   NON_PERCENTAGE_TAGS,
 } from "./rivenConstants";
 import type {
@@ -310,8 +311,7 @@ function decodeSingleRiven(entry: {
     const baseValue = entry2?.baseValue ?? 0;
     const displayName = rivenData.getStatDisplayName(b.Tag, isMelee);
     const isNonPct = NON_PERCENTAGE_TAGS.has(b.Tag);
-    const isMultiplier =
-      isNonPct && (b.Tag.includes("FactionDamage") || b.Tag === "WeaponMeleeComboInitialBonusMod");
+    const isMultiplier = isMultiplierTag(b.Tag);
     const ctx: StatValueContext = {
       baseValue,
       disposition,
@@ -347,8 +347,7 @@ function decodeSingleRiven(entry: {
     const baseValue = entry2?.baseValue ?? 0;
     const displayName = rivenData.getStatDisplayName(c.Tag, isMelee);
     const isNonPct = NON_PERCENTAGE_TAGS.has(c.Tag);
-    const isMultiplier =
-      isNonPct && (c.Tag.includes("FactionDamage") || c.Tag === "WeaponMeleeComboInitialBonusMod");
+    const isMultiplier = isMultiplierTag(c.Tag);
 
     // Multipliers stay unsigned - they render as the final factor (x0.55).
     const ctx: StatValueContext = {

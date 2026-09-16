@@ -283,6 +283,13 @@
       title={$tr("rivens.sort.attributeGrade")}
       data-riven-attr-grade={riven.attributeGrade}>{$tr(attrGradeKey)}</span
     >
+  {:else if riven.attributeGrade === "?"}
+    <!-- The sheet has no row for this weapon; say so instead of leaving a gap. -->
+    <span
+      class="{attrCls} text-text-muted"
+      title={$tr("rivens.detail.noGoodRollData")}
+      data-riven-attr-grade="?">{$tr("rivens.grade.unrated")}</span
+    >
   {/if}
 {/snippet}
 

@@ -929,3 +929,65 @@ describe("unranked cards", () => {
     expect(result!.stats.every((s) => s.rollFloat === 0 || s.rollFloat === 1)).toBe(true);
   });
 });
+
+describe("a stated rank", () => {
+  // A rank-0 Boar roll as warframe.market lists it - 228 of the 500 live Boar
+  // auctions are unranked, and their values are a ninth of the rank-8 card.
+  const RANK_0_BOAR = [
+    { name: "Critical Chance", positive: true, value: 17.2 },
+    { name: "Multishot", positive: true, value: 22.6 },
+    { name: "Ammo Maximum", positive: false, value: 7.2 },
+  ];
+  const RANK_8_BOAR = RANK_0_BOAR.map((stat) => ({
+    ...stat,
+    value: Math.round(stat.value * 9 * 10) / 10,
+  }));
+
+  it("grades a rank-0 card exactly like its rank-8 twin", () => {
+    const stated = gradeRiven("Boar", RANK_0_BOAR, 0)!;
+    const maxRank = gradeRiven("Boar", RANK_8_BOAR, 8)!;
+
+    // Every roll sits inside its range, so the match is not two clamped cards.
+    expect(stated.stats.every((s) => s.rollFloat > 0 && s.rollFloat < 1)).toBe(true);
+    expect(stated.stats.map((s) => s.grade)).toEqual(maxRank.stats.map((s) => s.grade));
+    expect(stated.overallGrade).toBe(maxRank.overallGrade);
+  });
+
+  it("falls back to the search when the stated rank leaves every buff clamped", () => {
+    // A quarter of the unranked Boar listings carry max-rank values, so rank 0
+    // is a rank their own numbers contradict; pinning it would fabricate an S.
+    const searched = gradeRiven("Boar", RANK_8_BOAR)!;
+    const asRank0 = gradeRiven("Boar", RANK_8_BOAR, 0)!;
+
+    expect(asRank0.stats.map((s) => s.grade)).toEqual(searched.stats.map((s) => s.grade));
+    expect(asRank0.overallGrade).toBe(searched.overallGrade);
+    expect(asRank0.stats.every((s) => s.rollFloat === 0 || s.rollFloat === 1)).toBe(false);
+  });
+
+  it("prefers the stated rank over the rank the search would pick", () => {
+    // One value fits several ranks, so the search will not move off rank 8 -
+    // the listing's own rank is the only thing that can place it.
+    const oneStat = RANK_0_BOAR.slice(0, 1);
+    const stated = gradeRiven("Boar", oneStat, 0)!;
+    const searched = gradeRiven("Boar", oneStat)!;
+
+    expect(stated.stats[0].rollFloat).toBeGreaterThan(0);
+    expect(stated.stats[0].rollFloat).toBeLessThan(1);
+    expect(searched.stats[0].rollFloat).toBe(0);
+  });
+
+  it("still searches the rank for a caller that cannot state one", () => {
+    const searched = gradeRiven("Boar", RANK_0_BOAR)!;
+    const stated = gradeRiven("Boar", RANK_0_BOAR, 0)!;
+
+    // The scan path keeps the refit that reads an unranked card on its own rank.
+    expect(searched.stats.map((s) => s.grade)).toEqual(stated.stats.map((s) => s.grade));
+  });
+
+  it("falls back to the search when the rank is impossible", () => {
+    const searched = gradeRiven("Boar", RANK_0_BOAR)!;
+    const nonsense = gradeRiven("Boar", RANK_0_BOAR, 42)!;
+
+    expect(nonsense.stats.map((s) => s.grade)).toEqual(searched.stats.map((s) => s.grade));
+  });
+});

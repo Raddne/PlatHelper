@@ -443,7 +443,10 @@ export function computeAttributeGrade(
   return gradeFromGoodRolls(data, goodTags, badTags).overall;
 }
 
-/** Grades OCR stats, or returns null when the weapon or riven type is unknown. */
+/** Grades OCR stats, or returns null when the weapon or riven type is unknown.
+ *  `modRank` is the rank a warframe.market listing states: it is read before
+ *  the rank search and dropped again when the values contradict it, because
+ *  sellers do relist max-rank rolls as rank 0. A scan states none. */
 export function gradeRiven(
   weaponName: string,
   stats: {
@@ -453,6 +456,7 @@ export function gradeRiven(
     value: number | null;
     multiplier?: boolean;
   }[],
+  modRank?: number | null,
 ): RivenGradeResult | null {
   if (!stats || stats.length === 0) return null;
 
@@ -471,7 +475,12 @@ export function gradeRiven(
   // Count buffs and curses
   const numBuffs = stats.filter((s) => s.positive).length;
   const numCurses = stats.filter((s) => !s.positive).length;
-  let assumedLevel = DEFAULT_LVL;
+  // An impossible rank is treated as an unstated one, which searches as before.
+  const statedRank =
+    modRank != null && Number.isInteger(modRank) && modRank >= 0 && modRank <= DEFAULT_LVL
+      ? modRank
+      : null;
+  let assumedLevel = statedRank ?? DEFAULT_LVL;
   // Both counts scale every displayed value, so a line the scan lost reads the
   // survivors high. The scanned counts are a lower bound, as in correctScannedStats.
   let assumedBuffs = numBuffs;
@@ -566,7 +575,16 @@ export function gradeRiven(
       // Highest rank first, so a card that fits at max rank is never demoted
       // just because a lower rank happens to fit as well. Needs two stats to
       // pin a rank - a lone value fits several, and picking one is a guess.
-      const maxRefitLvl = gradeable.length >= 2 ? DEFAULT_LVL : -1;
+      const searchLvls =
+        gradeable.length >= 2
+          ? Array.from({ length: DEFAULT_LVL + 1 }, (_, index) => DEFAULT_LVL - index)
+          : [];
+      // A stated rank is only tried first: sellers do relist max-rank rolls as
+      // rank 0, and a rank the values contradict must not win over one they fit.
+      const refitLvls =
+        statedRank != null
+          ? [statedRank, ...searchLvls.filter((lvl) => lvl !== statedRank)]
+          : searchLvls;
       type Refit = {
         name: string;
         disposition: number;
@@ -575,7 +593,7 @@ export function gradeRiven(
         curses: number;
       };
       const refitAt = (buffs: number, curses: number): Refit | null => {
-        for (let lvl = maxRefitLvl; lvl >= 0; lvl--) {
+        for (const lvl of refitLvls) {
           let best: Refit | null = null;
           for (const candidate of candidates) {
             if (!allFitAt(candidate.disposition, lvl, buffs, curses)) continue;
@@ -620,9 +638,9 @@ export function gradeRiven(
           assumedCurses = refit.curses;
         }
       } else {
-        // Nothing fits exactly - keep max rank and settle for the least violating
-        // dispo and stat counts. Scanned counts come first, so widening has to
-        // strictly improve the fit before it is taken.
+        // Nothing fits exactly - keep the assumed rank and settle for the least
+        // violating dispo and stat counts. Scanned counts come first, so widening
+        // has to strictly improve the fit before it is taken.
         let best = {
           name: weaponName,
           disposition,
@@ -671,6 +689,8 @@ export function gradeRiven(
   const gradedStats: GradedStat[] = [];
   let scoreSum = 0;
   let scoredCount = 0;
+  let scoredBuffs = 0;
+  let clampedBuffs = 0;
 
   for (const p of prepared) {
     const { stat, tag, entry } = p;
@@ -700,6 +720,10 @@ export function gradeRiven(
         grade,
         rollFloat,
       });
+      if (stat.positive) {
+        scoredBuffs++;
+        if (rollFloat === 0 || rollFloat === 1) clampedBuffs++;
+      }
       scoreSum += score;
       scoredCount++;
     } else {
@@ -710,6 +734,14 @@ export function gradeRiven(
         rollFloat: 0.5,
       });
     }
+  }
+
+  // Every buff pinned to the edge of its range means the values contradict the
+  // rank they were graded at - a quarter of the unranked listings carry max-rank
+  // rolls - so the reading that searched for the rank wins instead.
+  if (statedRank != null && scoredBuffs > 0 && clampedBuffs === scoredBuffs) {
+    const searched = gradeRiven(weaponName, stats);
+    if (searched) return searched;
   }
 
   // Overall grade = average of all stat scores

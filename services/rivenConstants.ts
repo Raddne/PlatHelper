@@ -22,3 +22,10 @@ export const NON_PERCENTAGE_TAGS = new Set([
   // Metres, like melee range - the card reads "+3.7 Punch Through", no percent.
   "WeaponPunctureDepthMod",
 ]);
+
+/** Stats the card renders as the final factor (x1.05, x0.55), so every reader
+ *  has to subtract the 1 before it sees the roll. */
+export function isMultiplierTag(tag: string): boolean {
+  if (!NON_PERCENTAGE_TAGS.has(tag)) return false;
+  return tag.includes("FactionDamage") || tag === "WeaponMeleeComboInitialBonusMod";
+}

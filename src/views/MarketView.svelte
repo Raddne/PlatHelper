@@ -55,6 +55,7 @@
 
 <script lang="ts">
   import { onDestroy, onMount } from "svelte";
+  import { SvelteMap, SvelteSet } from "svelte/reactivity";
 
   import { itemDb, parsedItems, wfmItems } from "../stores/data.js";
   import {
@@ -78,6 +79,7 @@
   import MarketOrderRow from "../components/market/MarketOrderRow.svelte";
   import WfmPresenceBar from "../components/market/WfmPresenceBar.svelte";
   import { attributeKeyword, contractInventoryMatch } from "../lib/marketContract.js";
+  import { contractIdsToGrade, mergeContractGrades } from "../lib/rivenContractGrades.js";
   import { isIpcError as hasError } from "../lib/ipcGuards.js";
   import InventoryOrderBookPanel from "../components/inventory/InventoryOrderBookPanel.svelte";
   import RivenDetailModal from "../modals/RivenDetailModal.svelte";
@@ -119,7 +121,12 @@
     WfmContractAttribute,
     WfmOrder,
   } from "../types/market.js";
-  import type { DecodedRiven, WfmItemsLookup } from "../types/ipc.js";
+  import type {
+    DecodedRiven,
+    RivenContractGrade,
+    RivenContractGradeRequest,
+    WfmItemsLookup,
+  } from "../types/ipc.js";
   import type { SharedSortKey } from "../types/filters.js";
   import type { ParsedItem } from "../types/inventory.js";
 
@@ -128,6 +135,13 @@
   const CONTRACTS_STALE_MS = 60_000;
   const CONTRACTS_PAGE_SIZE = 40;
   const CONTRACTS_APPEND_ATTEMPTS = 3;
+  // Under the grader's 100-entry cap, with room for a whole-list load.
+  const CONTRACT_GRADE_BATCH = 50;
+  // How long a grade computed without the community sheet stands before the
+  // view asks again; the sheet load that answer kicked off usually beats it.
+  // Each round waits a multiple of it, and there are only three of them.
+  const CONTRACT_GRADE_RETRY_MS = 30_000;
+  const CONTRACT_GRADE_RETRY_LIMIT = 3;
   const MARKET_METRIC_PREFETCH_LIMIT = 64;
 
   /** Only a lost write reservation is worth sending the same request again. */
@@ -195,25 +209,50 @@
     return contract.itemName || $tr("rivens.type.riven");
   }
 
-  function toRivenStat(attribute: WfmContractAttribute): DecodedRiven["stats"][number] {
+  // A listing WFM gave no value for stays null: read as 0 the grader would score
+  // it as the worst possible roll instead of leaving that stat ungraded.
+  function contractAttributeValue(attribute: WfmContractAttribute): number | null {
+    if (attribute.value == null) return null;
     const numericValue =
-      typeof attribute.value === "number" ? attribute.value : Number(attribute.value ?? 0);
-    const safeValue = Number.isFinite(numericValue) ? numericValue : 0;
+      typeof attribute.value === "number" ? attribute.value : Number(attribute.value);
+    return Number.isFinite(numericValue) ? numericValue : null;
+  }
+
+  function toRivenStat(
+    attribute: WfmContractAttribute,
+    grade: RivenContractGrade["stats"][number] | undefined,
+  ): DecodedRiven["stats"][number] {
+    const safeValue = contractAttributeValue(attribute) ?? 0;
     return {
       tag: attribute.urlName || attribute.label,
       name: attributeKeyword(attribute) || $tr("common.unknown"),
       displayValue: Math.abs(safeValue),
-      // A listed contract is already at its final rank, so there is nothing to scale.
+      // WFM lists the values at the listing's own rank, which is often 0, and
+      // the roll floats needed to scale them live in main - so both stay as listed.
       maxRankValue: Math.abs(safeValue),
-      rollFloat: 0.5,
-      grade: "",
+      rollFloat: grade?.rollFloat ?? 0.5,
+      grade: grade?.grade ?? "",
       positive: attribute.positive ?? safeValue >= 0,
       multiplier: false,
     };
   }
 
-  function rivenFromContract(contract: WfmContract): DecodedRiven {
+  // Undefined while the grader has not answered; null once it said the weapon
+  // is unknown, which the card shows as the same "unrated" state as a weapon
+  // missing from the community sheet.
+  function rivenFromContract(
+    contract: WfmContract,
+    grade: RivenContractGrade | null | undefined,
+  ): DecodedRiven {
     const weaponName = contractWeaponName(contract);
+    const stats = contract.stats.map((attribute, index) =>
+      toRivenStat(attribute, grade?.stats[index]),
+    );
+    // Same mean the fingerprint decoder takes, and only over graded rolls; an
+    // ungraded contract would otherwise read as a flat 50% perfect.
+    const scored = grade
+      ? stats.map((stat) => (stat.positive ? stat.rollFloat : 1 - stat.rollFloat))
+      : [];
     return {
       itemId: contract.id,
       weaponName,
@@ -225,12 +264,91 @@
       rerolls: contract.rerolls ?? 0,
       polarity: contract.polarity ?? "",
       disposition: 1,
-      stats: contract.stats.map(toRivenStat),
-      overallGrade: "",
-      attributeGrade: "",
-      statPerfectness: 0,
+      stats,
+      overallGrade: grade?.overallGrade ?? "",
+      attributeGrade: grade === undefined ? "" : (grade?.attributeGrade ?? "?"),
+      statPerfectness:
+        scored.length > 0 ? scored.reduce((sum, value) => sum + value, 0) / scored.length : 0,
       rivenType: "Riven Contract",
     };
+  }
+
+  function contractGradeRequest(contract: WfmContract): RivenContractGradeRequest {
+    return {
+      weaponName: contractWeaponName(contract),
+      // Every listed value scales with the rank, so the grader has to be told
+      // which rank it is reading; a listing without one is graded by search.
+      modRank: contract.modRank ?? null,
+      stats: contract.stats.map((attribute) => {
+        const value = contractAttributeValue(attribute);
+        return {
+          // The url_name is WFM's own vocabulary; the label is whatever the
+          // seller's client sent, so it is only the fallback.
+          name:
+            attribute.urlName && attribute.urlName !== "unknown"
+              ? attribute.urlName
+              : attributeKeyword(attribute),
+          positive: attribute.positive ?? (value ?? 0) >= 0,
+          value,
+        };
+      }),
+    };
+  }
+
+  // Grades whatever the store holds that has not been graded yet, whichever
+  // loader put it there (this tab's pager or the Rivens tab's whole-list read).
+  async function gradeContracts(contracts: WfmContract[]): Promise<void> {
+    const wanted = new Set(
+      contractIdsToGrade(
+        contracts.map((contract) => contract.id),
+        contractGradeById,
+        contractGradeProvisional,
+        contractGradePending,
+      ),
+    );
+    const fresh = contracts.filter((contract) => wanted.has(contract.id));
+    if (fresh.length === 0) return;
+    for (const contract of fresh) contractGradePending.add(contract.id);
+    try {
+      for (let start = 0; start < fresh.length; start += CONTRACT_GRADE_BATCH) {
+        const batch = fresh.slice(start, start + CONTRACT_GRADE_BATCH);
+        const { grades, sheetReady } = await invoke(
+          "gradeRivenContracts",
+          batch.map(contractGradeRequest),
+        );
+        if (sheetReady) contractGradeRetries = 0;
+        const merged = mergeContractGrades(
+          batch.map((contract) => contract.id),
+          grades,
+          sheetReady,
+        );
+        const next = new SvelteMap(contractGradeById);
+        for (const [id, grade] of merged.entries) next.set(id, grade);
+        contractGradeById = next;
+        for (const id of merged.provisional) contractGradeProvisional.add(id);
+        for (const id of merged.settled) contractGradeProvisional.delete(id);
+      }
+    } catch {
+      // Left ungraded; the next contracts change asks again.
+    } finally {
+      for (const contract of fresh) contractGradePending.delete(contract.id);
+      scheduleContractGradeRetry(contracts);
+    }
+  }
+
+  // One timer, armed only while a listed contract still waits for the sheet and
+  // the view is mounted: a batch can land after teardown. The rounds are capped
+  // because a failed sheet fetch keeps its own 10-minute cooldown, so polling
+  // past them learns nothing and any contracts change asks again anyway.
+  function scheduleContractGradeRetry(contracts: WfmContract[]): void {
+    if (viewDestroyed || contractGradeRetryTimer !== null) return;
+    if (contractGradeRetries >= CONTRACT_GRADE_RETRY_LIMIT) return;
+    if (!contracts.some((contract) => contractGradeProvisional.has(contract.id))) return;
+    contractGradeRetries += 1;
+    contractGradeRetryTimer = setTimeout(() => {
+      contractGradeRetryTimer = null;
+      if (!viewDestroyed) void gradeContracts($marketContracts.contracts);
+    }, CONTRACT_GRADE_RETRY_MS * contractGradeRetries);
   }
 
   function normalizeContractForFilter(contract: WfmContract): WfmContract & {
@@ -269,7 +387,13 @@
   let repriceOpen = false;
   let syncingQuantities = false;
   let orderBookPanelOpen = false;
-  let selectedContract: { contract: WfmContract; riven: DecodedRiven } | null = null;
+  let selectedContract: WfmContract | null = null;
+  let contractGradeById = new SvelteMap<string, RivenContractGrade | null>();
+  const contractGradePending = new SvelteSet<string>();
+  const contractGradeProvisional = new SvelteSet<string>();
+  let contractGradeRetryTimer: ReturnType<typeof setTimeout> | null = null;
+  let contractGradeRetries = 0;
+  let viewDestroyed = false;
   let ownedRivens: DecodedRiven[] = [];
   let ownedRivensLoaded = false;
   let contractBusyIds: string[] = [];
@@ -301,12 +425,14 @@
   });
 
   onDestroy(() => {
+    viewDestroyed = true;
     ordersUiGeneration += 1;
     contractsRequestGeneration += 1;
     invalidateMarketOrdersRefresh();
     unsubscribeWfmNotification?.();
     window.removeEventListener("focus", backgroundRefresh);
     if (pollTimer) clearInterval(pollTimer);
+    if (contractGradeRetryTimer !== null) clearTimeout(contractGradeRetryTimer);
   });
 
   function backgroundRefresh(): void {
@@ -728,8 +854,15 @@
   }
 
   function editContractListing(contract: WfmContract): void {
-    selectedContract = { contract, riven: rivenFromContract(contract) };
+    selectedContract = contract;
   }
+
+  $: void gradeContracts($marketContracts.contracts);
+  // Rebuilt from the grade map so a verdict that lands after the modal opened
+  // still reaches it.
+  $: selectedContractRiven = selectedContract
+    ? rivenFromContract(selectedContract, contractGradeById.get(selectedContract.id))
+    : null;
 
   $: isRivensTab = $marketViewState.typeTab === "rivens";
   $: isSellOrdersTab = $marketViewState.typeTab === "sell";
@@ -1096,6 +1229,7 @@
                     <MarketContractRow
                       {contract}
                       compact={$marketDensity === "compact"}
+                      grade={contractGradeById.get(contract.id)}
                       inventoryMatch={contractMatchById.get(contract.id) ?? null}
                       busy={contractBusyIds.includes(contract.id)}
                       onOpen={openContractListing}
@@ -1177,10 +1311,10 @@
   />
 {/if}
 
-{#if selectedContract}
+{#if selectedContract && selectedContractRiven}
   <RivenDetailModal
-    riven={selectedContract.riven}
-    contract={selectedContract.contract}
+    riven={selectedContractRiven}
+    contract={selectedContract}
     oncontractupdated={() => void fetchContracts()}
     onclose={() => (selectedContract = null)}
   />

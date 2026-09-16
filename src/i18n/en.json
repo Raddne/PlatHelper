@@ -644,6 +644,7 @@
   "rivens.grade.good": "Good",
   "rivens.grade.great": "Great",
   "rivens.grade.ok": "OK",
+  "rivens.grade.unrated": "Unrated",
   "rivens.type.archgun": "Archgun",
   "rivens.type.kitgun": "Kitgun",
   "rivens.type.melee": "Melee",

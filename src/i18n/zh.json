@@ -643,6 +643,7 @@
   "rivens.grade.good": "良",
   "rivens.grade.great": "优",
   "rivens.grade.ok": "一般",
+  "rivens.grade.unrated": "未评级",
   "rivens.type.archgun": "曲翼枪械",
   "rivens.type.kitgun": "组合枪",
   "rivens.type.melee": "近战",
