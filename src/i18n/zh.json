@@ -2501,7 +2501,7 @@
   "mastery.breakdownRings": "进度环",
   "wiki.questReward": "完成任务奖励",
   "settings.warframeLifecycle": "随 Warframe 启动和关闭",
-  "settings.warframeLifecycleHint": "Windows 后台监视程序会在登录时启动，并随 Warframe 打开 WFHelper。游戏退出后，WFHelper 会稍后关闭。你仍可手动打开应用。",
+  "settings.warframeLifecycleHint": "Windows 后台监视程序会在登录时启动，并随 Warframe 打开 WFHelper。它在任务计划程序中名为 WFHelperWarframeWatcher。游戏退出后，WFHelper 会稍后关闭。你仍可手动打开应用。",
   "inventory.tab.pets": "宠物",
   "pet.inventorySummary": "{pets} 只宠物，{imprints} 份印记",
   "pet.traitsUnavailable": "此库存不包含遗传特征。",

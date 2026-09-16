@@ -8,6 +8,11 @@ const h = vi.hoisted(() => ({
   write: vi.fn(),
   login: vi.fn(),
   spawn: vi.fn(),
+  spawnSync: vi.fn(),
+  schtasksFails: false,
+  deleteFails: false,
+  taskMissing: false,
+  warn: vi.fn(),
   unref: vi.fn(),
   pids: vi.fn(),
   session: vi.fn((_pid: number): number | null => 1),
@@ -17,7 +22,7 @@ const h = vi.hoisted(() => ({
   failWrite: false,
 }));
 
-vi.mock("node:child_process", () => ({ spawn: h.spawn }));
+vi.mock("node:child_process", () => ({ spawn: h.spawn, spawnSync: h.spawnSync }));
 vi.mock("node:fs", () => ({
   default: {
     existsSync: (file: string) => h.files.has(file),
@@ -43,7 +48,7 @@ vi.mock("../../services/userDataPath", () => ({
   userDataPath: (name: string) => path.join("C:\\App Data\\WFHelper", name),
 }));
 vi.mock("../../services/logger", () => ({
-  withScope: () => ({ info: vi.fn(), warn: vi.fn() }),
+  withScope: () => ({ info: vi.fn(), warn: h.warn }),
 }));
 vi.mock("../../services/win32Process", () => ({
   enumProcessNames: h.pids,
@@ -55,7 +60,14 @@ vi.mock("../../services/win32Process", () => ({
 type Lifecycle = typeof import("../../services/warframeLifecycle");
 let lifecycle: Lifecycle;
 const configPath = path.join("C:\\App Data\\WFHelper", "warframe-watcher.json");
+const taskPath = path.join("C:\\App Data\\WFHelper", "warframe-watcher-task.xml");
+const LEGACY_TASK = "WFHelperWarframeWatcher";
+const USER_TASK = "WFHelper\\WarframeWatcher-Tester";
 const quit = vi.fn();
+
+function escapeForXml(value: string): string {
+  return value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/"/g, "&quot;");
+}
 const realPlatform = process.platform;
 
 function gameRunning(running: boolean): void {
@@ -76,10 +88,26 @@ beforeEach(async () => {
   vi.useFakeTimers();
   vi.setSystemTime(new Date("2026-09-08T12:00:00Z"));
   vi.stubEnv("WFHELPER_USER_DATA", "");
+  vi.stubEnv("USERNAME", "Tester");
   h.files.clear();
   h.packaged = false;
   h.spawnError = false;
   h.failWrite = false;
+  h.schtasksFails = false;
+  h.deleteFails = false;
+  h.taskMissing = false;
+  h.spawnSync.mockImplementation((_exe: string, args: string[]) => {
+    if (h.schtasksFails && args.includes("/Create")) {
+      return { status: 1, stdout: "", stderr: "ERROR: Access is denied." };
+    }
+    if (h.taskMissing && args.includes("/Query")) {
+      return { status: 1, stdout: "", stderr: "FEHLER: Das System kann die Datei nicht finden." };
+    }
+    if (h.deleteFails && args.includes("/Delete")) {
+      return { status: 1, stdout: "", stderr: "ERROR: Access is denied." };
+    }
+    return { status: 0, stdout: "", stderr: "" };
+  });
   h.write.mockImplementation((file: string, text: string) => {
     if (h.failWrite) {
       h.failWrite = false;
@@ -113,6 +141,7 @@ describe("Warframe lifecycle", () => {
     await vi.advanceTimersByTimeAsync(60_000);
     expect(h.write).not.toHaveBeenCalled();
     expect(h.spawn).not.toHaveBeenCalled();
+    expect(h.spawnSync).not.toHaveBeenCalled();
     expect(h.login).not.toHaveBeenCalled();
     expect(h.pids).not.toHaveBeenCalled();
     expect(quit).not.toHaveBeenCalled();
@@ -133,13 +162,22 @@ describe("Warframe lifecycle", () => {
       expect.arrayContaining(["-WindowStyle", "Hidden", "-ConfigPath", configPath]),
       { windowsHide: true, detached: true, stdio: "ignore" },
     );
-    expect(h.login).toHaveBeenCalledWith(
-      expect.objectContaining({
-        name: "WFHelperWarframeWatcher",
-        openAtLogin: true,
-        args: expect.arrayContaining([`"${configPath}"`]),
-      }),
+    expect(h.login).toHaveBeenCalledWith({
+      name: LEGACY_TASK,
+      openAtLogin: false,
+    });
+    expect(h.spawnSync).toHaveBeenCalledWith(
+      expect.stringContaining("schtasks.exe"),
+      ["/Create", "/TN", USER_TASK, "/XML", taskPath, "/F"],
+      { windowsHide: true, encoding: "utf8" },
     );
+    const xml = Buffer.from(h.files.get(taskPath)! as unknown as Uint8Array).toString("utf16le");
+    expect(xml).toContain('encoding="UTF-16"');
+    expect(xml).toContain("<UserId>");
+    expect(xml).toContain("<ExecutionTimeLimit>PT0S</ExecutionTimeLimit>");
+    expect(xml).toMatch(/<Command>[^<]*conhost\.exe<\/Command>/);
+    expect(xml).toContain("--headless");
+    expect(xml).toContain(escapeForXml(configPath));
     expect(h.unref).toHaveBeenCalledOnce();
     await lifecycle.configureWarframeLifecycle(true);
     expect(h.spawn).toHaveBeenCalledOnce();
@@ -149,6 +187,41 @@ describe("Warframe lifecycle", () => {
     vi.stubEnv("WFHELPER_USER_DATA", "C:\\sandbox");
     await lifecycle.configureWarframeLifecycle(true);
     expect(h.login).not.toHaveBeenCalled();
+    expect(h.spawnSync).not.toHaveBeenCalled();
+    expect(h.files.has(taskPath)).toBe(false);
+  });
+
+  it("registers a per-user task and clears the machine-wide legacy one", async () => {
+    await lifecycle.configureWarframeLifecycle(true);
+    const enabling = h.spawnSync.mock.calls.map((call) => (call[1] as string[]).join(" "));
+    expect(enabling).toContain(`/Query /TN ${LEGACY_TASK}`);
+    expect(enabling).toContain(`/Delete /TN ${LEGACY_TASK} /F`);
+    expect(enabling.some((args) => args.startsWith(`/Create /TN ${USER_TASK} `))).toBe(true);
+    await lifecycle.configureWarframeLifecycle(false);
+    const disabling = h.spawnSync.mock.calls.map((call) => (call[1] as string[]).join(" "));
+    expect(disabling).toContain(`/Delete /TN ${USER_TASK} /F`);
+    expect(disabling.filter((args) => args === `/Delete /TN ${LEGACY_TASK} /F`)).toHaveLength(2);
+  });
+
+  it("warns when Windows refuses to remove a sign-in task", async () => {
+    await lifecycle.configureWarframeLifecycle(true);
+    h.deleteFails = true;
+    await lifecycle.configureWarframeLifecycle(false);
+    expect(h.warn).toHaveBeenCalledWith(
+      expect.stringContaining(USER_TASK),
+      expect.stringContaining("Access is denied"),
+    );
+  });
+
+  it("stays silent when there is no sign-in task to remove", async () => {
+    h.files.set(path.join("C:\\App Data\\WFHelper", "warframe-watcher.ps1"), "old script");
+    h.taskMissing = true;
+    await lifecycle.configureWarframeLifecycle(false);
+    expect(h.spawnSync.mock.calls.map((call) => (call[1] as string[])[0])).toEqual([
+      "/Query",
+      "/Query",
+    ]);
+    expect(h.warn).not.toHaveBeenCalled();
   });
 
   it("shares the process snapshot with status callers without opening processes", async () => {
@@ -243,6 +316,12 @@ describe("Warframe lifecycle", () => {
     expect(h.files.has(configPath)).toBe(false);
     expect(h.files.has(path.join("C:\\App Data\\WFHelper", "warframe-watcher.ps1"))).toBe(false);
     expect(h.login).toHaveBeenLastCalledWith(expect.objectContaining({ openAtLogin: false }));
+    expect(h.spawnSync).toHaveBeenLastCalledWith(
+      expect.stringContaining("schtasks.exe"),
+      ["/Delete", "/TN", USER_TASK, "/F"],
+      expect.anything(),
+    );
+    expect(h.files.has(taskPath)).toBe(false);
     await vi.advanceTimersByTimeAsync(60_000);
     expect(quit).not.toHaveBeenCalled();
     expect(h.spawn).toHaveBeenCalledOnce();
@@ -335,16 +414,20 @@ describe("Warframe lifecycle", () => {
     expect(h.login).toHaveBeenLastCalledWith(expect.objectContaining({ openAtLogin: false }));
   });
 
-  it.each(["write", "spawn"])("rolls back a %s failure and permits retry", async (failure) => {
+  it.each([
+    ["write", "disk full"],
+    ["spawn", "spawn denied"],
+    ["schtasks", "Access is denied"],
+  ])("rolls back a %s failure and permits retry", async (failure, message) => {
     h.files.set(configPath, '{"enabled":false,"revision":"old"}');
     if (failure === "write") h.failWrite = true;
-    else h.spawnError = true;
-    await expect(lifecycle.configureWarframeLifecycle(true)).rejects.toThrow(
-      failure === "write" ? "disk full" : "spawn denied",
-    );
+    else if (failure === "spawn") h.spawnError = true;
+    else h.schtasksFails = true;
+    await expect(lifecycle.configureWarframeLifecycle(true)).rejects.toThrow(message);
     expect(h.files.get(configPath)).toBe('{"enabled":false,"revision":"old"}');
     expect(h.login).toHaveBeenLastCalledWith(expect.objectContaining({ openAtLogin: false }));
     h.spawnError = false;
+    h.schtasksFails = false;
     await lifecycle.configureWarframeLifecycle(true);
     expect(JSON.parse(h.files.get(configPath)!)).toMatchObject({ enabled: true });
   });

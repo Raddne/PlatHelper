@@ -2522,7 +2522,7 @@
   "mastery.breakdownRings": "Rings",
   "wiki.questReward": "Quest completion reward",
   "settings.warframeLifecycle": "Launch and close with Warframe",
-  "settings.warframeLifecycleHint": "A Windows background watcher starts at sign-in and opens WFHelper with Warframe. WFHelper closes shortly after the game exits. You can still open it manually.",
+  "settings.warframeLifecycleHint": "A Windows background watcher starts at sign-in and opens WFHelper with Warframe. It appears in Task Scheduler as WFHelperWarframeWatcher. WFHelper closes shortly after the game exits. You can still open it manually.",
   "inventory.tab.pets": "Pets",
   "pet.inventorySummary": "{pets} pets, {imprints} imprints",
   "pet.traitsUnavailable": "Genetics are not included in this inventory.",

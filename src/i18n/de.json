@@ -2502,7 +2502,7 @@
   "mastery.breakdownRings": "Ringe",
   "wiki.questReward": "Belohnung für Questabschluss",
   "settings.warframeLifecycle": "Mit Warframe starten und schließen",
-  "settings.warframeLifecycleHint": "Ein Windows-Hintergrundprozess startet bei der Anmeldung und öffnet WFHelper mit Warframe. WFHelper schließt kurz nach dem Spiel. Du kannst die App weiterhin manuell öffnen.",
+  "settings.warframeLifecycleHint": "Ein Windows-Hintergrundprozess startet bei der Anmeldung und öffnet WFHelper mit Warframe. In der Aufgabenplanung heißt er WFHelperWarframeWatcher. WFHelper schließt kurz nach dem Spiel. Du kannst die App weiterhin manuell öffnen.",
   "inventory.tab.pets": "Tiere",
   "pet.inventorySummary": "{pets} Tiere, {imprints} Abdrücke",
   "pet.traitsUnavailable": "Diese Inventardaten enthalten keine genetischen Merkmale.",
