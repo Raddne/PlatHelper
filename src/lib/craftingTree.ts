@@ -358,7 +358,17 @@ export function partState(
   const entry = itemDb[part.uniqueName];
   const product = entry?.buildsProduct;
   if (part.isBlueprintItem === true || product !== undefined) {
-    if (product !== undefined && ownedComponentCount(product, ownership) > 0) return "owned";
+    // A ...Blueprint is an alias of the ...Component it builds, so folding the
+    // product's pile would read this very blueprint as the built part.
+    const built =
+      product === undefined
+        ? 0
+        : builtCopies(
+            product,
+            ownership,
+            blueprintKeysOf({ ...part, uniqueName: product }, itemDb),
+          );
+    if (built > 0) return "owned";
     return ownedComponentCount(part.uniqueName, ownership) > 0 ? "blueprint" : "missing";
   }
   if (builtPartCount(part, ownership, itemDb) >= part.count) return "owned";

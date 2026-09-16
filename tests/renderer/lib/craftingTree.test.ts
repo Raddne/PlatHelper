@@ -759,6 +759,18 @@ describe("part state", () => {
     ).toBe("owned");
   });
 
+  it("keeps a blueprint row whose product is its own alias out of the owned state", () => {
+    const db = partDb();
+    // Real shape: 455 DE recipes build ...Component from the ...Blueprint alias.
+    const row = { uniqueName: CHASSIS_BP, count: 1 };
+    const flagged = { ...row, isBlueprintItem: true };
+
+    expect(partState(row, new Map([[CHASSIS_BP, 1]]), db)).toBe("blueprint");
+    expect(partState(flagged, new Map([[CHASSIS_BP, 1]]), db)).toBe("blueprint");
+    expect(partState(row, new Map([[CHASSIS, 1]]), db)).toBe("owned");
+    expect(partState(row, new Map(), db)).toBe("missing");
+  });
+
   it("counts built copies without the blueprint spelling", () => {
     const db = partDb();
 
