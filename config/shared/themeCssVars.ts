@@ -71,6 +71,7 @@ export const OVERLAY_FORWARDED_EFFECT_VARS = [
   "--ui-control-bg",
   "--ui-control-border",
   "--ui-backdrop-blur",
+  "--overlay-opacity",
 ] as const;
 
 /** Union of every CSS var forwarded to overlay windows. */

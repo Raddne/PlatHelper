@@ -151,6 +151,8 @@ export const SIMULATE_RELIC_TRIGGER = "simulate-relic-trigger";
 export const RELIC_REWARD_TRIGGER = "relic-reward-trigger";
 export const RELIC_PLANNER_TRIGGER = "relic-planner-trigger";
 export const RELIC_REWARD_ITEMS = "relic-reward-items";
+export const RELIC_REWARD_CONTENT_HEIGHT = "relic-reward-content-height";
+export const RELIC_REWARD_PRESENTATION = "relic-reward-presentation";
 export const RELIC_RECOMMENDATIONS = "relic-recommendations";
 
 export const RIVEN_OVERLAY_CLOSE = "riven-overlay-close";

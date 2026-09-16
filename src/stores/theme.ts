@@ -21,6 +21,7 @@ import {
   saveThemeSettings,
   clearThemeSettings,
   cloneDefaultTheme,
+  normalizeOverlayOpacity,
 } from "../lib/theme/themeStorage.js";
 import { applyTheme } from "../lib/theme/applyTheme.js";
 
@@ -234,7 +235,17 @@ function createThemeStore() {
 
     /** Update theme effects such as corners, surface style, and glass blur. */
     setEffects(effects: Partial<ThemeEffects>): void {
-      update((s) => applyMutableThemeEdits(s, { effects: { ...s.effects, ...effects } }));
+      update((s) =>
+        applyMutableThemeEdits(s, {
+          effects: {
+            ...s.effects,
+            ...effects,
+            overlayOpacity: normalizeOverlayOpacity(
+              effects.overlayOpacity ?? s.effects.overlayOpacity,
+            ),
+          },
+        }),
+      );
     },
 
     /** Save the current edited appearance as a named custom theme. */

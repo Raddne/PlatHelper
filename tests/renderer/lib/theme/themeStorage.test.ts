@@ -1,6 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { asOverrideColor, loadThemeSettings } from "../../../../src/lib/theme/themeStorage.js";
+import {
+  asOverrideColor,
+  loadThemeSettings,
+  normalizeThemeSettings,
+} from "../../../../src/lib/theme/themeStorage.js";
 import { DEFAULT_BASE_COLORS } from "../../../../src/config/themeDefaults.js";
 import { VIEW_NAMES } from "../../../../src/types/views.js";
 
@@ -74,6 +78,35 @@ describe("palette colour length", () => {
 
     store({ version: 1, colors: { bgDeep: `rgb(${"1".repeat(92)})` } });
     expect(loadThemeSettings().colors.bgDeep).toBe(DEFAULT_BASE_COLORS.bgDeep);
+  });
+});
+
+describe("overlay opacity normalization", () => {
+  it.each([undefined, null, "0.5", true, NaN, Infinity, {}, []])(
+    "defaults invalid or missing opacity %j without changing the palette",
+    (overlayOpacity) => {
+      const theme = normalizeThemeSettings({
+        colors: { bgSurface: "rgba(10, 20, 30, 0.72)" },
+        effects: { overlayOpacity },
+      });
+      expect(theme.effects.overlayOpacity).toBe(1);
+      expect(theme.colors.bgSurface).toBe("rgba(10, 20, 30, 0.72)");
+    },
+  );
+
+  it.each([
+    [-1, 0.3],
+    [0.3, 0.3],
+    [0.57, 0.57],
+    [1, 1],
+    [2, 1],
+  ])("clamps opacity %s to %s for imported and saved custom themes", (value, expected) => {
+    const theme = normalizeThemeSettings({
+      effects: { overlayOpacity: value },
+      customThemes: [{ id: "custom:test", label: "Test", effects: { overlayOpacity: value } }],
+    });
+    expect(theme.effects.overlayOpacity).toBe(expected);
+    expect(theme.customThemes[0]?.effects.overlayOpacity).toBe(expected);
   });
 });
 

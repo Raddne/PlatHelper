@@ -17,7 +17,7 @@ const SETTLE_MS = 150;
 const TRIGGER_GAP_MS = 200;
 // One window per overlay controller plus slack is all a healthy churn ever adds
 // to the launch count.
-const WINDOW_HEADROOM = 3;
+const WINDOW_HEADROOM = 6;
 const MAIN_LOG_TAIL_LINES = 40;
 const SAMPLE_EVERY = 25;
 const INTERACTIVE_EVERY = 10;
@@ -34,8 +34,13 @@ type OverlayControllerHandle = {
   isOverlayWindowVisible: () => boolean;
 };
 
-type OverlayWindowRef = { isDestroyed: () => boolean; webContents: { id: number } } | null;
-type ChurnTarget = "reward" | "planner";
+type OverlayWindowRef = {
+  isDestroyed: () => boolean;
+  isFocusable: () => boolean;
+  isFocused: () => boolean;
+  webContents: { id: number };
+} | null;
+type ChurnTarget = "reward" | "planner" | "riven" | "arbiSummary";
 type ChurnAction = "show" | "hide" | "interactive" | "passive";
 type OverlayBridgeWindow = Window & { overlay: { close: () => void } };
 
@@ -114,7 +119,7 @@ function churn(
   app: ElectronApplication,
   target: ChurnTarget,
   action: ChurnAction,
-): Promise<{ visible: boolean; id: number }> {
+): Promise<{ visible: boolean; ids: number[]; focusable: boolean; focused: boolean }> {
   return evaluateInMain(
     app,
     ({ app: electronApp }, options) => {
@@ -131,20 +136,52 @@ function churn(
       const context = mainModule.require(`${buildDir}/ipc/context`) as {
         default: Record<string, OverlayWindowRef>;
       };
-      const controller =
-        options.target === "reward"
-          ? overlayIpc.rewardWindowsController
-          : overlayIpc.plannerWindowsController;
-      if (options.action === "show") controller.createOverlayWindow();
-      else if (options.action === "hide") controller.hideOverlayWindow();
-      else controller.setOverlayInteractiveMode(options.action === "interactive");
-      const window =
-        options.target === "reward"
-          ? context.default.overlayWindow
-          : context.default.plannerOverlayWindow;
+      let visible: boolean;
+      let windows: OverlayWindowRef[];
+      if (options.target === "riven") {
+        const riven = mainModule.require(`${buildDir}/ipc/rivenOverlayIpc`) as {
+          onRivenSessionOpen: () => void;
+          onRivenSessionClose: () => void;
+          setRivenInteractiveMode: (enabled: boolean) => void;
+          isAnyRivenWindowVisible: () => boolean;
+        };
+        if (options.action === "show") riven.onRivenSessionOpen();
+        else if (options.action === "hide") riven.onRivenSessionClose();
+        else riven.setRivenInteractiveMode(options.action === "interactive");
+        visible = riven.isAnyRivenWindowVisible();
+        windows = [context.default.rivenOverlayLeftWindow, context.default.rivenOverlayRightWindow];
+      } else {
+        const arbi =
+          options.target === "arbiSummary"
+            ? (mainModule.require(`${buildDir}/ipc/arbiOverlayIpc`) as {
+                arbiSummaryWindowsController: OverlayControllerHandle;
+              })
+            : null;
+        const controller =
+          arbi?.arbiSummaryWindowsController ??
+          (options.target === "reward"
+            ? overlayIpc.rewardWindowsController
+            : overlayIpc.plannerWindowsController);
+        if (options.action === "show") controller.createOverlayWindow();
+        else if (options.action === "hide") controller.hideOverlayWindow();
+        else controller.setOverlayInteractiveMode(options.action === "interactive");
+        visible = controller.isOverlayWindowVisible();
+        const key =
+          options.target === "reward"
+            ? "overlayWindow"
+            : options.target === "planner"
+              ? "plannerOverlayWindow"
+              : "arbiSummaryWindow";
+        windows = [context.default[key]];
+      }
+      const live = windows.filter(
+        (window): window is NonNullable<OverlayWindowRef> => !!window && !window.isDestroyed(),
+      );
       return {
-        visible: controller.isOverlayWindowVisible(),
-        id: window && !window.isDestroyed() ? window.webContents.id : 0,
+        visible,
+        ids: live.map((window) => window.webContents.id),
+        focusable: live.some((window) => window.isFocusable()),
+        focused: live.some((window) => window.isFocused()),
       };
     },
     { target, action },
@@ -258,6 +295,26 @@ test("overlay show/hide churn keeps the main process alive", async () => {
     console.log(`[stress] main-process module access via ${requireVia}`);
     expect(requireVia).not.toBe("none");
 
+    await step(() =>
+      evaluateInMain(live.app, ({ app: electronApp }) => {
+        const mainModule = process.mainModule as unknown as { require: (id: string) => unknown };
+        const scan = mainModule.require(
+          `${electronApp.getAppPath()}/.electron-build/ipc/overlay/rivenScan`,
+        ) as {
+          scanInitialCard: () => Promise<unknown>;
+        };
+        // This tests window lifecycles, so capture stays at a deterministic fixture boundary.
+        scan.scanInitialCard = async () => ({
+          stats: [],
+          rawText: "",
+          titleText: "",
+          footerText: "",
+          capture: null,
+          lowConfidence: false,
+        });
+      }),
+    );
+
     const baseline = await step(() => sampleMain(live.app));
     console.log(
       `[stress] baseline windows=${baseline.windows} rss=${mib(baseline.rss)}; ` +
@@ -279,17 +336,34 @@ test("overlay show/hide churn keeps the main process alive", async () => {
     }
 
     phase = "churn";
-    const builtIds: Record<ChurnTarget, Set<number>> = { reward: new Set(), planner: new Set() };
+    const builtIds: Record<ChurnTarget, Set<number>> = {
+      reward: new Set(),
+      planner: new Set(),
+      riven: new Set(),
+      arbiSummary: new Set(),
+    };
     for (iteration = 1; iteration <= ITERATIONS; iteration += 1) {
-      for (const target of ["reward", "planner"] as const) {
+      for (const target of ["reward", "planner", "riven", "arbiSummary"] as const) {
         const shown = await step(() => churn(live.app, target, "show"));
-        builtIds[target].add(shown.id);
+        expect(shown.visible).toBe(true);
+        expect(shown.ids).toHaveLength(target === "riven" ? 2 : 1);
+        for (const id of shown.ids) builtIds[target].add(id);
         await wait(SETTLE_MS);
         if (iteration % INTERACTIVE_EVERY === 0) {
           await step(() => churn(live.app, target, "interactive"));
           await step(() => churn(live.app, target, "passive"));
         }
-        await step(() => churn(live.app, target, "hide"));
+        const hidden = await step(() => churn(live.app, target, "hide"));
+        expect(hidden.visible).toBe(false);
+        expect(hidden.focusable).toBe(false);
+        expect(hidden.focused).toBe(false);
+        if (iteration % INTERACTIVE_EVERY === 0) {
+          const requested = await step(() => churn(live.app, target, "interactive"));
+          expect(requested.visible).toBe(false);
+          expect(requested.focusable).toBe(false);
+          expect(requested.focused).toBe(false);
+          await step(() => churn(live.app, target, "passive"));
+        }
         await wait(SETTLE_MS);
       }
       if (iteration % SAMPLE_EVERY === 0) {
@@ -306,8 +380,16 @@ test("overlay show/hide churn keeps the main process alive", async () => {
     console.log(
       `[stress] survived; windows ${baseline.windows} -> ${end.windows}, ` +
         `rss ${mib(baseline.rss)} -> ${mib(end.rss)}, ` +
-        `distinct reward windows=${builtIds.reward.size} planner=${builtIds.planner.size}`,
+        `distinct reward windows=${builtIds.reward.size} planner=${builtIds.planner.size} ` +
+        `riven=${builtIds.riven.size} arbi=${builtIds.arbiSummary.size}`,
     );
+    if (process.platform === "win32") {
+      for (const target of ["reward", "planner", "riven", "arbiSummary"] as const) {
+        expect(builtIds[target].size, `${target} rebuilt during keep-mapped churn`).toBe(
+          target === "riven" ? 2 : 1,
+        );
+      }
+    }
     expect(mainExit.info).toBeNull();
   } catch (error) {
     if (harness) {

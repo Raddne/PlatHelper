@@ -231,6 +231,11 @@ describe("first-load zoom", () => {
       };
 
       showInactive() {}
+      isFocused() {
+        return false;
+      }
+      setFocusable() {}
+      setIgnoreMouseEvents() {}
       loadFile() {
         return Promise.resolve();
       }
@@ -569,6 +574,53 @@ describe("keep-mapped presentation mode (Windows and native Wayland)", () => {
     expect(controller.isOverlayWindowVisible()).toBe(true);
   });
 
+  it.each([
+    {
+      platform: "win32" as const,
+      nativeWayland: false,
+      interactive: false,
+      neverClickThrough: false,
+    },
+    {
+      platform: "win32" as const,
+      nativeWayland: false,
+      interactive: true,
+      neverClickThrough: false,
+    },
+    {
+      platform: "win32" as const,
+      nativeWayland: false,
+      interactive: false,
+      neverClickThrough: true,
+    },
+    {
+      platform: "linux" as const,
+      nativeWayland: true,
+      interactive: true,
+      neverClickThrough: false,
+    },
+  ])("reapplies delivered hidden state to a new document on READY: %s", (options) => {
+    const { controller, windows, contentEvents, ctx } = createPresentationProbe(options);
+    controller.createOverlayWindow();
+    controller.markRendererReady(1);
+    controller.hideOverlayWindow();
+    controller.setOverlayInteractiveMode(options.interactive);
+    const win = windows[0];
+    win.webContents.send.mockClear();
+    win.setIgnoreMouseEvents.mockClear();
+    win.setFocusable.mockClear();
+
+    controller.markRendererReady(1);
+
+    expect(contentEvents(win).at(-1)).toEqual([OVERLAY_CONTENT_VISIBLE, false]);
+    expect(win.setIgnoreMouseEvents).toHaveBeenLastCalledWith(true);
+    expect(win.setFocusable).toHaveBeenLastCalledWith(false);
+    expect(ctx.overlayInteractiveMode).toBe(options.interactive);
+    controller.showOverlayWindowInactive();
+    expect(contentEvents(win).at(-1)).toEqual([OVERLAY_CONTENT_VISIBLE, true]);
+    expect(win.setFocusable).toHaveBeenLastCalledWith(options.interactive);
+  });
+
   it("auto-hide uses the logical hide path", () => {
     vi.useFakeTimers();
     const { controller, windows, contentEvents } = createPresentationProbe({
@@ -765,8 +817,8 @@ describe("keep-mapped presentation mode (Windows and native Wayland)", () => {
     expect(win.moveTop).toHaveBeenCalled();
   });
 
-  it("applies the input flags while hidden so the mode cannot desync", () => {
-    const { controller, windows } = createPresentationProbe({
+  it("remembers requested interaction while a blank window stays passive", () => {
+    const { controller, windows, ctx } = createPresentationProbe({
       platform: "win32",
       nativeWayland: false,
     });
@@ -780,10 +832,26 @@ describe("keep-mapped presentation mode (Windows and native Wayland)", () => {
 
     controller.setOverlayInteractiveMode(true);
 
-    expect(win.setIgnoreMouseEvents).toHaveBeenCalledWith(false);
-    expect(win.setFocusable).toHaveBeenLastCalledWith(true);
+    expect(ctx.overlayInteractiveMode).toBe(true);
+    expect(win.setIgnoreMouseEvents).toHaveBeenLastCalledWith(true);
+    expect(win.setFocusable).toHaveBeenLastCalledWith(false);
     // Nothing on screen yet, so stacking and focus stay untouched.
     expect(win.focus).not.toHaveBeenCalled();
+  });
+
+  it("keeps a hidden sibling passive when an existing window is refreshed", () => {
+    const { controller, windows } = createPresentationProbe({
+      platform: "win32",
+      nativeWayland: false,
+    });
+    controller.createOverlayWindow();
+    controller.hideOverlayWindow();
+    controller.setOverlayInteractiveMode(true);
+    controller.createOverlayWindow({ show: false });
+
+    expect(controller.isOverlayWindowVisible()).toBe(false);
+    expect(windows[0].setIgnoreMouseEvents).toHaveBeenLastCalledWith(true);
+    expect(windows[0].setFocusable).toHaveBeenLastCalledWith(false);
   });
 
   it("re-asserts the interactive mode when a hidden window is shown again", () => {
@@ -1280,7 +1348,7 @@ describe("createOverlayWindowBoundsChangeHandler", () => {
   });
 });
 
-function createResizeProbe() {
+function createResizeProbe(windowHeight = 140) {
   const display = { id: 1, workArea: { x: 0, y: 0, width: 1920, height: 1080 } };
   const saves: OverlaySavedWindowBounds[] = [];
   let currentBounds = { x: 300, y: 400, width: 980, height: 140 };
@@ -1319,6 +1387,7 @@ function createResizeProbe() {
     getBounds = vi.fn(() => currentBounds);
     isDestroyed = vi.fn(() => false);
     isVisible = vi.fn(() => false);
+    isFocused = vi.fn(() => false);
     showInactive = vi.fn();
     moveTop = vi.fn();
     hide = vi.fn();
@@ -1354,6 +1423,7 @@ function createResizeProbe() {
     hardenBrowserWindowNavigation: () => {},
     overlayWindowFile: "D:\\app\\renderer\\overlay.html",
     windowStateKey: "reward",
+    windowHeight,
     onWindowBoundsChanged: (key, bounds) => {
       saves.push(bounds);
       persist(key, bounds);
@@ -1367,6 +1437,7 @@ function createResizeProbe() {
   vi.advanceTimersByTime(1);
 
   return {
+    display,
     saves,
     ctx,
     controller,
@@ -1392,6 +1463,75 @@ function createResizeProbe() {
 describe("overlay resize", () => {
   afterEach(() => {
     vi.useRealTimers();
+  });
+
+  it("fits content height after a position-only drag without saving manual dimensions", () => {
+    const probe = createResizeProbe(236);
+    probe.moveTo(350, 450);
+    probe.controller.fitOverlayContentHeight(330.2);
+    vi.advanceTimersByTime(300);
+
+    expect(probe.window().getBounds()).toEqual({ x: 350, y: 450, width: 980, height: 331 });
+    expect(probe.ctx.overlaySettings.overlayWindowBounds?.reward).toEqual({
+      x: 350,
+      y: 450,
+      displayId: "1",
+    });
+    probe.controller.fitOverlayContentHeight(100);
+    vi.advanceTimersByTime(300);
+    expect(probe.window().getBounds().height).toBe(236);
+    expect(probe.saves.every((bounds) => bounds.width == null && bounds.height == null)).toBe(true);
+  });
+
+  it.each(["width", "height"] as const)("preserves manually saved %s", (dimension) => {
+    const probe = createResizeProbe(236);
+    probe.ctx.overlaySettings.overlayWindowBounds!.reward![dimension] = 400;
+    probe.controller.positionOverlayWindow();
+    const before = probe.window().getBounds();
+    probe.controller.fitOverlayContentHeight(600);
+    expect(probe.window().getBounds()).toEqual(before);
+  });
+
+  it("does not replace a pending manual resize with content height", () => {
+    const probe = createResizeProbe(236);
+    probe.resizeTo(1100, 280);
+    probe.controller.fitOverlayContentHeight(600);
+    vi.advanceTimersByTime(300);
+    expect(probe.window().getBounds()).toMatchObject({ width: 1100, height: 280 });
+    expect(probe.ctx.overlaySettings.overlayWindowBounds?.reward).toMatchObject({
+      width: 1100,
+      height: 280,
+    });
+  });
+
+  it("starts a replacement window at default height without persisting automatic size", () => {
+    const probe = createResizeProbe(236);
+    probe.controller.fitOverlayContentHeight(330);
+    vi.advanceTimersByTime(300);
+    probe.window().listeners.get("closed")?.();
+    probe.controller.createOverlayWindow({ show: false });
+    expect(probe.window().getBounds().height).toBe(236);
+    expect(probe.ctx.overlaySettings.overlayWindowBounds?.reward).not.toHaveProperty("height");
+  });
+
+  it("scales automatic height and clamps it to the display work area", () => {
+    const probe = createResizeProbe(236);
+    probe.ctx.overlaySettings.overlayScale = 1.25;
+    probe.controller.fitOverlayContentHeight(300);
+    expect(probe.window().getBounds()).toMatchObject({ width: 1225, height: 375 });
+    probe.controller.fitOverlayContentHeight(10000);
+    const bounds = probe.window().getBounds();
+    expect(bounds.height).toBeLessThanOrEqual(probe.display.workArea.height);
+    expect(bounds.y + bounds.height).toBeLessThanOrEqual(probe.display.workArea.height);
+    probe.controller.fitOverlayContentHeight(236);
+    expect(probe.window().getBounds().height).toBe(295);
+  });
+
+  it.each([NaN, Infinity, 0, -1, 10001])("ignores invalid content height %s", (height) => {
+    const probe = createResizeProbe(236);
+    const before = probe.window().getBounds();
+    probe.controller.fitOverlayContentHeight(height);
+    expect(probe.window().getBounds()).toEqual(before);
   });
 
   it.each(["left", "right", "top", "bottom", "bottom-right"])(

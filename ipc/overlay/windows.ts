@@ -228,6 +228,7 @@ export function createOverlayWindowsController(options: OverlayWindowsController
   let moveSaveTimer: ReturnType<typeof setTimeout> | null = null;
   let resizeSaveTimer: ReturnType<typeof setTimeout> | null = null;
   let nativeResizeInProgress = false;
+  let contentHeight: number | null = null;
   let rendererReady = false;
   let logicalVisible = false;
   // Non-null only while this overlay is presented as a layer surface, which
@@ -370,7 +371,11 @@ export function createOverlayWindowsController(options: OverlayWindowsController
     );
     const scaledHeight = Math.max(
       resizeMinHeight,
-      Math.round((savedBounds?.height ?? windowHeight) * zoomFactor),
+      Math.round(
+        (savedBounds?.height ??
+          (savedBounds?.width == null ? contentHeight : null) ??
+          windowHeight) * zoomFactor,
+      ),
     );
     const area = display?.workArea || {
       x: 0,
@@ -473,6 +478,19 @@ export function createOverlayWindowsController(options: OverlayWindowsController
     setTimeout(() => {
       suppressMoveSave = false;
     }, 0);
+  }
+
+  /** Automatic sizing never turns a dragged position into a manual size. */
+  function fitOverlayContentHeight(logicalHeight: number): void {
+    if (!Number.isFinite(logicalHeight) || logicalHeight <= 0 || logicalHeight > 10_000) return;
+    const window = readOverlayWindow();
+    if (!window || window.isDestroyed() || nativeResizeInProgress || resizeSaveTimer) return;
+    const saved = readSavedBounds();
+    if (saved?.width != null || saved?.height != null) return;
+    const next = Math.max(windowHeight, Math.ceil(logicalHeight));
+    if (contentHeight === next) return;
+    contentHeight = next;
+    positionOverlayWindow();
   }
 
   function displayMatchingBounds(bounds: {
@@ -899,6 +917,7 @@ export function createOverlayWindowsController(options: OverlayWindowsController
         resizeSaveTimer = null;
       }
       nativeResizeInProgress = false;
+      contentHeight = null;
       writeOverlayWindow(null);
       rendererReady = false;
       logicalVisible = false;
@@ -1032,9 +1051,17 @@ export function createOverlayWindowsController(options: OverlayWindowsController
     if (isLayerMode()) layer?.applyGeometry();
     else targetWindow.webContents.setZoomFactor(getOverlayBoundsForActiveDisplay().zoomFactor);
     const pending = pendingOverlayEvents.splice(0);
+    const keepMappedActive = isKeepMappedActive();
     for (const event of pending) {
+      if (keepMappedActive && event.channel === OVERLAY_CONTENT_VISIBLE) continue;
       targetWindow.webContents.send(event.channel, event.payload);
     }
+    // A new document has forgotten an already-delivered hide, and navigation can
+    // reset native input flags. Reapply current policy even when the queue is empty.
+    if (keepMappedActive) {
+      targetWindow.webContents.send(OVERLAY_CONTENT_VISIBLE, logicalVisible);
+    }
+    if (!isLayerMode()) applyOverlayInputState(targetWindow, isOverlayWindowVisible());
     return true;
   }
 
@@ -1044,6 +1071,21 @@ export function createOverlayWindowsController(options: OverlayWindowsController
 
   function getAnchorMeta(): OverlayAnchorMeta | null {
     return lastOverlayAnchorMeta;
+  }
+
+  function applyOverlayInputState(
+    overlayWindow: import("electron").BrowserWindow,
+    visible: boolean,
+  ): void {
+    const interactive = readInteractiveMode() && visible;
+    // Hidden keep-mapped siblings retain requested interaction without accepting input.
+    if (interactive || (neverClickThrough && visible)) {
+      setClickThrough(overlayWindow, false, platform);
+    } else {
+      applyClickThrough(overlayWindow, !visible && isKeepMappedActive());
+    }
+    if (!interactive && overlayWindow.isFocused()) overlayWindow.blur();
+    overlayWindow.setFocusable(interactive);
   }
 
   function setOverlayInteractiveMode(enabled: boolean): void {
@@ -1073,16 +1115,7 @@ export function createOverlayWindowsController(options: OverlayWindowsController
       return;
     }
 
-    // Input flags apply even while hidden. Skipping them desynced the window from
-    // the mode, so a hotkey press during a scan left the overlay click-through.
-    if (interactive) {
-      setClickThrough(overlayWindow, false, platform);
-      overlayWindow.setFocusable(true);
-    } else {
-      applyClickThrough(overlayWindow);
-      if (visible && overlayWindow.isFocused()) overlayWindow.blur();
-      overlayWindow.setFocusable(false);
-    }
+    applyOverlayInputState(overlayWindow, visible);
 
     if (lastAppliedInteractive !== interactive) {
       lastAppliedInteractive = interactive;
@@ -1116,6 +1149,7 @@ export function createOverlayWindowsController(options: OverlayWindowsController
   return {
     getOverlayBoundsForActiveDisplay,
     positionOverlayWindow,
+    fitOverlayContentHeight,
     createOverlayWindow,
     clearOverlayAutoHideTimer,
     scheduleOverlayAutoHide,

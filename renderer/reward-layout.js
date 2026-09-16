@@ -281,6 +281,9 @@
         if (!target) return;
         event.preventDefault();
         event.stopPropagation();
+        // Preventing the default also blocks focus entering this iframe from a host input.
+        root.tabIndex = -1;
+        root.focus({ preventScroll: true });
         const field = target.dataset.rewardField;
         const style = state.layout.fields[field] || options.defaultFieldStyle;
         const offset = field
@@ -382,6 +385,32 @@
       window.flushRewardEditor = editor.flush;
       document.addEventListener("keydown", (event) => {
         if (event.key === "Escape" && editing()) editor.cancel();
+        if (!editing() || event.altKey || event.ctrlKey || event.metaKey || gesture) return;
+        if (
+          event.target instanceof Element &&
+          event.target.closest("input, textarea, select, [contenteditable]")
+        )
+          return;
+        const delta = {
+          ArrowLeft: [-1, 0],
+          ArrowRight: [1, 0],
+          ArrowUp: [0, -1],
+          ArrowDown: [0, 1],
+        }[event.key];
+        if (!delta) return;
+        event.preventDefault();
+        const field = state.selectedField;
+        const style = state.layout.fields[field] || options.defaultFieldStyle;
+        const step = event.shiftKey ? 10 : 1;
+        state.layout.fields[field] = {
+          ...style,
+          x: style.x + delta[0] * step,
+          y: style.y + delta[1] * step,
+        };
+        pendingClamps.add(field);
+        applyLayout();
+        const positioned = state.layout.fields[field];
+        send({ type: "field", field, patch: { x: positioned.x, y: positioned.y } });
       });
     }
     return editor;

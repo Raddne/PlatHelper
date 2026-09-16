@@ -37,6 +37,8 @@ function fixture(preview: boolean, zoom: number, fieldTop = 10, offset = 12) {
   };
   let panelWidth = 100;
   const root = {
+    tabIndex: 0,
+    focus: vi.fn(),
     querySelectorAll: () => [element],
     getBoundingClientRect: () => rect(0, 0, panelWidth, 80),
   };
@@ -95,6 +97,7 @@ function fixture(preview: boolean, zoom: number, fieldTop = 10, offset = 12) {
   while (frames.length) frames.shift()?.();
   return {
     editor,
+    root,
     element,
     classes,
     editLayout,
@@ -111,6 +114,30 @@ function fixture(preview: boolean, zoom: number, fieldTop = 10, offset = 12) {
 }
 
 describe("shared overlay renderer", () => {
+  it.each([
+    ["ArrowRight", false, { x: 13, y: 5 }],
+    ["ArrowDown", true, { x: 12, y: 15 }],
+  ])("nudges the selected field with %s and shift=%s", (key, shiftKey, patch) => {
+    const view = fixture(true, 1);
+    const preventDefault = vi.fn();
+    view.events.get("keydown")?.({ key, shiftKey, target: null, preventDefault });
+    expect(preventDefault).toHaveBeenCalledOnce();
+    expect(view.editLayout).toHaveBeenCalledExactlyOnceWith("token", {
+      type: "field",
+      field: "itemName",
+      patch,
+    });
+  });
+
+  it("does not nudge live overlays or intercept arrow keys in an input", () => {
+    for (const preview of [false, true]) {
+      const view = fixture(preview, 1);
+      const preventDefault = vi.fn();
+      view.events.get("keydown")?.({ key: "ArrowRight", target: view.element, preventDefault });
+      expect(preventDefault).not.toHaveBeenCalled();
+      expect(view.editLayout).not.toHaveBeenCalled();
+    }
+  });
   it("accepts a selection acknowledgement while dragging a field with default geometry", () => {
     const view = fixture(true, 1);
     const defaults = { ...view.initial, revision: 2, layout: { version: 1, fields: {} } };
@@ -127,6 +154,8 @@ describe("shared overlay renderer", () => {
     });
     expect(() => view.receive?.({ ...defaults, revision: 3 })).not.toThrow();
     expect(view.element.setPointerCapture).toHaveBeenCalledWith(1);
+    expect(view.root.tabIndex).toBe(-1);
+    expect(view.root.focus).toHaveBeenCalledExactlyOnceWith({ preventScroll: true });
     expect(view.editLayout).toHaveBeenCalledExactlyOnceWith("token", {
       type: "select",
       field: "itemName",

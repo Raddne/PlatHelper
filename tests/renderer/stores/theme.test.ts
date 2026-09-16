@@ -21,6 +21,35 @@ describe("theme store", () => {
 
   afterEach(() => vi.unstubAllGlobals());
 
+  it("preserves opacity through saved themes and storage, and restores preset defaults", async () => {
+    vi.useFakeTimers();
+    try {
+      const { themeSettings } = await freshStore();
+      themeSettings.setEffects({ overlayOpacity: 0.5 });
+      themeSettings.saveCustomTheme("Transparent overlays");
+      const customId = get(themeSettings).activePreset;
+      themeSettings.setEffects({ glass: true });
+      expect(get(themeSettings).effects.overlayOpacity).toBe(0.5);
+      vi.advanceTimersByTime(400);
+      const { loadThemeSettings } = await import("../../../src/lib/theme/themeStorage.js");
+      expect(loadThemeSettings().effects.overlayOpacity).toBe(0.5);
+      expect(loadThemeSettings().customThemes[0]?.effects.overlayOpacity).toBe(0.5);
+
+      themeSettings.applyPreset("default");
+      expect(get(themeSettings).effects.overlayOpacity).toBe(1);
+      themeSettings.applyPreset(customId);
+      expect(get(themeSettings).effects.overlayOpacity).toBe(0.5);
+      themeSettings.setEffects({ overlayOpacity: -1 });
+      expect(get(themeSettings).effects.overlayOpacity).toBe(0.3);
+      themeSettings.setEffects({ overlayOpacity: NaN });
+      expect(get(themeSettings).effects.overlayOpacity).toBe(1);
+      themeSettings.resetAll();
+      expect(get(themeSettings).effects.overlayOpacity).toBe(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("stores and clears a per-view accent without switching preset", async () => {
     const { themeSettings } = await freshStore();
 

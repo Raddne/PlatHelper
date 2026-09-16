@@ -60,6 +60,10 @@ function applyEffectTokens(root: HTMLElement, effects: ThemeEffects): void {
   root.style.setProperty(THEME_EFFECT_CSS_MAP.controlBorder, surface.controlBorder);
   root.style.setProperty(THEME_EFFECT_CSS_MAP.backdropBlur, surface.backdropBlur);
   root.style.setProperty(THEME_EFFECT_CSS_MAP.modalBg, surface.modalBg);
+  root.style.setProperty(
+    THEME_EFFECT_CSS_MAP.overlayOpacity,
+    `${Math.round(effects.overlayOpacity * 100)}%`,
+  );
 }
 
 function resolveRadii(

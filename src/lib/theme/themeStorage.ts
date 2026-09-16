@@ -20,6 +20,8 @@ import {
   DEFAULT_THEME,
   GLASS_BLUR_MAX_PX,
   GLASS_BLUR_MIN_PX,
+  OVERLAY_OPACITY_MAX,
+  OVERLAY_OPACITY_MIN,
   VIEW_FONT_SIZE_MAX,
   VIEW_FONT_SIZE_MIN,
 } from "../../config/themeDefaults.js";
@@ -255,12 +257,19 @@ function asBlurPx(value: unknown, fallback: number): number {
     : Math.min(GLASS_BLUR_MAX_PX, Math.max(GLASS_BLUR_MIN_PX, parsed));
 }
 
+/** Stored and live edits use the same bounds, so a restart cannot change the setting. */
+export function normalizeOverlayOpacity(value: unknown): number {
+  if (typeof value !== "number" || !Number.isFinite(value)) return DEFAULT_EFFECTS.overlayOpacity;
+  return Math.min(OVERLAY_OPACITY_MAX, Math.max(OVERLAY_OPACITY_MIN, value));
+}
+
 function normalizeEffects(rawEffects: Record<string, unknown>): ThemeEffects {
   return {
     cornerStyle: asCornerStyle(rawEffects.cornerStyle, DEFAULT_EFFECTS.cornerStyle),
     surfaceStyle: asSurfaceStyle(rawEffects.surfaceStyle, DEFAULT_EFFECTS.surfaceStyle),
     glass: typeof rawEffects.glass === "boolean" ? rawEffects.glass : DEFAULT_EFFECTS.glass,
     glassBlurPx: asBlurPx(rawEffects.glassBlurPx, DEFAULT_EFFECTS.glassBlurPx),
+    overlayOpacity: normalizeOverlayOpacity(rawEffects.overlayOpacity),
     relicCardStyle: asRelicCardStyle(rawEffects.relicCardStyle, DEFAULT_EFFECTS.relicCardStyle),
   };
 }

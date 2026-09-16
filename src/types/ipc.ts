@@ -239,6 +239,8 @@ export interface IpcInvokeMap {
       messages: { locale: string; messages: Record<string, string> };
       defaultFieldStyle: OverlayFieldStyle;
       descriptor: OverlayDescriptor;
+      canvas: { width: number; height: number };
+      lastReward: import("../../config/shared/rewardPresentation.js").RewardPresentation | null;
     };
   };
   beginOverlayEdit: { args: [kind: OverlayLayoutKind]; return: OverlayEditState };

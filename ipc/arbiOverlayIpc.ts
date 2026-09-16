@@ -68,8 +68,7 @@ export const arbiSummaryWindowsController = createOverlayWindowsController({
   windowHeight: WIN_H,
   minWindowWidth: WIN_W,
   minWindowHeight: WIN_H,
-  transparent: false,
-  backgroundColor: "#060a12",
+  transparent: true,
   hasShadow: false,
   windowStateKey: "arbiSummary",
   onWindowBoundsChanged: rememberOverlayWindowBounds,
@@ -82,6 +81,14 @@ export function isArbiSummaryWindow(win: InstanceType<typeof BrowserWindow>): bo
 function makeClickable(): void {
   const win = ctx.arbiSummaryWindow;
   if (!win || win.isDestroyed()) return;
+  if (!arbiSummaryWindowsController.isOverlayWindowVisible()) {
+    // A renderer reload can reset the mouse flags after the content was blanked.
+    if (arbiSummaryWindowsController.isKeepMappedActive()) {
+      setClickThrough(win, true);
+      win.setFocusable(false);
+    }
+    return;
+  }
   setClickThrough(win, false);
 }
 

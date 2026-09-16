@@ -96,8 +96,7 @@ const rivenWindowBaseOptions = {
   minWindowWidth: RIVEN_CANVAS.width,
   minWindowHeight: RIVEN_CANVAS.height,
   topOffset: RIVEN_TOP_OFFSET,
-  transparent: false,
-  backgroundColor: "#060a12",
+  transparent: true,
   preloadFileName: "preload-riven.js",
   hasShadow: false,
   onWindowCreated: onRivenWindowCreated,
@@ -228,12 +227,12 @@ let _lastZOrderProbe = "";
 
 // One line per state change; a top cache/OS split is the buried-panel tell.
 function probeRivenZOrder(keepRaised: boolean): void {
-  const sides = rivenWindowEntries().map(({ win }, index) => {
+  const sides = rivenWindowEntries().map(({ win, controller }, index) => {
     const side = index === 0 ? "L" : "R";
     if (!win || win.isDestroyed()) return `${side}=gone`;
     const os = warframeStatus.isWindowTopmost(win.getNativeWindowHandle());
     const top = `${win.isAlwaysOnTop() ? 1 : 0}/${os === null ? "?" : os ? 1 : 0}`;
-    return `${side}=vis:${win.isVisible() ? 1 : 0} top:${top}`;
+    return `${side}=vis:${controller.isOverlayWindowVisible() ? 1 : 0} top:${top}`;
   });
   const line = `raised=${keepRaised ? 1 : 0} ${sides.join(" ")}`;
   if (line === _lastZOrderProbe) return;

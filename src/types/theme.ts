@@ -94,6 +94,7 @@ export interface ThemeEffects {
   surfaceStyle: ThemeSurfaceStyle;
   glass: boolean;
   glassBlurPx: number;
+  overlayOpacity: number;
   relicCardStyle: RelicCardStyle;
 }
 
@@ -205,4 +206,5 @@ export const THEME_EFFECT_CSS_MAP = {
   controlBg: "--ui-control-bg",
   controlBorder: "--ui-control-border",
   backdropBlur: "--ui-backdrop-blur",
+  overlayOpacity: "--overlay-opacity",
 } as const;

@@ -43,6 +43,7 @@ import {
   TOGGLE_OVERLAY,
   SIMULATE_RELIC_TRIGGER,
   OVERLAY_PUSH_RELIC_FILTERS,
+  RELIC_REWARD_CONTENT_HEIGHT,
 } from "../config/shared/ipcChannels";
 import { REWARD_OVERLAY_CANVAS } from "../config/shared/rewardOverlayLayout";
 
@@ -108,8 +109,7 @@ export const plannerWindowsController = createOverlayWindowsController({
   windowWidth: getOverlayDescriptor("planner").canvas.width,
   windowHeight: getOverlayDescriptor("planner").canvas.height,
   fileSearch: "mode=planner",
-  transparent: false,
-  backgroundColor: "#060a12",
+  transparent: true,
   windowTitle: "WFHelper Relic Planner",
   windowStateKey: "planner",
   onWindowBoundsChanged: rememberOverlayWindowBounds,
@@ -223,6 +223,18 @@ export function register(
   pushOverlayInteractionMode: () => void,
   pushOverlayThemeVars: () => void,
 ): void {
+  onAuthorized(
+    RELIC_REWARD_CONTENT_HEIGHT,
+    assertOverlayRendererSender,
+    (event, height: unknown) => {
+      const reward = ctx.overlayWindow;
+      if (!reward || reward.isDestroyed() || event.sender.id !== reward.webContents.id) return;
+      if (typeof height !== "number" || !Number.isFinite(height) || height <= 0 || height > 10_000)
+        return;
+      rewardWindowsController.fitOverlayContentHeight(height);
+    },
+  );
+
   onAuthorized(OVERLAY_CLOSE, assertOverlayRendererSender, (event) => {
     rewardWindowsController.clearOverlayAutoHideTimer();
     plannerWindowsController.clearOverlayAutoHideTimer();

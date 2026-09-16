@@ -189,6 +189,7 @@ function isSafeOverlayFontValue(value: string): boolean {
 }
 
 function isSafeOverlayEffectValue(key: string, value: string): boolean {
+  if (key === "--overlay-opacity") return /^(?:[3-9]\d|100)%$/.test(value);
   if (key.startsWith("--radius-")) return boundedCssLength(value, 0, 3);
   if (key === "--ui-backdrop-blur") {
     return value === "none" || /^blur\((?:[1-9]|1\d|2[0-4])px\)$/.test(value);
@@ -390,19 +391,32 @@ function register(): void {
     app.on("browser-window-created", (_event, win) => attachInteractionShortcut(win));
     BrowserWindow.getAllWindows().forEach(attachInteractionShortcut);
   }
-  const overlayEditor = registerOverlayEditor(settingsController.saveOverlaySettings, (kind) => {
-    if (kind === "reward")
-      rewardOverlayIpc.rewardWindowsController.positionOverlayWindow(
-        rewardOverlayIpc.rewardWindowsController.getAnchorMeta(),
-      );
-    else if (kind === "planner")
-      rewardOverlayIpc.plannerWindowsController.positionOverlayWindow(
-        rewardOverlayIpc.plannerWindowsController.getAnchorMeta(),
-      );
-    else if (kind === "arbiSummary") arbiOverlayIpc.positionArbiSummaryWindow();
-    else if (kind === "rivenLeft" || kind === "rivenRight")
-      rivenOverlayIpc.positionRivenOverlayWindows();
-  });
+  const overlayEditor = registerOverlayEditor(
+    settingsController.saveOverlaySettings,
+    (kind) => {
+      if (kind === "reward")
+        rewardOverlayIpc.rewardWindowsController.positionOverlayWindow(
+          rewardOverlayIpc.rewardWindowsController.getAnchorMeta(),
+        );
+      else if (kind === "planner")
+        rewardOverlayIpc.plannerWindowsController.positionOverlayWindow(
+          rewardOverlayIpc.plannerWindowsController.getAnchorMeta(),
+        );
+      else if (kind === "arbiSummary") arbiOverlayIpc.positionArbiSummaryWindow();
+      else if (kind === "rivenLeft" || kind === "rivenRight")
+        rivenOverlayIpc.positionRivenOverlayWindows();
+    },
+    (kind) => {
+      if (kind === "reward")
+        return rewardOverlayIpc.rewardWindowsController.getOverlayBoundsForActiveDisplay();
+      if (kind === "planner")
+        return rewardOverlayIpc.plannerWindowsController.getOverlayBoundsForActiveDisplay();
+      if (kind === "arbiSummary") return arbiOverlayIpc.getArbiSummaryPlacementRect();
+      if (kind === "rivenLeft") return rivenOverlayIpc.getRivenPlacementRects().left;
+      if (kind === "rivenRight") return rivenOverlayIpc.getRivenPlacementRects().right;
+      return null;
+    },
+  );
   // Delegate domain-specific IPC to sub-modules
   rivenOverlayIpc.register();
   rewardOverlayIpc.register(pushOverlayInteractionMode, pushOverlayThemeVars);

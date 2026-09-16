@@ -17,6 +17,34 @@ let bestPlaceholderKey = "overlay.reward.detecting";
 let bannerMessage = null;
 let plannerPayload = null;
 let rewardLayoutEditor = null;
+let contentHeightFrame = 0;
+let lastContentHeight = 0;
+
+function reportRewardContentHeight() {
+  if (contentHeightFrame || !window.overlay.reportContentHeight) return;
+  contentHeightFrame = requestAnimationFrame(() => {
+    contentHeightFrame = 0;
+    const grid = document.getElementById("slots-grid");
+    if (rewardLayoutEditor?.isEditing() || !grid || grid.classList.contains("is-hidden")) return;
+    const cards = [...grid.querySelectorAll(".reward-slot")];
+    if (!grid.querySelector(".has-item")) return;
+    const panel = document.getElementById("panel");
+    const footer = document.getElementById("best-footer");
+    const height = Math.ceil(
+      Math.max(...cards.map((card) => card.getBoundingClientRect().bottom)) -
+        grid.getBoundingClientRect().top +
+        grid.scrollTop +
+        Number.parseFloat(getComputedStyle(grid).paddingBottom) +
+        (footer?.getBoundingClientRect().height || 0) +
+        Number.parseFloat(getComputedStyle(panel).borderTopWidth) +
+        Number.parseFloat(getComputedStyle(panel).borderBottomWidth),
+    );
+    if (height > 0 && height !== lastContentHeight) {
+      lastContentHeight = height;
+      window.overlay.reportContentHeight(height);
+    }
+  });
+}
 
 const t = window.overlayI18n.t;
 
@@ -227,6 +255,7 @@ function hideScanning() {
 }
 
 function renderSlot(index) {
+  reportRewardContentHeight();
   const slotEl = slotElement(index);
   const playerEl = slotEl.querySelector(".slot-player");
   const nameEl = slotEl.querySelector(".slot-name");
@@ -701,6 +730,42 @@ async function applyRewardItems(payload) {
   clearTimeout(crownCap);
   if (generation !== rewardGeneration) return;
   updateBestPick();
+  if (!rewardLayoutEditor?.isEditing() && window.overlay.reportPresentation) {
+    window.overlay.reportPresentation({
+      count: placements.length,
+      slots: slotState.map(({ item, price, setPrice }) =>
+        item
+          ? {
+              item: {
+                name: item.name,
+                rarity: item.rarity || "common",
+                ducats: item.ducats ?? 0,
+                partOwnedCount: item.partOwnedCount ?? 0,
+                partRequiredCount: item.partRequiredCount ?? 0,
+                ...(typeof item.mastered === "boolean" ? { mastered: item.mastered } : {}),
+                building: item.building === true,
+                setOwnedCount: item.setOwnedCount ?? 0,
+                setRequiredCount: item.setRequiredCount ?? 0,
+                setUrlName: item.setUrlName || null,
+                setParts: (Array.isArray(item.setParts) ? item.setParts : [])
+                  .filter(Boolean)
+                  .slice(0, 6)
+                  .map((part) => ({
+                    name: part.name || "Part",
+                    imageUrl: part.imageUrl || null,
+                    ownedCount: part.ownedCount ?? 0,
+                    requiredCount: part.requiredCount ?? 0,
+                    isReward: part.isReward === true,
+                    building: part.building === true,
+                  })),
+              },
+              price,
+              setPrice,
+            }
+          : null,
+      ),
+    });
+  }
   console.info(
     `[Overlay] prices settled ${Math.round(performance.now() - receivedAt)}ms after receipt`,
   );
@@ -867,20 +932,35 @@ function renderRewardPreview(state) {
   }
   hideScanning();
   document.getElementById("slots-grid").classList.remove("is-hidden");
+  if (state.previewVariant === "last") {
+    const presentation = window.overlayPreview?.config?.lastReward;
+    if (!presentation) return;
+    presentation.slots.forEach((slot, index) => {
+      slotState[index] = slot ? structuredClone(slot) : { item: null, price: null, setPrice: null };
+      renderSlot(index);
+    });
+    bestPlaceholderKey = "overlay.reward.noPricedRewards";
+    updateBestPick();
+    return;
+  }
   const names = [
-    "Braton Prime Receiver",
+    state.previewVariant === "mixed"
+      ? "Sevagoth Prime Neuroptics Blueprint"
+      : "Braton Prime Receiver",
     "Forma Blueprint",
     "Lex Prime Barrel",
     "Paris Prime String",
   ];
   for (let index = 0; index < state.previewCount; index += 1) {
     const missing = state.previewVariant === "missing";
+    const mixed = state.previewVariant === "mixed";
+    const partCount = missing ? 0 : mixed ? [3, 0, 3, 4][index] : 6;
     slotState[index] = {
       item: {
         name: names[index],
         rarity: ["rare", "common", "uncommon", "common"][index],
-        ducats: missing ? 0 : [100, 15, 45, 15][index],
-        ...(missing
+        ducats: missing || (mixed && index === 1) ? 0 : [100, 15, 45, 15][index],
+        ...(!partCount
           ? {}
           : {
               partOwnedCount: index,
@@ -888,19 +968,19 @@ function renderRewardPreview(state) {
               mastered: index % 2 === 0,
               building: true,
               setOwnedCount: 2,
-              setRequiredCount: 6,
+              setRequiredCount: partCount,
               setUrlName: "preview",
-              setParts: Array.from({ length: 6 }, (_, part) => ({
+              setParts: Array.from({ length: partCount }, (_, part) => ({
                 name: ["Blueprint", "Barrel", "Receiver", "Stock", "Blade", "Handle"][part],
-                ownedCount: part % 2,
+                ownedCount: mixed ? [1, 20, 1000, 999999][part] : part % 2,
                 requiredCount: 1,
-                isReward: part === index,
+                isReward: part === (mixed ? (index === 0 ? 0 : partCount - 1) : index),
                 building: part === 2,
               })),
             }),
       },
-      price: missing ? 0 : [42, 0, 18, 9][index],
-      setPrice: missing ? 0 : 120,
+      price: missing ? 0 : mixed ? [245, 0, 18, 9][index] : [42, 0, 18, 9][index],
+      setPrice: !partCount ? 0 : mixed && index === 0 ? 620 : 120,
     };
     renderSlot(index);
   }
@@ -909,6 +989,18 @@ function renderRewardPreview(state) {
 }
 
 document.addEventListener("DOMContentLoaded", () => {
+  const contentObserver = new ResizeObserver(reportRewardContentHeight);
+  contentObserver.observe(document.getElementById("slots-grid"));
+  contentObserver.observe(document.getElementById("best-footer"));
+  void document.fonts.ready.then(reportRewardContentHeight);
+  window.addEventListener(
+    "pagehide",
+    () => {
+      contentObserver.disconnect();
+      if (contentHeightFrame) cancelAnimationFrame(contentHeightFrame);
+    },
+    { once: true },
+  );
   let bootstrapped = false;
   const finishBootstrap = (loaded) => {
     if (!loaded || bootstrapped) return;
