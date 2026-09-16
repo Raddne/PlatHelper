@@ -26,6 +26,8 @@ interface ElectronTestHarnessOptions {
   skipLanguageSeed?: boolean;
   /** JSON files to drop into userData before launch, keyed by file name. */
   userDataFiles?: Record<string, unknown>;
+  /** Extra variables for the Electron process (fixture switches), applied last. */
+  env?: Record<string, string>;
 }
 
 export interface ElectronTestHarness {
@@ -81,6 +83,7 @@ async function startHarness(
   env.WFHELPER_EE_LOG = path.join(localAppData, "Warframe", "EE.log");
   env.APPDATA = path.join(sandboxDir, "roaming");
   env.WFHELPER_USER_DATA = userData;
+  Object.assign(env, options.env ?? {});
 
   let app: ElectronApplication | null = null;
   let saveArtifacts: ((failed?: boolean, failure?: unknown) => Promise<void>) | undefined;
@@ -182,6 +185,49 @@ export function selectOptionValues(select: Locator): Promise<string[]> {
   return select.evaluate((element) =>
     Array.from((element as HTMLSelectElement).options, (option) => option.value),
   );
+}
+
+/** Content size on the BrowserWindow itself: a Playwright viewport does not
+ *  resize an Electron window. Throws when the window did not land there. */
+export async function setWindowSize(
+  harness: ElectronTestHarness,
+  width: number,
+  height: number,
+): Promise<void> {
+  await evaluateInMain(
+    harness.app,
+    ({ BrowserWindow }, size) => {
+      const win = BrowserWindow.getAllWindows().find((candidate) =>
+        candidate.webContents.getURL().includes("renderer/dist/index.html"),
+      );
+      if (!win) throw new Error("main window not found");
+      win.setContentSize(size.width, size.height);
+    },
+    { width, height },
+  );
+  await harness.page.waitForTimeout(400);
+  const landed = await harness.page.evaluate(() => ({
+    width: window.innerWidth,
+    height: window.innerHeight,
+  }));
+  if (Math.abs(landed.width - width) > 2 || Math.abs(landed.height - height) > 2) {
+    throw new Error(`window landed at ${landed.width}x${landed.height}, wanted ${width}x${height}`);
+  }
+}
+
+/** Settings > Appearance > Font Sizes > Global Scale, applied through a reload;
+ *  null clears the stored theme so the default scale comes back. */
+export async function setFontScale(page: Page, scale: number | null): Promise<void> {
+  await page.evaluate((value) => {
+    if (value === null) localStorage.removeItem("wf_theme_settings");
+    else
+      localStorage.setItem(
+        "wf_theme_settings",
+        JSON.stringify({ version: 1, fontSizes: { globalScale: value } }),
+      );
+  }, scale);
+  await page.reload();
+  await page.waitForSelector("#sidebar", { state: "visible", timeout: 90_000 });
 }
 
 /** Sidebar labels are translated, so navigate by data-view. */

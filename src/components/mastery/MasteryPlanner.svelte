@@ -167,7 +167,7 @@
     class="grid min-w-0 content-start gap-2 rounded-[var(--radius-lg)] border border-[var(--ui-panel-border)] bg-[var(--ui-panel-bg)] p-2.5"
     data-planner-row={item.uniqueName}
   >
-    <div class="grid min-w-0 grid-cols-[64px_minmax(0,1fr)_auto] items-center gap-3">
+    <div class="grid min-w-0 grid-cols-[4rem_minmax(0,1fr)_auto] items-center gap-3">
       <span
         class="flex h-16 w-16 items-center justify-center overflow-hidden rounded-[var(--radius-md)] bg-surface-card"
       >

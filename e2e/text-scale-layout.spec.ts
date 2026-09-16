@@ -2,42 +2,12 @@ import { expect, test, type Page } from "@playwright/test";
 
 import {
   closeElectronTestHarness,
-  evaluateInMain,
   launchElectronTestHarness,
   openView,
+  setFontScale,
+  setWindowSize,
   type ElectronTestHarness,
 } from "./electronTestHarness";
-
-// A Playwright viewport does not resize an Electron window, so the reporter's
-// 1920x1200 has to be set on the BrowserWindow itself.
-async function setWindowSize(
-  harness: ElectronTestHarness,
-  width: number,
-  height: number,
-): Promise<void> {
-  await evaluateInMain(
-    harness.app,
-    ({ BrowserWindow }, size) => {
-      const win = BrowserWindow.getAllWindows().find((candidate) =>
-        candidate.webContents.getURL().includes("renderer/dist/index.html"),
-      );
-      win?.setContentSize(size.width, size.height);
-    },
-    { width, height },
-  );
-  await harness.page.waitForTimeout(400);
-}
-
-async function setFontScale(page: Page, scale: number): Promise<void> {
-  await page.evaluate((value) => {
-    localStorage.setItem(
-      "wf_theme_settings",
-      JSON.stringify({ version: 1, fontSizes: { globalScale: value } }),
-    );
-  }, scale);
-  await page.reload();
-  await expect(page.locator("#sidebar")).toBeVisible({ timeout: 90_000 });
-}
 
 function measureRelicRow(page: Page) {
   return page.evaluate(() => {
@@ -79,11 +49,16 @@ function measureNavIcons(page: Page) {
 
 function measureAppearanceCards(page: Page) {
   return page.evaluate(() => {
-    const sections = ["[data-app-scale]", "[data-font-sizes]"];
-    return sections.map((selector) => {
+    // Style cards are divs whose first child is the label + control row.
+    const sections = [
+      { selector: "[data-app-scale]", cards: "label", rowInside: false },
+      { selector: "[data-font-sizes]", cards: "label", rowInside: false },
+      { selector: "[data-style-section]", cards: ":scope > .grid > div", rowInside: true },
+    ];
+    return sections.map(({ selector, cards: cardSelector, rowInside }) => {
       const section = document.querySelector<HTMLElement>(selector);
       if (!section) throw new Error(`${selector} is missing`);
-      const cards = Array.from(section.querySelectorAll<HTMLElement>("label"));
+      const cards = Array.from(section.querySelectorAll<HTMLElement>(cardSelector));
       if (cards.length === 0) throw new Error(`${selector} has no card`);
       return {
         selector,
@@ -92,8 +67,9 @@ function measureAppearanceCards(page: Page) {
         // A control that dropped below its label; at the default scale every
         // card still has both on one line, which is what pins today's look.
         stacked: cards.filter((card) => {
-          const label = card.firstElementChild!.getBoundingClientRect();
-          const control = card.lastElementChild!.getBoundingClientRect();
+          const row = rowInside ? (card.firstElementChild as HTMLElement) : card;
+          const label = row.firstElementChild!.getBoundingClientRect();
+          const control = row.lastElementChild!.getBoundingClientRect();
           return control.top >= label.bottom - 1;
         }).length,
       };
@@ -107,6 +83,23 @@ async function openAppearance(page: Page): Promise<void> {
   await expect(page.locator("[data-app-scale]")).toBeVisible();
 }
 
+// Enough trades that the Stats trade rail has to scroll on a 728px window.
+const LEDGER_ROWS = Array.from({ length: 10 }, (_, index) => ({
+  id: `scale-${index}`,
+  date: `2026-09-${String(index + 1).padStart(2, "0")}T12:00:00.000Z`,
+  type: "sale",
+  platChange: 10 + index,
+  items: [
+    {
+      internalName: "",
+      displayName: `Fixture Trade Item ${index}`,
+      count: 1,
+      direction: "given",
+    },
+  ],
+  partner: `Partner${index}`,
+}));
+
 test.describe("Layout holds at a raised text scale", () => {
   test.setTimeout(300_000);
 
@@ -114,7 +107,9 @@ test.describe("Layout holds at a raised text scale", () => {
   let page: Page;
 
   test.beforeAll(async () => {
-    harness = await launchElectronTestHarness("wfh-text-scale-layout-");
+    harness = await launchElectronTestHarness("wfh-text-scale-layout-", {
+      userDataFiles: { "trade-log.json": LEDGER_ROWS },
+    });
     page = harness.page;
     await setWindowSize(harness, 1920, 1200);
   });
@@ -218,6 +213,59 @@ test.describe("Layout holds at a raised text scale", () => {
       element.dispatchEvent(new Event("change", { bubbles: true })),
     );
     expect(await rootSize(), "releasing the slider did not apply the scale").not.toBe(scaled);
+  });
+
+  // The bar height was a fixed 28px while the update pill inside it is rem-sized,
+  // so at 1.5x the pill's bottom half was cut off by the window edge.
+  test("the status bar keeps its update pill inside the window", async () => {
+    for (const scale of [1, 1.25, 1.5]) {
+      await setFontScale(page, scale);
+      await setWindowSize(harness, 1366, 728);
+      const box = await page.evaluate(() => {
+        const bar = document.querySelector<HTMLElement>("[data-status-bar]");
+        const pill = document.querySelector<HTMLElement>(".update-pill");
+        if (!bar || !pill) throw new Error("status bar or update pill is missing");
+        const barRect = bar.getBoundingClientRect();
+        const pillRect = pill.getBoundingClientRect();
+        return {
+          barHeight: barRect.height,
+          overflow: Math.max(pillRect.bottom - barRect.bottom, barRect.top - pillRect.top),
+          belowWindow: pillRect.bottom - window.innerHeight,
+        };
+      });
+      expect(box.overflow, `pill leaves the bar at ${scale}x`).toBeLessThanOrEqual(0.5);
+      expect(box.belowWindow, `pill leaves the window at ${scale}x`).toBeLessThanOrEqual(0.5);
+      if (scale === 1) expect(Math.round(box.barHeight), "1x bar height").toBe(28);
+    }
+    await setWindowSize(harness, 1920, 1200);
+  });
+
+  // The trade rail is content-sized inside a fixed-height row; when the header
+  // grew at a raised scale the rail ran past the row and was clipped, unscrollable.
+  test("the stats trade rail scrolls instead of running past its row", async () => {
+    await setFontScale(page, 1.5);
+    await setWindowSize(harness, 1366, 728);
+    await openView(page, "stats");
+    await page.locator('[data-tour-tab="tracking"]').click();
+    await expect(page.locator("[data-stats-trade-panel]")).toBeVisible({ timeout: 30_000 });
+    await expect(page.locator("[data-trade-row]").first()).toBeVisible({ timeout: 30_000 });
+    const box = await page.evaluate(() => {
+      const row = document.querySelector<HTMLElement>("[data-stats-tracking]");
+      const panel = document.querySelector<HTMLElement>("[data-stats-trade-panel]");
+      const list = document.querySelector<HTMLElement>("[data-stats-trade-list]");
+      if (!row || !panel || !list) throw new Error("stats tracking layout is missing");
+      const rowRect = row.getBoundingClientRect();
+      const panelRect = panel.getBoundingClientRect();
+      return {
+        overflow: panelRect.bottom - rowRect.bottom,
+        belowWindow: panelRect.bottom - window.innerHeight,
+        listScrolls: list.scrollHeight > list.clientHeight,
+      };
+    });
+    expect(box.overflow, "rail runs past its row").toBeLessThanOrEqual(0.5);
+    expect(box.belowWindow, "rail runs past the window").toBeLessThanOrEqual(0.5);
+    expect(box.listScrolls, "the seeded trades must overflow the rail").toBe(true);
+    await setWindowSize(harness, 1920, 1200);
   });
 
   // The wrap is a fallback, so at the default scale both halves of every card

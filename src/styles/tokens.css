@@ -81,7 +81,9 @@
   --sidebar-width: 300px;
   --content-gutter: 1.75rem;
   --titlebar-height: 38px;
-  --statusbar-height: 28px;
+  /* Follows the text scale (the bar holds rem-sized pills that outgrew 28px at 1.5x);
+     written so the default 15px root yields exactly 28px, not a fractional height. */
+  --statusbar-height: calc(var(--font-global-size, 15px) * 28 / 15);
   --item-image-max: 96px;
   --resource-image-wrap: 52px;
   --resource-image-max: 42px;
