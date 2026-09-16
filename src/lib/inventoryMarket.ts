@@ -18,6 +18,7 @@ import {
 import { formatWfmAssetUrl, sanitizeWfmSlug } from "../../config/shared/wfm.js";
 import { rendererPriceCacheKey } from "../../config/shared/wfmCacheKeys.js";
 import { isExcludedRankedMarketItem } from "../../config/shared/wfmExclusions.js";
+import { sanitizeDisplayName } from "../../config/shared/displayName.js";
 
 export type InventoryFilterTab = InventoryGroup | "resources" | "everything" | "pets";
 
@@ -383,6 +384,10 @@ export function buildBaseInventoryItems(
           : rawRelicGroupName;
       const lookupByName = getLookupByName(relicGroupName || item.name, wfmLookup);
       const lookupByGameRef = getLookupByGameRef(item.internalName, wfmLookup);
+      const identityMetadata =
+        typeof lookupByGameRef?.gameRef === "string" && lookupByGameRef.gameRef.trim()
+          ? lookupByGameRef
+          : null;
       const mappedSlug = lookupByName?.url_name ? sanitizeWfmSlug(lookupByName.url_name) : null;
       const mappedGameRefSlug = lookupByGameRef?.url_name
         ? sanitizeWfmSlug(lookupByGameRef.url_name)
@@ -396,7 +401,10 @@ export function buildBaseInventoryItems(
             ...generatedSetSlugCandidates(item),
           ])
         : undefined;
-      const displayName = relicGroupName || item.name;
+      const catalogName = item.nameIsFallback
+        ? sanitizeDisplayName(identityMetadata?.item_name)
+        : "";
+      const displayName = relicGroupName || catalogName || item.name;
       const fallbackRelicSlug = group === "relics" ? toMarketSlug(displayName) : null;
       // WFM knows one relic item per group; the refinement is the order subtype.
       const relicQuality = relicLookupInfo?.quality ?? null;
@@ -447,7 +455,9 @@ export function buildBaseInventoryItems(
           cachedMeta?.icon ||
           null,
       );
-      const lookupMaxRank = toFinitePositiveInt(lookupByName?.maxRank);
+      const lookupMaxRank =
+        toFinitePositiveInt(identityMetadata?.maxRank) ??
+        toFinitePositiveInt(lookupByName?.maxRank);
       const resolvedMaxRank =
         isRankedListingItem && lookupMaxRank != null ? lookupMaxRank : item.maxRank;
       const rankCap =
@@ -476,7 +486,7 @@ export function buildBaseInventoryItems(
         (relicQuality == null ||
           orderSubtypes.some((subtype) => subtype === null || subtype === relicQuality));
 
-      return {
+      const mapped: InventoryBaseItem = {
         ...item,
         name: visibleName,
         internalName:
@@ -499,6 +509,8 @@ export function buildBaseInventoryItems(
         marketThumb,
         subtype: relicQuality,
       };
+      if (catalogName) delete mapped.nameIsFallback;
+      return mapped;
     })
     .filter((item): item is InventoryBaseItem => item != null);
 }

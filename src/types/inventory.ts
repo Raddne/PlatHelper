@@ -42,6 +42,8 @@ export interface ComponentInfo {
 export interface ItemDbEntry {
   /** English. Every by-name lookup and market slug is built from this. */
   name?: string;
+  /** Generated from an internal path because no source supplied an English name. */
+  nameIsFallback?: true;
   /** Active game language, absent when it matches `name`. Render this. */
   displayName?: string;
   /** Art is the framed wiki card, so a marketplace thumbnail must not replace it. */
@@ -137,6 +139,8 @@ export type InventoryGroup =
 export interface ParsedItem extends MarketAcquisition {
   /** English. Every by-name lookup and market slug is built from this. */
   name: string;
+  /** Generated from an internal path; an exact catalog identity may replace it. */
+  nameIsFallback?: true;
   /** Active game language, absent when it matches `name`. Render this. */
   displayName?: string;
   /** Art is the framed wiki card, so a marketplace thumbnail must not replace it. */

@@ -80,7 +80,13 @@ export function resolveItem(
   }
   if (!internalName) return { name: "Unknown", imageUrl: null };
 
-  return { name: fallbackNameFromUniqueName(internalName), imageUrl: null, category: "Unknown" };
+  return {
+    ...dbEntry,
+    name: fallbackNameFromUniqueName(internalName),
+    nameIsFallback: true,
+    imageUrl: dbEntry?.imageUrl ?? null,
+    category: dbEntry?.category ?? "Unknown",
+  };
 }
 
 export function isArcaneUpgrade(

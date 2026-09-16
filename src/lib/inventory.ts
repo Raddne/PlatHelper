@@ -190,6 +190,7 @@ export function parseInventory(
 
     const nextItem: ParsedItem = {
       name: englishName,
+      ...(!modular && resolved.nameIsFallback ? { nameIsFallback: true as const } : {}),
       ...(localizedName ? { displayName: localizedName } : {}),
       ...(resolved.cardArt ? { cardArt: true as const } : {}),
       internalName,

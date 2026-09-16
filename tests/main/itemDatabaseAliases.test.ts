@@ -1,6 +1,7 @@
-import { beforeAll, describe, expect, it } from "vitest";
+import { beforeAll, describe, expect, it, vi } from "vitest";
 
 import * as itemDb from "../../services/itemDatabase";
+import * as publicExportSource from "../../services/publicExportSource";
 import { deriveGroup } from "../../src/lib/inventory/itemClassification";
 
 describe("itemDatabase WFCD alias enrichment", () => {
@@ -18,6 +19,8 @@ describe("itemDatabase WFCD alias enrichment", () => {
 
     expect(aeolakBarrel?.name).toBe("Aeolak Barrel Blueprint");
     expect(ghoulsawBlade?.name).toBe("Ghoulsaw Blade Blueprint");
+    expect(aeolakBarrel?.nameIsFallback).toBeUndefined();
+    expect(ghoulsawBlade?.nameIsFallback).toBeUndefined();
   });
 
   it("keeps known tradable recipe entries tradable", () => {
@@ -79,6 +82,8 @@ describe("itemDatabase WFCD alias enrichment", () => {
 
     expect(largeEnergy?.name).toBe("Squad Energy Restore (Large) Blueprint");
     expect(mediumEnergy?.name).toBe("Squad Energy Restore (Medium) Blueprint");
+    expect(largeEnergy?.nameIsFallback).toBeUndefined();
+    expect(mediumEnergy?.nameIsFallback).toBeUndefined();
   });
 
   it("names a part blueprint once when its component already reads Blueprint", () => {
@@ -274,5 +279,35 @@ describe("itemDatabase sentinel weapon vaulting", () => {
     );
     expect(shade?.vaulted).toBe(true);
     expect(burstLaser?.vaulted).toBe(true);
+  });
+});
+
+describe("itemDatabase fallback name provenance", () => {
+  it("carries missing-source provenance to the renderer without guessing from the name", () => {
+    const unresolved = "/Lotus/Weapons/Test/UnresolvedExportName";
+    const literal = "/Lotus/Weapons/Test/LiteralExportName";
+    const overlay = vi.spyOn(publicExportSource, "getOverlay").mockReturnValue({
+      exports: {
+        ExportWeapons: {
+          [unresolved]: { name: "/Lotus/Language/Test/NotInDictionary" },
+          [literal]: { name: "Literal Export Name" },
+        },
+      },
+      images: null,
+    });
+    try {
+      itemDb.buildDatabase();
+      expect(itemDb.lookupItem(unresolved)).toMatchObject({
+        name: "Unresolved Export Name",
+        nameIsFallback: true,
+      });
+      const renderer = itemDb.getRendererLookup();
+      expect(renderer[unresolved].nameIsFallback).toBe(true);
+      expect(renderer[literal].name).toBe("Literal Export Name");
+      expect(renderer[literal].nameIsFallback).toBeUndefined();
+    } finally {
+      overlay.mockRestore();
+      itemDb.buildDatabase();
+    }
   });
 });

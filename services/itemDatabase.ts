@@ -177,6 +177,7 @@ function buildComponentAliasUniqueNames(uniqueName: string = ""): string[] {
 
 interface ItemEntry extends MarketAcquisition {
   name: string;
+  nameIsFallback?: true;
   category: string;
   imageUrl: string | null;
   browseWfUrl?: string | null;
@@ -332,16 +333,18 @@ function loadPublicExportPlus(): number {
 
         // Recipes have no name - resolve via resultType (e.g. "Sands of Inaros Blueprint")
         let recipeName: string | null = null;
+        let recipeNameIsFallback = false;
         if (exportKey === "ExportRecipes" && !item.name && item.resultType) {
           const resultEntry = itemsByUniqueName[item.resultType];
-          if (resultEntry?.name) recipeName = `${resultEntry.name} Blueprint`;
+          if (resultEntry?.name) {
+            recipeName = `${resultEntry.name} Blueprint`;
+            recipeNameIsFallback = resultEntry.nameIsFallback === true;
+          }
         }
 
+        const sourceName = relicName || recipeName || resolveName(item.name);
         const resolvedName = sanitizeDisplayName(
-          relicName ||
-            recipeName ||
-            resolveName(item.name) ||
-            fallbackNameFromUniqueName(uniqueName),
+          sourceName || fallbackNameFromUniqueName(uniqueName),
         );
 
         const pepDucats =
@@ -364,6 +367,7 @@ function loadPublicExportPlus(): number {
 
         itemsByUniqueName[uniqueName] = {
           name: resolvedName,
+          ...(!sourceName || recipeNameIsFallback ? { nameIsFallback: true as const } : {}),
           nameKey,
           category,
           imageUrl: wikiCardArtUrl(uniqueName, category, resolvedName),
@@ -517,10 +521,12 @@ function loadWfcdItems(): number {
               if (
                 componentEntry.name &&
                 (!existingComponent.name ||
+                  existingComponent.nameIsFallback ||
                   String(existingComponent.name).startsWith("/Lotus/") ||
                   componentLooksLikePart)
               ) {
                 existingComponent.name = componentEntry.name;
+                delete existingComponent.nameIsFallback;
               }
 
               if (!existingComponent.imageUrl && componentEntry.imageUrl) {
@@ -569,6 +575,7 @@ function loadWfcdItems(): number {
                 const aliasName = buildComponentDisplayName(item.name, comp.name, true);
                 if (aliasName) {
                   existingBlueprint.name = aliasName;
+                  delete existingBlueprint.nameIsFallback;
                 }
 
                 const aliasWfcdImageUrl = buildWfcdImageUrl(comp.imageName) || wfcdImageUrl;
@@ -619,9 +626,10 @@ function loadWfcdItems(): number {
           wfcdImageUrl,
         );
 
-        if (existing.name.startsWith("/Lotus/") && item.name) {
+        if ((existing.nameIsFallback || existing.name.startsWith("/Lotus/")) && item.name) {
           const cleanedName = sanitizeDisplayName(item.name);
           existing.name = cleanedName;
+          delete existing.nameIsFallback;
           existing.isPrime = cleanedName.includes("Prime");
         }
 
@@ -839,13 +847,13 @@ function inheritBlueprintDisplayFromResults(): void {
     // Only rename what nothing else named, and only when the result itself
     // resolved - swapping one path-derived name for another gains nothing.
     if (!result.name) continue;
-    if (blueprint.name !== fallbackNameFromUniqueName(blueprintUn)) continue;
-    if (result.name === fallbackNameFromUniqueName(resultUn)) continue;
+    if (!blueprint.nameIsFallback || result.nameIsFallback) continue;
     // A warframe part component is already named "... Chassis Blueprint" - that
     // spelling is the item players own and trade, so appending doubles it.
     const derived = sanitizeDisplayName(
       /\bblueprint$/i.test(result.name) ? result.name : `${result.name} Blueprint`,
     );
+    delete blueprint.nameIsFallback;
     if (derived === blueprint.name) continue;
     blueprint.name = derived;
     blueprint.isPrime = derived.includes("Prime");
@@ -1081,6 +1089,7 @@ export function getRendererLookup(): Record<string, RendererItemEntry> {
   for (const [key, item] of Object.entries(itemsByUniqueName)) {
     lookup[key] = {
       ...(localizing ? localizedPair(key, item.nameKey, item.name) : { name: item.name }),
+      ...(item.nameIsFallback ? { nameIsFallback: true as const } : {}),
       category: item.category,
       imageUrl: item.imageUrl,
       ...(hasCardArt(item.imageUrl) ? { cardArt: true } : {}),
