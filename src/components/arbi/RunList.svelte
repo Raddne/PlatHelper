@@ -56,7 +56,7 @@
   }
 </script>
 
-<div class="overflow-x-auto" {...listAttrs}>
+<div class="runs-scroll overflow-x-auto" {...listAttrs}>
   <table class="w-full border-collapse text-sm">
     <thead>
       <tr class="border-b border-border text-left text-xs uppercase tracking-wide text-text-muted">
@@ -154,3 +154,17 @@
     </tbody>
   </table>
 </div>
+
+<style>
+  /* Ten rem-sized cell gutters, not the text, are what pushed this table past a
+     1280px window at 1.5x text. Tying them to the table's own width tightens
+     them only there: in a box wider than 60rem (every swept window at 100%)
+     1.25cqi already exceeds the 0.75rem cap, so the default look is unchanged. */
+  .runs-scroll {
+    container-type: inline-size;
+  }
+  .runs-scroll :global(th),
+  .runs-scroll :global(td) {
+    padding-inline: clamp(0.5rem, 1.25cqi, 0.75rem);
+  }
+</style>

@@ -102,7 +102,7 @@
       <div class="flex flex-col items-center justify-center gap-2 py-8 px-4 text-center">
         {#if trades.length === 0}
           <p class="text-xs font-semibold text-text-secondary m-0">{$tr("common.noTradesYet")}</p>
-          <p class="text-xs text-text-muted max-w-[400px] leading-relaxed m-0">
+          <p class="text-xs text-text-muted max-w-[26.67rem] leading-relaxed m-0">
             {$tr("stats.noTradesDesc")}
           </p>
         {:else}
@@ -157,8 +157,11 @@
                 </span>
               {/if}
               {#if trade.partner}
+                <!-- The cap is the same 120px at 100%, but in rem so a raised
+                     scale keeps the character count instead of cutting it. -->
                 <span
-                  class="text-xs text-accent font-semibold whitespace-nowrap overflow-hidden text-ellipsis max-w-[120px]"
+                  data-trade-partner
+                  class="text-xs text-accent font-semibold whitespace-nowrap overflow-hidden text-ellipsis max-w-[8rem]"
                   >{trade.partner}</span
                 >
               {/if}
@@ -170,7 +173,7 @@
               <div class="flex flex-wrap gap-1 mt-1">
                 {#each trade.items as item}
                   <span
-                    class="inline-flex items-center gap-[3px] text-xs text-text-secondary bg-bg-deep rounded-[3px] py-[2px] px-[6px] border max-w-[220px] overflow-hidden text-ellipsis whitespace-nowrap {item.direction ===
+                    class="inline-flex items-center gap-[3px] text-xs text-text-secondary bg-bg-deep rounded-[3px] py-[2px] px-[6px] border max-w-[14.67rem] overflow-hidden text-ellipsis whitespace-nowrap {item.direction ===
                     'received'
                       ? 'border-success/15'
                       : item.direction === 'given'

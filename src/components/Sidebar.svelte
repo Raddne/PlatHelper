@@ -165,10 +165,19 @@
 
 <nav
   id="sidebar"
-  class="sidebar-shell flex min-h-0 w-[var(--sidebar-width)] shrink-0 flex-col justify-between gap-2 overflow-hidden border-r border-border bg-bg-base px-2.5 py-3.5"
+  class="sidebar-shell flex min-h-0 w-[var(--sidebar-width)] shrink-0 flex-col justify-between gap-2 border-r border-border bg-bg-base px-2.5 py-3.5 {collapsed
+    ? 'overflow-y-auto overflow-x-hidden'
+    : 'overflow-hidden'}"
   class:sidebar-collapsed={collapsed}
 >
-  <div class="flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto overflow-x-hidden">
+  <!-- Collapsed, a pinned dev rail plus Feedback leaves the icon list a third of
+       the height, so the whole rail scrolls as one and the nav keeps its own. -->
+  <div
+    data-sidebar-nav
+    class="flex flex-col gap-0.5 {collapsed
+      ? 'shrink-0'
+      : 'min-h-0 flex-1 overflow-y-auto overflow-x-hidden'}"
+  >
     <button
       class="nav-btn nav-btn-collapse relative flex w-full cursor-pointer items-center gap-3 rounded-md border-0 bg-transparent px-3.5 py-2.5 font-display text-base font-medium tracking-wide text-text-muted transition-colors duration-150 hover:bg-bg-hover hover:text-text-primary"
       title={$sidebarCollapsed ? $tr("nav.expandSidebar") : $tr("nav.collapseSidebar")}

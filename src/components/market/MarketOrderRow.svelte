@@ -198,7 +198,9 @@
     </svelte:fragment>
     <svelte:fragment slot="compactBody">
       <div class="flex min-w-0 flex-1 flex-col gap-1.5">
-        <div class="flex items-center gap-2">
+        <!-- A stepper cannot shrink below its field and arrows, so the pair wraps
+             instead of running under the shrink-0 actions at a raised text scale. -->
+        <div class="flex flex-wrap items-center gap-2">
           <span class="flex items-center gap-0.5" title={$tr("common.listedQuantity")}>
             <span class="text-xs font-semibold uppercase tracking-[0.04em] text-text-muted"
               >{$tr("market.qtyAbbrev")}</span
@@ -211,7 +213,11 @@
               onChange={(next) => (draftQuantity = next)}
             />
           </span>
-          <span class="flex items-center gap-0.5" title={$tr("common.pricePlatinum")}>
+          <span
+            class="flex items-center gap-0.5"
+            title={$tr("common.pricePlatinum")}
+            data-order-price-stepper
+          >
             <img src={PLATINUM_ICON_URL} alt="" width="14" height="14" class="shrink-0" />
             <OrderStepper
               value={draftPlatinum}
@@ -239,7 +245,7 @@
       </div>
     </svelte:fragment>
     <svelte:fragment slot="compactActions">
-      <div class="flex shrink-0 items-center gap-1.5">
+      <div class="flex shrink-0 items-center gap-1.5" data-order-actions>
         {#if dirty}
           <button
             class="btn-success btn-sm h-7 w-7 px-0 text-sm font-black"
