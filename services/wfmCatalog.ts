@@ -28,6 +28,7 @@ interface CatalogItem {
   maxRank: number | null;
   gameRef: string | null;
   subtypes?: string[];
+  hasRanks?: boolean;
 }
 
 let _items: CatalogItem[] = [];
@@ -367,6 +368,15 @@ export function lookupItemDetails(slug: string): Promise<CatalogItem | null> {
     );
     if (!raw || typeof raw.id !== "string") return null;
     const item = _normalise(raw);
+    // Only item details establish rankless status; a cached catalog may omit metadata.
+    if (!("maxRank" in raw) && !("max_rank" in raw)) {
+      item.hasRanks = false;
+    } else {
+      const rank = "maxRank" in raw ? raw.maxRank : raw.max_rank;
+      if (typeof rank === "number" && Number.isInteger(rank) && rank >= 0) {
+        item.hasRanks = rank > 0;
+      }
+    }
     item.subtypes = Array.isArray(raw.subtypes)
       ? [
           ...new Set(

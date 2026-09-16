@@ -43,6 +43,24 @@ function closeableQuantity(order: NormalisedOrder, tradedQuantity: number): numb
   return available % perTrade === 0 ? available : 0;
 }
 
+async function matchesTradeRank(order: NormalisedOrder, rank: number): Promise<boolean> {
+  if (order.modRank === rank) return true;
+  if (rank !== 0 || order.modRank !== null || !order.itemId || !order.itemUrlName) return false;
+
+  try {
+    // Rankless mods still log RANK 0. Confirm their identity and rank policy before closing.
+    const details = await wfmCatalog.lookupItemDetails(order.itemUrlName);
+    return (
+      details?.id === order.itemId &&
+      details.url_name === order.itemUrlName &&
+      details.hasRanks === false
+    );
+  } catch (err) {
+    log.warn("[Matcher] Could not verify the item's rank policy:", String(err));
+    return false;
+  }
+}
+
 function cleanupRecentlyClosed(): void {
   const now = Date.now();
   for (const [id, ts] of _recentlyClosedOrders) {
@@ -132,7 +150,9 @@ export async function matchTradeToOrders(trade: ParsedTradeForMatching): Promise
     });
 
     if (prepared.parsed.rank != null) {
-      matching = matching.filter((order) => order.modRank === prepared.parsed.rank);
+      const rank = prepared.parsed.rank;
+      const rankMatches = await Promise.all(matching.map((order) => matchesTradeRank(order, rank)));
+      matching = matching.filter((_, index) => rankMatches[index]);
     }
     if (matching.length === 0) continue;
 
