@@ -362,7 +362,10 @@ describe("relic selection planner", () => {
     expect(controller.getSnapshotPrice("akarius_prime_blueprint")).toBeNull();
   });
 
-  function makeTwoEraController(currentInventoryData?: Record<string, unknown>) {
+  function makeTwoEraController(
+    currentInventoryData?: Record<string, unknown>,
+    extra?: { key: string; tier: string; slug: string; uniqueName: string },
+  ) {
     const cacheFilePath = makeTempSnapshot({
       version: 1,
       generatedAt: Date.now(),
@@ -405,6 +408,7 @@ describe("relic selection planner", () => {
           LevelKeys: [
             { ItemType: "/Lotus/Types/Game/Projections/LithTestIntact", ItemCount: 1 },
             { ItemType: "/Lotus/Types/Game/Projections/NeoTestIntact", ItemCount: 1 },
+            ...(extra ? [{ ItemType: extra.uniqueName, ItemCount: 1 }] : []),
           ],
         },
       },
@@ -422,6 +426,7 @@ describe("relic selection planner", () => {
           groups: {
             "Lith Test": group("Lith Test", "Lith", "lith_prize_blueprint"),
             "Neo Test": group("Neo Test", "Neo", "akarius_prime_blueprint"),
+            ...(extra ? { [extra.key]: group(extra.key, extra.tier, extra.slug) } : {}),
           },
           byUniqueName: {
             "/Lotus/Types/Game/Projections/LithTestIntact": {
@@ -432,6 +437,7 @@ describe("relic selection planner", () => {
               groupKey: "Neo Test",
               quality: "intact",
             },
+            ...(extra ? { [extra.uniqueName]: { groupKey: extra.key, quality: "intact" } } : {}),
           },
         }),
       },
@@ -549,6 +555,38 @@ describe("relic selection planner", () => {
     await new Promise((resolve) => setTimeout(resolve, 20));
     expect(lastRecommendation().era).toBe("lith");
     expect(lastRecommendation().rows?.map((row) => row.label)).toEqual(["1x Lith Test Intact"]);
+  });
+
+  it("leaves Requiem relics out of an omnia fissure", async () => {
+    // Omnia takes Lith, Meso, Neo and Axi; a Requiem relic only opens in a
+    // Requiem fissure, so it can never be equipped for this mission.
+    const { controller, ocrSpy, lastRecommendation } = makeTwoEraController(undefined, {
+      key: "Requiem Test",
+      tier: "Requiem",
+      slug: "requiem_test_mod",
+      uniqueName: "/Lotus/Types/Game/Projections/RequiemTestIntact",
+    });
+
+    ocrSpy.mockResolvedValue({ era: "omnia", confidence: 1, candidateId: "filter-label" });
+    await controller.onRelicSelectionTrigger("manual");
+    await new Promise((resolve) => setTimeout(resolve, 10));
+
+    const labels = lastRecommendation().rows?.map((row) => row.label) ?? [];
+    expect(labels.join(" ")).not.toMatch(/Requiem/);
+    expect(labels.join(" ")).toMatch(/Lith Test/);
+  });
+
+  it("a Requiem label cannot override an omnia mission tag", async () => {
+    // The override exists because a stale tag lingers into the next picker, but
+    // an omnia fissure never offers a Requiem filter, so that read is wrong.
+    const { controller, ocrSpy, lastRecommendation } = makeTwoEraController();
+    controller.setActiveMissionTag("VoidT6");
+
+    ocrSpy.mockResolvedValue({ era: "requiem", confidence: 1, candidateId: "filter-label" });
+    await controller.onRelicSelectionTrigger("manual");
+    await new Promise((resolve) => setTimeout(resolve, 10));
+
+    expect(lastRecommendation().era).toBe("omnia");
   });
 
   it("a relic tile filters its own screen without pinning the era for 25 minutes", async () => {

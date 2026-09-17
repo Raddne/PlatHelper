@@ -575,11 +575,13 @@ export function createRelicSelectionController(options: OverlayRecommendationCon
 
     let totalOwnedCount = 0;
     const rows: RecommendationRow[] = [];
-    // omnia fissures accept every era - no filter
+    // An omnia fissure takes Lith, Meso, Neo and Axi but never Requiem: those
+    // only open in a Requiem fissure, so recommending one here cannot be acted on.
     const eraFilter = era === "omnia" ? null : era;
     for (const group of groups) {
       const groupEra = normalizeEra(group.tier);
       if (eraFilter && groupEra !== eraFilter) continue;
+      if (era === "omnia" && groupEra === "requiem") continue;
 
       const ownedRow = owned[group.key];
       if (!ownedRow) continue;
@@ -752,7 +754,11 @@ export function createRelicSelectionController(options: OverlayRecommendationCon
             labelEra &&
             labelConfidence >= 0.9 &&
             labelDetection?.candidateId === "filter-label" &&
-            labelEra !== era
+            labelEra !== era &&
+            // Requiem relics open only in a Requiem fissure, so no other tag can
+            // be sitting on a screen that really offers them. The reverse stays
+            // allowed: a Requiem tag does linger into the next picker.
+            labelEra !== "requiem"
           ) {
             log.info(
               `[RelicSelection] filter label overrides mission tag: tag=${era} label=${labelEra}`,
