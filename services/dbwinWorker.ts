@@ -199,6 +199,10 @@ function runDbwinLoop(): void {
       }
     }
   } finally {
+    // A writer already blocked in OutputDebugString waits out the Win32 ten
+    // second timeout if BUFFER_READY is never signalled again. Releasing it
+    // here turns a ten second game freeze on our teardown into nothing.
+    SetEvent(hReady);
     UnmapViewOfFile(pBuf);
     CloseHandle(hMap);
     CloseHandle(hReady);
