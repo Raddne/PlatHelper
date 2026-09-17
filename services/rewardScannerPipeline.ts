@@ -289,6 +289,9 @@ export async function runRewardScanPipeline({
   }
 
   const guardsMs = Date.now() - guardsStartedAt;
+  // A scan that dies in native pixel work logs nothing else until OCR returns,
+  // so a crash report can only name the step if each one says it finished.
+  log.info(`[RewardScanner] Guards done in ${guardsMs}ms - detecting slot layouts`);
 
   // Primary path: per-slot OCR over detected reward layouts.
   const slotStats: SlotScanStats = {
