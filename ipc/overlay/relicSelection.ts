@@ -842,8 +842,11 @@ export function createRelicSelectionController(options: OverlayRecommendationCon
             `candidate=${String(eraDetection?.candidateId || "-")} preview="${String(eraDetection?.textPreview || "")}"`,
         );
 
-        // Cache a confident detection for the rest of this mission session.
-        if (era && eraConfidence >= 0.9) {
+        // Cache a confident detection for the rest of this mission session, but
+        // only from the era filter tabs: a tile label is one relic's own era, and
+        // in an omnia fissure the first tile would pin the wrong era for 25
+        // minutes. It still filters this screen, it just does not outlive it.
+        if (era && eraConfidence >= 0.9 && eraDetection?.candidateId === "filter-label") {
           activeMissionTier = era;
           activeMissionTierSetAt = Date.now();
           log.info(`[RelicSelection] activeMissionTier set: ${era}`);

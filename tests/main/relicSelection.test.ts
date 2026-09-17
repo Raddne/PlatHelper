@@ -551,6 +551,22 @@ describe("relic selection planner", () => {
     expect(lastRecommendation().rows?.map((row) => row.label)).toEqual(["1x Lith Test Intact"]);
   });
 
+  it("a relic tile filters its own screen without pinning the era for 25 minutes", async () => {
+    // Reported case: a Requiem tile read first in an omnia fissure held the
+    // wrong era for the whole cache window.
+    const { controller, ocrSpy, lastRecommendation } = makeTwoEraController();
+
+    ocrSpy.mockResolvedValue({ era: "neo", confidence: 1, candidateId: "tile-slot-1" });
+    await controller.onRelicSelectionTrigger("manual");
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    expect(lastRecommendation().era).toBe("neo");
+
+    ocrSpy.mockResolvedValue({ era: null, confidence: 0 });
+    await controller.onRelicSelectionTrigger("manual");
+    await new Promise((resolve) => setTimeout(resolve, 900));
+    expect(lastRecommendation().era).toBeNull();
+  });
+
   it("an OCR era ages out instead of renewing itself on every pick", async () => {
     const { controller, ocrSpy, lastRecommendation } = makeTwoEraController();
     const realNow = Date.now();
@@ -558,7 +574,7 @@ describe("relic selection planner", () => {
     const nowSpy = vi.spyOn(Date, "now").mockImplementation(() => clock);
 
     try {
-      ocrSpy.mockResolvedValue({ era: "neo", confidence: 1, candidateId: "tile-slot-1" });
+      ocrSpy.mockResolvedValue({ era: "neo", confidence: 1, candidateId: "filter-label" });
       await controller.onRelicSelectionTrigger("manual");
       await new Promise((resolve) => setTimeout(resolve, 10));
       expect(lastRecommendation().era).toBe("neo");
