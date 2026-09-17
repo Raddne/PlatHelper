@@ -16,7 +16,9 @@ describe("itemDatabase companion vaulting", () => {
     const venariPrime = itemDb.lookupItem(VENARI_PRIME);
     expect(khoraPrime).not.toBeNull();
     expect(venariPrime).not.toBeNull();
-    expect(venariPrime?.vaulted).toBe(khoraPrime?.vaulted);
+    // the inheritance is only observable while the parent frame is vaulted
+    expect(khoraPrime?.vaulted).toBe(true);
+    expect(venariPrime?.vaulted).toBe(true);
   });
 
   it("the regular Venari stays unvaulted like Khora", () => {

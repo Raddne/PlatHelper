@@ -289,6 +289,8 @@ function loadPublicExportPlus(): number {
       return BROWSE_WF + iconPath;
     }
 
+    const VOID_PROJECTION_RE = /VoidProjection/i;
+
     const exportMappings = [
       { exportKey: "ExportWarframes", category: "Warframe" },
       { exportKey: "ExportWeapons", category: "Weapon" },
@@ -365,12 +367,19 @@ function loadPublicExportPlus(): number {
             ? item.name
             : null;
 
+        // DE lists relics the bundled package lacks only under ExportResources.
+        // Bundled rows keep their own category, base projection types included.
+        const itemCategory =
+          category === "Resource" && !baseData?.[uniqueName] && VOID_PROJECTION_RE.test(uniqueName)
+            ? "Relic"
+            : category;
+
         itemsByUniqueName[uniqueName] = {
           name: resolvedName,
           ...(!sourceName || recipeNameIsFallback ? { nameIsFallback: true as const } : {}),
           nameKey,
-          category,
-          imageUrl: wikiCardArtUrl(uniqueName, category, resolvedName),
+          category: itemCategory,
+          imageUrl: wikiCardArtUrl(uniqueName, itemCategory, resolvedName),
           browseWfUrl: resolveIcon(item.icon) || recipeIcon,
           isPrime: resolvedName.includes("Prime"),
           masteryReq: item.masteryReq || 0,
@@ -738,7 +747,11 @@ interface PepRecipeItem {
 function buildRecipeIndex(): void {
   try {
     const pep = require("warframe-public-export-plus");
-    const exportData = pep.ExportRecipes;
+    const baseRecipes = pep.ExportRecipes as Record<string, PepRecipeItem> | undefined;
+    const overlayRecipes = publicExportSource.getOverlay()?.exports.ExportRecipes as
+      | Record<string, PepRecipeItem>
+      | undefined;
+    const exportData = overlayRecipes ? { ...overlayRecipes, ...(baseRecipes || {}) } : baseRecipes;
     if (!exportData || typeof exportData !== "object") return;
 
     recipesByResultType = {};
@@ -751,7 +764,8 @@ function buildRecipeIndex(): void {
       if (!item.resultType || !Array.isArray(item.ingredients)) continue;
       resultTypeByBlueprint[recipeKey] = item.resultType;
       if (item.consumeOnUse === false) reusableBlueprints.add(recipeKey);
-      if (item.excludeFromMarket !== true) {
+      // DE's raw export has no market fields, so an overlay-only recipe cannot claim one.
+      if (baseRecipes?.[recipeKey] && item.excludeFromMarket !== true) {
         const credits =
           typeof item.creditsCost === "number" && Number.isFinite(item.creditsCost)
             ? item.creditsCost
@@ -871,7 +885,7 @@ function inheritSentinelWeaponVaulting(): void {
   }
 }
 
-// Venari drops from no relic, so WFCD never vaults her; she follows the Khora she ships with.
+// Venari drops from no relic, so WFCD never vaults her.
 const COMPANION_FRAME_PATTERN = /^\/Lotus\/Powersuits\/([^/]+)\/Kavat\/\1(Prime)?KavatPowerSuit$/;
 
 function inheritCompanionFrameVaulting(): void {
