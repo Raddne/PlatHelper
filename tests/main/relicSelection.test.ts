@@ -441,13 +441,15 @@ describe("relic selection planner", () => {
       cacheFilePath,
     });
 
+    const recommendations = () =>
+      sentEvents.filter((event) => event.channel === RELIC_RECOMMENDATIONS);
     const lastRecommendation = () =>
-      sentEvents.filter((event) => event.channel === RELIC_RECOMMENDATIONS).at(-1)?.payload as {
+      recommendations().at(-1)?.payload as {
         era?: string | null;
         rows?: Array<{ label: string }>;
       };
 
-    return { controller, ocrSpy, lastRecommendation };
+    return { controller, ocrSpy, lastRecommendation, recommendations };
   }
 
   it("uses the shared split-stack and collection precedence rules", async () => {
@@ -572,6 +574,40 @@ describe("relic selection planner", () => {
       ocrSpy.mockResolvedValue({ era: null, confidence: 0 });
       await controller.onRelicSelectionTrigger("manual");
       await new Promise((resolve) => setTimeout(resolve, 900));
+      expect(lastRecommendation().era).toBeNull();
+    } finally {
+      nowSpy.mockRestore();
+    }
+  });
+
+  it("drops the refinement push when the player closes the overlay mid-scan", async () => {
+    const { controller, ocrSpy, recommendations } = makeTwoEraController();
+    ocrSpy.mockResolvedValue({ era: "lith", confidence: 1, candidateId: "filter-label" });
+
+    await controller.onRelicSelectionTrigger("manual");
+    controller.suppressReopenForClose();
+    await new Promise((resolve) => setTimeout(resolve, 900));
+
+    expect(ocrSpy).toHaveBeenCalled();
+    expect(recommendations()).toHaveLength(0);
+  });
+
+  it("skips the blind retry when the first era pass spent the whole budget", async () => {
+    const { controller, ocrSpy, lastRecommendation } = makeTwoEraController();
+    let clock = Date.now();
+    const nowSpy = vi.spyOn(Date, "now").mockImplementation(() => clock);
+
+    try {
+      // One truncated ladder pass costs its full budget, so a second pass would
+      // only re-read the same prefix it already ran out of time on.
+      ocrSpy.mockImplementation(async () => {
+        clock += 2400;
+        return { era: null, confidence: 0 };
+      });
+      await controller.onRelicSelectionTrigger("manual");
+      await new Promise((resolve) => setTimeout(resolve, 900));
+
+      expect(ocrSpy).toHaveBeenCalledTimes(1);
       expect(lastRecommendation().era).toBeNull();
     } finally {
       nowSpy.mockRestore();

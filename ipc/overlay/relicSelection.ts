@@ -19,8 +19,15 @@ const RECOMMENDATION_CACHE_TTL_MS = 10_000;
 /** Minimum gap between two EE.log trigger events to avoid double-firing. */
 const MIN_EELOG_TRIGGER_GAP_MS = 900;
 /** Max time for the OCR era-detection pass before falling back to desktop filter hint. */
-const ERA_DETECTION_TIMEOUT_MS = 1500;
+const ERA_DETECTION_TIMEOUT_MS = 2400;
+// The tag recheck reads one label rect, so it never needed the full ladder
+// budget; keeping it at the old value leaves the EE.log path as fast as it was.
+const ERA_DETECTION_LABEL_TIMEOUT_MS = 1500;
+/** Ceiling across the first pass, the retry delay and the retry pass together. */
+const ERA_DETECTION_TOTAL_TIMEOUT_MS = 3000;
 const ERA_DETECTION_RETRY_DELAY_MS = 700;
+/** Under this a retry cannot get past its first crop, so it is not worth the delay. */
+const ERA_DETECTION_MIN_RETRY_MS = 600;
 // The picker is not painted when the EE.log trigger lands, and reading it early
 // costs a whole OCR pass that finds nothing plus the retry delay above. Waiting
 // a little first is cheaper than the miss it avoids.
@@ -489,6 +496,9 @@ export function createRelicSelectionController(options: OverlayRecommendationCon
   // era produced those rows, so a wrong era would never expire. They outlive
   // the menu-closed event on purpose: a real log self-read 2s after it.
   let overlayRowSignatures: string[] = [];
+  // ctx.overlayDismissedUntilMs as the scan started; a larger value means the
+  // player closed the overlay while this scan was still running.
+  let scanDismissBaselineMs = 0;
   let cache: {
     key: string;
     rows: RecommendationRow[];
@@ -722,7 +732,7 @@ export function createRelicSelectionController(options: OverlayRecommendationCon
           // overrides the tag; missing tabs keep it for mid-mission screens.
           const labelDetection = rejectSelfRead(
             await rewardScanner.detectRelicSelectionEra({
-              timeoutMs: ERA_DETECTION_TIMEOUT_MS,
+              timeoutMs: ERA_DETECTION_LABEL_TIMEOUT_MS,
               preferredDisplayId,
               labelOnly: true,
             }),
@@ -791,22 +801,29 @@ export function createRelicSelectionController(options: OverlayRecommendationCon
 
         if (scanToken !== activeScanToken) return;
 
-        // The first capture after app start can come back empty from a cold
-        // capture/OCR start, so one delayed retry runs before the era filter is
-        // dropped. A rejected self-read lands here too, and the delay gives the
-        // overlay time to clear its stale cards before the second capture.
-        if (detectEra && eraDetection && !normalizeEra(eraDetection.era || null)) {
-          log.info("[RelicSelection] era read empty, retrying once");
+        // One delayed retry covers a cold capture/OCR start and a rejected
+        // self-read, whose stale cards need the delay to clear. A pass that
+        // spent its whole budget was truncated mid-ladder instead: the retry
+        // would re-walk the same prefix, so the total ceiling denies it.
+        const emptyRead = Boolean(detectEra && eraDetection && !normalizeEra(eraDetection.era));
+        const retryBudgetMs =
+          ERA_DETECTION_TOTAL_TIMEOUT_MS -
+          (Date.now() - eraDetectStartedAt) -
+          ERA_DETECTION_RETRY_DELAY_MS;
+        if (detectEra && emptyRead && retryBudgetMs >= ERA_DETECTION_MIN_RETRY_MS) {
+          log.info(`[RelicSelection] era read empty, retrying once budget=${retryBudgetMs}ms`);
           await new Promise((resolve) => setTimeout(resolve, ERA_DETECTION_RETRY_DELAY_MS));
           if (scanToken !== activeScanToken) return;
           const retryDetection = rejectSelfRead(
             await detectEra({
-              timeoutMs: ERA_DETECTION_TIMEOUT_MS,
+              timeoutMs: Math.min(ERA_DETECTION_TIMEOUT_MS, retryBudgetMs),
               preferredDisplayId,
             }),
           );
           if (scanToken !== activeScanToken) return;
           if (retryDetection) eraDetection = retryDetection;
+        } else if (emptyRead) {
+          log.info(`[RelicSelection] era read empty, retry budget spent (${retryBudgetMs}ms)`);
         }
 
         if (eraDetection?.sourceDisplayId) {
@@ -840,6 +857,11 @@ export function createRelicSelectionController(options: OverlayRecommendationCon
 
       const { rows, totalOwnedCount } = buildRecommendations(effectiveEra);
       if (scanToken !== activeScanToken) return;
+
+      if (toFiniteOr(ctx.overlayDismissedUntilMs, 0) > scanDismissBaselineMs) {
+        log.info(`[RelicSelection] refinement dropped, overlay closed token=${scanToken}`);
+        return;
+      }
 
       rememberOverlayRows(rows);
       windows.sendOverlayEvent(RELIC_RECOMMENDATIONS, {
@@ -896,6 +918,7 @@ export function createRelicSelectionController(options: OverlayRecommendationCon
 
     const scanToken = activeScanToken + 1;
     activeScanToken = scanToken;
+    scanDismissBaselineMs = toFiniteOr(ctx.overlayDismissedUntilMs, 0);
 
     if (inFlight) {
       log.info(`[RelicSelection] replacing in-flight planner scan (${source})`);
