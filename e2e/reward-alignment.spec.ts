@@ -96,43 +96,48 @@ test("mixed rewards align prices and keep equal part cells at logical sizes and 
             }),
           )
           .toBeLessThanOrEqual(0.1);
-        const widths = await overlay
-          .locator(".slot-set-part")
-          .evaluateAll((chips) => chips.map((chip) => chip.getBoundingClientRect().width));
-        expect(Math.max(...widths) - Math.min(...widths)).toBeLessThanOrEqual(0.1);
-        const rows = await overlay
-          .locator(".slot-set-parts")
-          .last()
-          .locator(".slot-set-part")
-          .evaluateAll((chips) => chips.map((chip) => chip.getBoundingClientRect().top));
-        expect(rows[0]).toBe(rows[2]);
-        expect(rows[3]).toBe(rows[5]);
-        expect(rows[3]).toBeGreaterThan(rows[0]);
-        const names = await overlay.locator(".slot-name").evaluateAll((elements) =>
-          elements.map((element) => {
-            const range = document.createRange();
-            range.selectNodeContents(element);
-            const styles = getComputedStyle(element);
-            return {
-              lines: new Set(Array.from(range.getClientRects(), (rect) => rect.top)).size,
-              height: element.getBoundingClientRect().height,
-              configured: Number.parseFloat(styles.getPropertyValue("--slot-name-size")),
-              fontSize: Number.parseFloat(styles.fontSize),
-              overflow: element.scrollWidth - element.clientWidth,
-            };
-          }),
-        );
         const where = `width ${logicalWidth}, zoom ${zoom}`;
-        const [overlong, ...fitting] = names;
-        expect(overlong.lines, `overlong name at ${where}`).toBe(1);
-        expect(overlong.fontSize).toBeLessThan(overlong.configured);
-        expect(overlong.fontSize).toBeGreaterThanOrEqual(overlong.configured * 0.75);
-        for (const name of names) {
-          expect(name.overflow, `clipped name at ${where}`).toBe(0);
-          expect(name.height).toBeCloseTo(name.configured * 2.5, 1);
-        }
-        for (const name of fitting)
-          expect(name.fontSize, `unshrunk name at ${where}`).toBe(name.configured);
+        // The chip widths and the one-line name fit are applied from a
+        // requestAnimationFrame the window resize schedules, so they land after
+        // innerWidth already reports the new size.
+        await expect(async () => {
+          const widths = await overlay
+            .locator(".slot-set-part")
+            .evaluateAll((chips) => chips.map((chip) => chip.getBoundingClientRect().width));
+          expect(Math.max(...widths) - Math.min(...widths)).toBeLessThanOrEqual(0.1);
+          const rows = await overlay
+            .locator(".slot-set-parts")
+            .last()
+            .locator(".slot-set-part")
+            .evaluateAll((chips) => chips.map((chip) => chip.getBoundingClientRect().top));
+          expect(rows[0]).toBe(rows[2]);
+          expect(rows[3]).toBe(rows[5]);
+          expect(rows[3]).toBeGreaterThan(rows[0]);
+          const names = await overlay.locator(".slot-name").evaluateAll((elements) =>
+            elements.map((element) => {
+              const range = document.createRange();
+              range.selectNodeContents(element);
+              const styles = getComputedStyle(element);
+              return {
+                lines: new Set(Array.from(range.getClientRects(), (rect) => rect.top)).size,
+                height: element.getBoundingClientRect().height,
+                configured: Number.parseFloat(styles.getPropertyValue("--slot-name-size")),
+                fontSize: Number.parseFloat(styles.fontSize),
+                overflow: element.scrollWidth - element.clientWidth,
+              };
+            }),
+          );
+          const [overlong, ...fitting] = names;
+          expect(overlong.lines, `overlong name at ${where}`).toBe(1);
+          expect(overlong.fontSize).toBeLessThan(overlong.configured);
+          expect(overlong.fontSize).toBeGreaterThanOrEqual(overlong.configured * 0.75);
+          for (const name of names) {
+            expect(name.overflow, `clipped name at ${where}`).toBe(0);
+            expect(name.height).toBeCloseTo(name.configured * 2.5, 1);
+          }
+          for (const name of fitting)
+            expect(name.fontSize, `unshrunk name at ${where}`).toBe(name.configured);
+        }).toPass({ timeout: 15_000 });
         const largeCount = overlay
           .locator(".slot-set-part-count")
           .filter({ hasText: "999999" })

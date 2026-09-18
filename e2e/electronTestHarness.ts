@@ -147,33 +147,54 @@ export async function restartElectronTestHarness(
   return startHarness(harness.sandboxDir, { ...state.options, ...options }, false);
 }
 
-/** Sizes the renderer's CSS viewport: window.innerWidth lands on `width` at any
- *  uiScale zoom. Playwright's setViewportSize takes device pixels and the app
- *  divides by the zoom, so the request is re-applied scaled. Use setWindowSize
- *  instead to size the Electron window a user would drag. */
-export async function setLayoutViewport(page: Page, width: number, height: number): Promise<void> {
-  await page.setViewportSize({ width, height });
-  // After a reload the zoom can land a frame late, so a single probe would read
-  // device pixels and skip the rescale. Settle on a width that repeats.
+const SETTLE_TIMEOUT_MS = 15_000;
+
+async function pollValue<T>(read: () => Promise<T>, done: (value: T) => boolean): Promise<T> {
+  const deadline = Date.now() + SETTLE_TIMEOUT_MS;
+  let value = await read();
+  while (!done(value) && Date.now() < deadline) {
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    value = await read();
+  }
+  return value;
+}
+
+// After a reload the zoom can land a frame late, so a single probe would read
+// device pixels and skip the rescale. Settle on a width that repeats.
+async function settledInnerWidth(page: Page): Promise<number> {
+  const deadline = Date.now() + SETTLE_TIMEOUT_MS;
   let previous = NaN;
   let applied = await page.evaluate(() => window.innerWidth);
-  for (let attempt = 0; attempt < 6 && applied !== previous; attempt += 1) {
-    await page.waitForTimeout(75);
+  while ((applied !== previous || !applied) && Date.now() < deadline) {
+    await new Promise((resolve) => setTimeout(resolve, 75));
     previous = applied;
     applied = await page.evaluate(() => window.innerWidth);
   }
   if (applied !== previous || !applied) {
     throw new Error(`viewport width never settled (${previous} -> ${applied})`);
   }
+  return applied;
+}
+
+/** Sizes the renderer's CSS viewport: window.innerWidth lands on `width` at any
+ *  uiScale zoom. Playwright's setViewportSize takes device pixels and the app
+ *  divides by the zoom, so the request is re-applied scaled. Use setWindowSize
+ *  instead to size the Electron window a user would drag. */
+export async function setLayoutViewport(page: Page, width: number, height: number): Promise<void> {
+  await page.setViewportSize({ width, height });
+  const applied = await settledInnerWidth(page);
   const zoom = width / applied;
   if (Math.abs(zoom - 1) < 0.01) return;
   await page.setViewportSize({
     width: Math.round(width * zoom),
     height: Math.round(height * zoom),
   });
-  await page.waitForTimeout(75);
-  const landed = await page.evaluate(() => window.innerWidth);
-  if (Math.abs(landed - width) > Math.max(1, width * 0.01)) {
+  const tolerance = Math.max(1, width * 0.01);
+  const landed = await pollValue(
+    () => page.evaluate(() => window.innerWidth),
+    (value) => Math.abs(value - width) <= tolerance,
+  );
+  if (Math.abs(landed - width) > tolerance) {
     throw new Error(`viewport landed at ${landed} CSS px, wanted ${width}`);
   }
 }
@@ -199,13 +220,17 @@ export async function setWindowSize(
     },
     { width, height },
   );
-  await harness.page.waitForTimeout(400);
-  const landed = await harness.page.evaluate(() => ({
-    width: window.innerWidth,
-    height: window.innerHeight,
-  }));
   const zoom = zoomFactor > 0 ? zoomFactor : 1;
   const expected = { width: width / zoom, height: height / zoom };
+  const landed = await pollValue(
+    () =>
+      harness.page.evaluate(() => ({
+        width: window.innerWidth,
+        height: window.innerHeight,
+      })),
+    (size) =>
+      Math.abs(size.width - expected.width) <= 2 && Math.abs(size.height - expected.height) <= 2,
+  );
   if (
     Math.abs(landed.width - expected.width) > 2 ||
     Math.abs(landed.height - expected.height) > 2
