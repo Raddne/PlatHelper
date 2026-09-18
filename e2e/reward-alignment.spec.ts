@@ -108,20 +108,31 @@ test("mixed rewards align prices and keep equal part cells at logical sizes and 
         expect(rows[0]).toBe(rows[2]);
         expect(rows[3]).toBe(rows[5]);
         expect(rows[3]).toBeGreaterThan(rows[0]);
-        const name = await overlay
-          .locator(".slot-name")
-          .first()
-          .evaluate((element) => {
+        const names = await overlay.locator(".slot-name").evaluateAll((elements) =>
+          elements.map((element) => {
             const range = document.createRange();
             range.selectNodeContents(element);
+            const styles = getComputedStyle(element);
             return {
               lines: new Set(Array.from(range.getClientRects(), (rect) => rect.top)).size,
               height: element.getBoundingClientRect().height,
-              lineHeight: Number.parseFloat(getComputedStyle(element).lineHeight),
+              configured: Number.parseFloat(styles.getPropertyValue("--slot-name-size")),
+              fontSize: Number.parseFloat(styles.fontSize),
+              overflow: element.scrollWidth - element.clientWidth,
             };
-          });
-        expect(name.lines, `two-line fixture at width ${logicalWidth}, zoom ${zoom}`).toBe(2);
-        expect(name.height).toBeCloseTo(name.lineHeight * 2, 1);
+          }),
+        );
+        const where = `width ${logicalWidth}, zoom ${zoom}`;
+        const [overlong, ...fitting] = names;
+        expect(overlong.lines, `overlong name at ${where}`).toBe(1);
+        expect(overlong.fontSize).toBeLessThan(overlong.configured);
+        expect(overlong.fontSize).toBeGreaterThanOrEqual(overlong.configured * 0.75);
+        for (const name of names) {
+          expect(name.overflow, `clipped name at ${where}`).toBe(0);
+          expect(name.height).toBeCloseTo(name.configured * 2.5, 1);
+        }
+        for (const name of fitting)
+          expect(name.fontSize, `unshrunk name at ${where}`).toBe(name.configured);
         const largeCount = overlay
           .locator(".slot-set-part-count")
           .filter({ hasText: "999999" })

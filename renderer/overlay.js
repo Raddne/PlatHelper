@@ -841,6 +841,7 @@ function startOverlay() {
     rewardLayoutEditor = window.installOverlayLayout({
       tagFields: tagRewardFields,
       fitWidthFields: ["itemName", "errorText"],
+      fitOneLineFields: ["itemName"],
       boundsFor: (element) => element.closest(".reward-slot"),
       ...(mode === "editor" ? { defaultFieldStyle: window.overlay.defaultFieldStyle } : {}),
       renderPreview: renderRewardPreview,

@@ -1,4 +1,6 @@
 (function () {
+  const ONE_LINE_MIN_SCALE = 0.75;
+
   window.installOverlayLayout = function installOverlayLayout(options) {
     const api = options.api || window.overlayLayoutApi;
     const root =
@@ -34,6 +36,7 @@
     const originalBackgrounds = new WeakMap();
     let state = null;
     let frame = 0;
+    let fitting = false;
     let gesture = null;
     const commands = [];
     let inFlight = null;
@@ -47,6 +50,29 @@
 
     function scheduleLayout() {
       if (!frame) frame = requestAnimationFrame(applyLayout);
+    }
+
+    function fitOneLine(elements) {
+      const fields = options.fitOneLineFields;
+      if (!fields?.length || fitting || gesture) return;
+      fitting = true;
+      try {
+        for (const element of elements) {
+          if (!fields.includes(element.dataset.rewardField)) continue;
+          element.style.removeProperty("--reward-fit-scale");
+          element.style.whiteSpace = "nowrap";
+          const natural = element.scrollWidth;
+          const available = element.clientWidth;
+          element.style.whiteSpace = "";
+          if (!available || !(natural > available)) continue;
+          // scrollWidth and clientWidth are whole pixels, so the fit gives back one.
+          const ratio = Math.floor(((available - 1) / natural) * 1000) / 1000;
+          if (ratio >= ONE_LINE_MIN_SCALE && ratio < 1)
+            element.style.setProperty("--reward-fit-scale", String(ratio));
+        }
+      } finally {
+        fitting = false;
+      }
     }
 
     function applyLayout() {
@@ -92,6 +118,7 @@
           }
         }
       }
+      fitOneLine(elements);
       const panel = logicalRect(root);
       const positions = [];
       const limits = new Map();

@@ -442,15 +442,16 @@ body {
 }
 
 .slot-name {
-  font-size: 14px;
+  --slot-name-size: 14px;
+  font-size: calc(var(--slot-name-size) * var(--reward-fit-scale, 1));
   color: var(--text);
   line-height: 1.25;
   overflow: hidden;
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
-  height: 2.5em;
-  min-height: 2.5em;
+  height: calc(var(--slot-name-size) * 2.5);
+  min-height: calc(var(--slot-name-size) * 2.5);
   flex-shrink: 0;
 }
 
