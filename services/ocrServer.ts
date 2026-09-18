@@ -464,14 +464,17 @@ export const ocrServer = new OcrServerPool(OCR_SERVER_POOL_SIZE);
 // @napi-rs/system-ocr calls Windows Media.Ocr natively (no PowerShell pool
 // IPC); falls back to the pool when the native module fails to load.
 
-let _nativeRecognize:
-  | ((input: Buffer | string) => Promise<{ text: string; confidence: number }>)
-  | null = null;
+type NativeRecognize = (
+  input: Buffer | string,
+  accuracy?: number | null,
+  preferredLangs?: string[] | null,
+  signal?: AbortSignal | null,
+) => Promise<{ text: string; confidence: number }>;
+
+let _nativeRecognize: NativeRecognize | null = null;
 
 try {
-  const mod = require("@napi-rs/system-ocr") as {
-    recognize: (input: Buffer | string) => Promise<{ text: string; confidence: number }>;
-  };
+  const mod = require("@napi-rs/system-ocr") as { recognize: NativeRecognize };
   _nativeRecognize = mod.recognize;
   log.info("[OcrServer] Native OCR engine loaded (@napi-rs/system-ocr)");
 } catch {
@@ -480,40 +483,73 @@ try {
 
 export const nativeOcrAvailable = !!_nativeRecognize;
 
-function withTimeout<T>(
-  promise: Promise<T>,
+const _nativeOcrInFlight = new Set<Promise<unknown>>();
+
+/** The addon is pulled in with require(), which module mocking cannot reach. */
+export function setNativeRecognizeForTest(recognize: NativeRecognize | null): void {
+  _nativeRecognize = recognize;
+}
+
+// An abandoned recognize keeps running and touches its napi refs from a libuv
+// worker after the JS side has moved on, which corrupts the heap. Aborting it
+// and awaiting the settle is what keeps that from happening.
+async function runNativeOcr(
+  recognize: NativeRecognize,
+  input: Buffer | string,
   timeoutMs: number | undefined,
   label: string,
-): Promise<T> {
-  if (!timeoutMs || timeoutMs <= 0) return promise;
-  return new Promise((resolve, reject) => {
-    const timer = setTimeout(
-      () => reject(new Error(`${label} timeout after ${timeoutMs}ms`)),
-      timeoutMs,
-    );
-    promise.then(
-      (value) => {
-        clearTimeout(timer);
-        resolve(value);
-      },
-      (err) => {
-        clearTimeout(timer);
-        reject(err);
-      },
-    );
+): Promise<string> {
+  const controller = new AbortController();
+  const started = recognize(input, null, null, controller.signal);
+  _nativeOcrInFlight.add(started);
+  const settled = started.finally(() => _nativeOcrInFlight.delete(started));
+
+  if (!timeoutMs || timeoutMs <= 0) {
+    const result = await settled;
+    _nativeOcrOkAt = Date.now();
+    return result.text || "";
+  }
+
+  let timer: ReturnType<typeof setTimeout> | null = null;
+  const expiry = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => {
+      controller.abort();
+      reject(new Error(`${label} timeout after ${timeoutMs}ms`));
+    }, timeoutMs);
   });
+
+  try {
+    const result = await Promise.race([settled, expiry]);
+    _nativeOcrOkAt = Date.now();
+    return result.text || "";
+  } catch (err) {
+    await settled.catch(() => undefined);
+    throw err;
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+
+/** Lets shutdown wait for recognizers that are still inside the addon. */
+export async function drainNativeOcr(timeoutMs = 5000): Promise<void> {
+  if (_nativeOcrInFlight.size === 0) return;
+  const pending = Promise.allSettled([..._nativeOcrInFlight]);
+  let timer: ReturnType<typeof setTimeout> | null = null;
+  await Promise.race([
+    pending,
+    new Promise<void>((resolve) => {
+      timer = setTimeout(resolve, timeoutMs);
+    }),
+  ]);
+  if (timer) clearTimeout(timer);
 }
 
 export async function nativeOcrBuffer(imageBuffer: Buffer, timeoutMs?: number): Promise<string> {
   if (!_nativeRecognize) throw new Error("Native OCR not available");
-  const result = await withTimeout(_nativeRecognize(imageBuffer), timeoutMs, "nativeOcrBuffer");
-  _nativeOcrOkAt = Date.now();
-  return result.text || "";
+  return await runNativeOcr(_nativeRecognize, imageBuffer, timeoutMs, "nativeOcrBuffer");
 }
 
 export async function nativeOcrFile(imagePath: string, timeoutMs?: number): Promise<string> {
   if (!_nativeRecognize) throw new Error("Native OCR not available");
-  const result = await withTimeout(_nativeRecognize(imagePath), timeoutMs, "nativeOcrFile");
-  _nativeOcrOkAt = Date.now();
-  return result.text || "";
+  return await runNativeOcr(_nativeRecognize, imagePath, timeoutMs, "nativeOcrFile");
 }

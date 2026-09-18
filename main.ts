@@ -153,6 +153,7 @@ import {
   markStartupSurvived,
 } from "./services/sessionHealth";
 import { summarizeCrashDump } from "./services/minidumpSummary";
+import { drainNativeOcr } from "./services/ocrServer";
 
 // Keep native crash dumps local under userData\Crashes.
 crashReporter.start({ uploadToServer: false });
@@ -852,6 +853,7 @@ app.on("before-quit", (event) => {
   // hold quit until the thread has exited (bounded).
   if (!_dbwinQuitDone) {
     event.preventDefault();
+    void drainNativeOcr();
     void eeLogMonitor.dbwinWorkerStopped().finally(() => {
       _dbwinQuitDone = true;
       app.quit();
