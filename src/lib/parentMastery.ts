@@ -1,9 +1,10 @@
 import { componentUniqueNameAliases } from "../../config/shared/componentNames.js";
+import { foundryClaimableProducts } from "./inventory/foundryResources.js";
 import { componentParentOf } from "./inventory/partConsumers.js";
 import type { SafetyVerdictLookup } from "./inventory/safetyRules.js";
 import { buildMasteryLookup, inheritedMasteryFacts, normalizeLookupKey } from "./masteryLookup.js";
 import type { MasteryFacts } from "./masteryLookup.js";
-import type { ItemDbEntry, MasteryData } from "../types/inventory.js";
+import type { FoundryData, ItemDbEntry, MasteryData } from "../types/inventory.js";
 
 interface RowLike {
   name: string;
@@ -124,7 +125,7 @@ export function buildPartMasteryResolver(
 
 const RESOLVER_CACHE = new WeakMap<
   Record<string, ItemDbEntry>,
-  { mastery: MasteryData | null; resolve: PartMasteryResolver }
+  { mastery: MasteryData | null; foundry: FoundryData | null; resolve: PartMasteryResolver }
 >();
 
 /** For per-row callers: building the resolver indexes the whole item database,
@@ -132,11 +133,16 @@ const RESOLVER_CACHE = new WeakMap<
 export function sharedPartMasteryResolver(
   itemDb: Record<string, ItemDbEntry>,
   mastery: MasteryData | null,
+  foundry: FoundryData | null = null,
 ): PartMasteryResolver {
   const cached = RESOLVER_CACHE.get(itemDb);
-  if (cached && cached.mastery === mastery) return cached.resolve;
-  const resolve = buildPartMasteryResolver(itemDb, mastery);
-  RESOLVER_CACHE.set(itemDb, { mastery, resolve });
+  if (cached && cached.mastery === mastery && cached.foundry === foundry) return cached.resolve;
+  const resolve = buildPartMasteryResolver(
+    itemDb,
+    mastery,
+    foundry ? foundryClaimableProducts(foundry, Date.now()) : NO_CLAIMABLE_PARENTS,
+  );
+  RESOLVER_CACHE.set(itemDb, { mastery, foundry, resolve });
   return resolve;
 }
 

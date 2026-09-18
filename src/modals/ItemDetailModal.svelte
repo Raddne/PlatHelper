@@ -8,7 +8,13 @@
     showVaultedBadges,
   } from "../stores/preferences.js";
   import { activeItem } from "../stores/modals.js";
-  import { itemDb, wfmItems, componentOwnership, inventoryData } from "../stores/data.js";
+  import {
+    itemDb,
+    wfmItems,
+    componentOwnership,
+    inventoryData,
+    foundryData,
+  } from "../stores/data.js";
   import { createPriceLoader } from "../lib/priceState.js";
   import { enrichComponents, resolveItemPriceLookup } from "../lib/componentResolution.js";
   import { buildCraftingTree } from "../lib/craftingTree.js";
@@ -61,7 +67,7 @@
   let navigationStack: Array<{ item: ParsedItem; showCraftingTree: boolean }> = [];
 
   $: item = $activeItem;
-  $: partMastery = sharedPartMasteryResolver($itemDb, $masteryData);
+  $: partMastery = sharedPartMasteryResolver($itemDb, $masteryData, $foundryData);
   $: marks = itemMarksFor(item ? { ...item, ...partMastery(item) } : {});
 
   $: itemKey = item?.uniqueName || item?.internalName || "";
