@@ -504,6 +504,25 @@ describe("planQuantitySync", () => {
     expect(planQuantitySync([listing], inventory)).toEqual({
       updates: [],
       unchanged: 0,
+      unbacked: 0,
+      belowPerTrade: 0,
+    });
+  });
+
+  it("keeps a listing the inventory cannot model out of the no-copies count", () => {
+    const atragraph = atragraphOrder({ id: "4".repeat(24), quantity: 1 });
+    const missing = order({
+      id: "5".repeat(24),
+      itemName: "Ash Prime Systems",
+      itemUrlName: "ash_prime_systems",
+      quantity: 2,
+    });
+    const inventory = [
+      parsedItem({ name: "Spectral Serration", amount: 4, inventoryGroup: "mods" }),
+    ];
+    expect(planQuantitySync([atragraph, missing], inventory)).toEqual({
+      updates: [],
+      unchanged: 0,
       unbacked: 1,
       belowPerTrade: 0,
     });

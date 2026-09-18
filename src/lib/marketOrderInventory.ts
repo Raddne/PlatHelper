@@ -1,5 +1,9 @@
 import { isRankedGroup, toFinitePositiveInt } from "../../config/shared/numeric.js";
-import { normalizeSubtype, WFM_ORDER_SUBTYPES } from "../../config/shared/wfmOrders.js";
+import {
+  normalizePerTrade,
+  normalizeSubtype,
+  WFM_ORDER_SUBTYPES,
+} from "../../config/shared/wfmOrders.js";
 import { isResourceItem, resolveItem, shouldHide } from "./inventory/itemClassification.js";
 import { gameRefKey, normalizeMarketName, toMarketSlug } from "./marketNaming.js";
 import { type InventoryBaseItem } from "./inventoryMarket.js";
@@ -178,8 +182,6 @@ interface OrderBacking {
   unprovable?: true;
 }
 
-/** The inventory the listing may draw on, narrowed by the refinement and the
- *  rank it pins. Empty rows plus no mismatch means nothing backs it at all. */
 function orderBacking(
   order: WfmOrder,
   parsedItems: ParsedItem[],
@@ -250,12 +252,10 @@ interface QuantitySyncPlan {
   belowPerTrade: number;
 }
 
-// warframe.market clamps perTrade into [1, quantity] and the PATCH carries no
-// perTrade, so a quantity under it would contradict the listing WFM still holds.
+// The PATCH carries no perTrade, so a quantity under it would contradict the
+// listing warframe.market still holds.
 function perTradeOf(order: WfmOrder): number {
-  const perTrade = toFinitePositiveInt(order.perTrade) ?? 1;
-  const quantity = toFinitePositiveInt(order.quantity) ?? 1;
-  return Math.min(perTrade, quantity);
+  return normalizePerTrade(order.perTrade, toFinitePositiveInt(order.quantity) ?? 1);
 }
 
 export function planQuantitySync(
@@ -266,7 +266,9 @@ export function planQuantitySync(
   const plan: QuantitySyncPlan = { updates: [], unchanged: 0, unbacked: 0, belowPerTrade: 0 };
   for (const order of orders) {
     if (order.orderType !== "sell") continue;
-    const owned = backedOwnedCount(orderBacking(order, parsedItems, wfmItems));
+    const backing = orderBacking(order, parsedItems, wfmItems);
+    if (backing.unprovable) continue;
+    const owned = backedOwnedCount(backing);
     // Zero is never sent: warframe.market reads it as a delete.
     if (owned <= 0) plan.unbacked += 1;
     else if (owned === order.quantity) plan.unchanged += 1;
