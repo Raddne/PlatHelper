@@ -13,10 +13,7 @@ export function sharpConcurrencyTarget(cpuCount = os.cpus().length): number {
   return Math.max(1, Math.min(MAX_SHARP_CONCURRENCY, half));
 }
 
-/** The one place sharp is loaded, so its thread pool is bounded before any
- *  pipeline runs. */
 export function loadSharp(): typeof sharpNs {
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
   const sharp: typeof sharpNs = require("sharp");
   if (!configured) {
     configured = true;

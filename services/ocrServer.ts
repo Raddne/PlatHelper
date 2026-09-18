@@ -494,18 +494,12 @@ export function setNativeRecognizeForTest(recognize: NativeRecognize | null): vo
   _nativeRecognize = recognize;
 }
 
-// An abandoned recognize keeps running and touches its napi refs from a libuv
-// worker after the JS side has moved on, which corrupts the heap. Aborting it
-// and awaiting the settle is what keeps that from happening.
 async function runNativeOcr(
   recognize: NativeRecognize,
   input: string,
   timeoutMs: number | undefined,
   label: string,
 ): Promise<string> {
-  // The addon builds against napi3, whose Rust ArrayBuffer Drop deletes its napi
-  // reference on the libuv worker thread and corrupts the heap. Only the path
-  // overload takes no reference.
   if (typeof input !== "string") {
     throw new TypeError(`${label}: native OCR takes a path, not a buffer`);
   }
@@ -540,18 +534,72 @@ async function runNativeOcr(
   }
 }
 
-/** Lets shutdown wait for recognizers that are still inside the addon. */
+const _scratchFree: string[] = [];
+const _scratchAll = new Set<string>();
+
+const SCRATCH_PREFIX = "wfhelper-ocr-";
+let _scratchSwept = false;
+
+// A kill leaves the pid's scratch files behind, so reclaim earlier runs' once.
+// Windows refuses to unlink a file another live instance still holds open.
+function sweepStaleScratchFiles(): void {
+  if (_scratchSwept) return;
+  _scratchSwept = true;
+  const mine = `${SCRATCH_PREFIX}${process.pid}-`;
+  const dir = os.tmpdir();
+  let names: string[];
+  try {
+    names = fs.readdirSync(dir);
+  } catch {
+    return;
+  }
+  for (const name of names) {
+    if (!name.startsWith(SCRATCH_PREFIX) || !name.endsWith(".png")) continue;
+    if (name.startsWith(mine)) continue;
+    try {
+      fs.rmSync(path.join(dir, name), { force: true });
+    } catch {
+      // ignore
+    }
+  }
+}
+
+function acquireScratchPath(): string {
+  sweepStaleScratchFiles();
+  const reused = _scratchFree.pop();
+  if (reused) return reused;
+  const created = path.join(os.tmpdir(), `${SCRATCH_PREFIX}${process.pid}-${_nativeOcrSeq++}.png`);
+  _scratchAll.add(created);
+  return created;
+}
+
+function removeScratchFiles(): void {
+  for (const scratch of _scratchAll) {
+    try {
+      fs.rmSync(scratch, { force: true });
+    } catch {
+      // a scratch file the addon still holds open outlives the process instead
+    }
+  }
+  _scratchAll.clear();
+  _scratchFree.length = 0;
+}
+
 export async function drainNativeOcr(timeoutMs = 5000): Promise<void> {
-  if (_nativeOcrInFlight.size === 0) return;
-  const pending = Promise.allSettled([..._nativeOcrInFlight]);
-  let timer: ReturnType<typeof setTimeout> | null = null;
-  await Promise.race([
-    pending,
-    new Promise<void>((resolve) => {
-      timer = setTimeout(resolve, timeoutMs);
-    }),
-  ]);
-  if (timer) clearTimeout(timer);
+  try {
+    if (_nativeOcrInFlight.size === 0) return;
+    const pending = Promise.allSettled([..._nativeOcrInFlight]);
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    await Promise.race([
+      pending,
+      new Promise<void>((resolve) => {
+        timer = setTimeout(resolve, timeoutMs);
+      }),
+    ]);
+    if (timer) clearTimeout(timer);
+  } finally {
+    removeScratchFiles();
+  }
 }
 
 // The addon takes a napi reference for a Uint8Array and drops it inside its
@@ -559,15 +607,13 @@ export async function drainNativeOcr(timeoutMs = 5000): Promise<void> {
 // corrupts the reference list. The path overload holds no reference.
 export async function nativeOcrBuffer(imageBuffer: Buffer, timeoutMs?: number): Promise<string> {
   if (!_nativeRecognize) throw new Error("Native OCR not available");
-  const scratch = path.join(
-    os.tmpdir(),
-    `wfhelper-ocr-${process.pid}-${_nativeOcrSeq++}-${Date.now()}.png`,
-  );
-  await fs.promises.writeFile(scratch, imageBuffer);
+  const scratch = acquireScratchPath();
   try {
+    await fs.promises.writeFile(scratch, imageBuffer);
     return await runNativeOcr(_nativeRecognize, scratch, timeoutMs, "nativeOcrBuffer");
   } finally {
-    void fs.promises.rm(scratch, { force: true }).catch(() => undefined);
+    _scratchAll.add(scratch);
+    _scratchFree.push(scratch);
   }
 }
 

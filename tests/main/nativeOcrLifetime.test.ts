@@ -147,20 +147,41 @@ describe("native OCR never hands the addon a buffer", () => {
 
     probe.calls[0].settle("text");
     await expect(run).resolves.toBe("text");
+    await ocr.drainNativeOcr(1000);
   });
 
-  it("removes the scratch file once the read is done", async () => {
+  it("reuses one scratch file across reads and drops it on shutdown", async () => {
     const ocr = await load();
 
-    const run = ocr.nativeOcrBuffer(Buffer.from("pixels"), 0);
+    const first = ocr.nativeOcrBuffer(Buffer.from("pixels"), 0);
     await settleIo(() => probe.calls.length > 0);
     const scratch = probe.calls[0].input as string;
+    probe.calls[0].settle("text");
+    await first;
+
+    const second = ocr.nativeOcrBuffer(Buffer.from("more pixels"), 0);
+    await settleIo(() => probe.calls.length > 1);
+    expect(probe.calls[1].input).toBe(scratch);
+    probe.calls[1].settle("text");
+    await second;
+
     expect(fs.existsSync(scratch)).toBe(true);
+    await ocr.drainNativeOcr(1000);
+    expect(fs.existsSync(scratch)).toBe(false);
+  });
+
+  it("gives two overlapping reads scratch files of their own", async () => {
+    const ocr = await load();
+
+    const first = ocr.nativeOcrBuffer(Buffer.from("pixels"), 0);
+    const second = ocr.nativeOcrBuffer(Buffer.from("more pixels"), 0);
+    await settleIo(() => probe.calls.length > 1);
+
+    expect(probe.calls[0].input).not.toBe(probe.calls[1].input);
 
     probe.calls[0].settle("text");
-    await run;
-    await settleIo(() => !fs.existsSync(scratch));
-
-    expect(fs.existsSync(scratch)).toBe(false);
+    probe.calls[1].settle("text");
+    await Promise.all([first, second]);
+    await ocr.drainNativeOcr(1000);
   });
 });
