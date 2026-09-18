@@ -1,5 +1,10 @@
 (function () {
   let opacityKind = null;
+  // Classic script, no imports: mirrors config/shared/overlayOpacity.ts.
+  const OVERLAY_OPACITY_MIN_PERCENT = 30;
+  const OVERLAY_OPACITY_MAX_PERCENT = 100;
+  const OVERLAY_OPACITY_DEFAULT = "100%";
+  const OVERLAY_OPACITY_PERCENT_RE = /^(\d{1,3})%$/;
   const SAFE_COLOR_FUNCTION_RE = /^(?:rgb|rgba|hsl|hsla|oklch)\(\s*[-+0-9.%\s,/]+\)$/i;
   const SAFE_HEX_COLOR_RE = /^#(?:[0-9a-f]{3,4}|[0-9a-f]{6}|[0-9a-f]{8})$/i;
   const COLOR_VAR_KEYS = [
@@ -56,6 +61,17 @@
     }
   }
 
+  function boundedOpacity(value) {
+    if (typeof value !== "string") return null;
+    const trimmed = value.trim();
+    const match = OVERLAY_OPACITY_PERCENT_RE.exec(trimmed);
+    if (!match) return null;
+    const percent = Number(match[1]);
+    return percent >= OVERLAY_OPACITY_MIN_PERCENT && percent <= OVERLAY_OPACITY_MAX_PERCENT
+      ? trimmed
+      : null;
+  }
+
   function applyThemeVars(rawVars) {
     if (!rawVars || typeof rawVars !== "object") return;
     const root = document.documentElement;
@@ -64,11 +80,11 @@
       if (typeof value !== "string" || !value.trim()) continue;
       root.style.setProperty(key, value.trim());
     }
-    const opacity = rawVars[`--overlay-opacity-${opacityKind}`] ?? rawVars["--overlay-opacity"];
-    root.style.setProperty(
-      "--overlay-opacity-current",
-      typeof opacity === "string" && /^(?:[3-9]\d|100)%$/.test(opacity) ? opacity : "100%",
-    );
+    const opacity =
+      boundedOpacity(rawVars[`--overlay-opacity-${opacityKind}`]) ??
+      boundedOpacity(rawVars["--overlay-opacity"]) ??
+      OVERLAY_OPACITY_DEFAULT;
+    root.style.setProperty("--overlay-opacity-current", opacity);
   }
 
   function loadThemeFromStorageFallback() {

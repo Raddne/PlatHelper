@@ -3,6 +3,11 @@ import { runInNewContext } from "node:vm";
 import { expect, it } from "vitest";
 import { OVERLAY_LAYOUT_KINDS, type OverlayLayoutKind } from "../../config/shared/overlayLayout";
 import { overlayOpacityCssVar } from "../../config/shared/themeCssVars";
+import {
+  OVERLAY_OPACITY_MAX_PERCENT,
+  OVERLAY_OPACITY_MIN_PERCENT,
+  isOverlayOpacityPercent,
+} from "../../config/shared/overlayOpacity";
 
 interface OverlayThemeApi {
   bootstrapOverlayTheme: (
@@ -95,9 +100,47 @@ it("falls back to the stored shared opacity and rejects an invisible stored valu
     effects: { overlayOpacity: 0.45, overlayOpacityOverrides: { reward: 0.01 } },
   });
   tampered.theme.bootstrapOverlayTheme(async () => ({}), "reward");
-  expect(tampered.values.get("--overlay-opacity-current")).toBe("100%");
+  expect(tampered.values.get("--overlay-opacity-current")).toBe("45%");
+
+  const bothInvalid = loadOverlayTheme({
+    effects: { overlayOpacity: 0.02, overlayOpacityOverrides: { reward: 0.01 } },
+  });
+  bothInvalid.theme.bootstrapOverlayTheme(async () => ({}), "reward");
+  expect(bothInvalid.values.get("--overlay-opacity-current")).toBe("100%");
 
   const malformed = loadOverlayTheme("{not json");
   malformed.theme.bootstrapOverlayTheme(async () => ({}), "reward");
   expect(malformed.values.get("--overlay-opacity-current")).toBeUndefined();
+});
+
+it("bounds the overlay renderer at the same percentages the shared validator does", () => {
+  const { theme, values } = loadOverlayTheme();
+  theme.bootstrapOverlayTheme(async () => ({}), "reward");
+
+  const current = (percent: number): string | undefined => {
+    theme.applyThemeVars({ "--overlay-opacity": `${percent}%` });
+    return values.get("--overlay-opacity-current");
+  };
+
+  expect(current(OVERLAY_OPACITY_MIN_PERCENT)).toBe(`${OVERLAY_OPACITY_MIN_PERCENT}%`);
+  expect(current(OVERLAY_OPACITY_MAX_PERCENT)).toBe(`${OVERLAY_OPACITY_MAX_PERCENT}%`);
+  expect(current(OVERLAY_OPACITY_MIN_PERCENT - 1)).toBe(`${OVERLAY_OPACITY_MAX_PERCENT}%`);
+  expect(current(OVERLAY_OPACITY_MAX_PERCENT + 1)).toBe(`${OVERLAY_OPACITY_MAX_PERCENT}%`);
+
+  expect(isOverlayOpacityPercent(`${OVERLAY_OPACITY_MIN_PERCENT}%`)).toBe(true);
+  expect(isOverlayOpacityPercent(`${OVERLAY_OPACITY_MAX_PERCENT}%`)).toBe(true);
+  expect(isOverlayOpacityPercent(`${OVERLAY_OPACITY_MIN_PERCENT - 1}%`)).toBe(false);
+  expect(isOverlayOpacityPercent(`${OVERLAY_OPACITY_MAX_PERCENT + 1}%`)).toBe(false);
+  expect(isOverlayOpacityPercent("50")).toBe(false);
+});
+
+it("prefers the global opacity over an out-of-range per-kind override", () => {
+  const { theme, values } = loadOverlayTheme();
+  theme.bootstrapOverlayTheme(async () => ({}), "reward");
+
+  theme.applyThemeVars({
+    "--overlay-opacity": "60%",
+    [overlayOpacityCssVar("reward")]: `${OVERLAY_OPACITY_MIN_PERCENT - 1}%`,
+  });
+  expect(values.get("--overlay-opacity-current")).toBe("60%");
 });

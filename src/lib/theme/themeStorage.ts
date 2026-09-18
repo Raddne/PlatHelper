@@ -20,14 +20,13 @@ import {
   DEFAULT_THEME,
   GLASS_BLUR_MAX_PX,
   GLASS_BLUR_MIN_PX,
-  OVERLAY_OPACITY_MAX,
-  OVERLAY_OPACITY_MIN,
   VIEW_FONT_SIZE_MAX,
   VIEW_FONT_SIZE_MIN,
 } from "../../config/themeDefaults.js";
 import { deriveThemeColors } from "./derive.js";
 import { isBaseColorKey } from "./viewOverrides.js";
 import { OVERLAY_LAYOUT_KINDS } from "../../../config/shared/overlayLayout.js";
+import { OVERLAY_OPACITY_MAX, OVERLAY_OPACITY_MIN } from "../../../config/shared/overlayOpacity.js";
 import { asRecord } from "../../../config/shared/objectValidation.js";
 
 const STORAGE_KEY = "wf_theme_settings";

@@ -67,6 +67,7 @@ import {
   OVERLAY_FORWARDED_FONT_VARS,
   OVERLAY_OPACITY_CSS_VARS,
 } from "../config/shared/themeCssVars";
+import { isOverlayOpacityPercent } from "../config/shared/overlayOpacity";
 
 const log = withScope("overlayIpc");
 
@@ -185,7 +186,7 @@ function isSafeOverlayFontValue(value: string): boolean {
 
 function isSafeOverlayEffectValue(key: string, value: string): boolean {
   if (key === "--overlay-opacity" || OVERLAY_OPACITY_CSS_VARS.includes(key)) {
-    return /^(?:[3-9]\d|100)%$/.test(value);
+    return isOverlayOpacityPercent(value);
   }
   if (key.startsWith("--radius-")) return boundedCssLength(value, 0, 3);
   if (key === "--ui-backdrop-blur") {

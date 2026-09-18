@@ -46,9 +46,6 @@ export const DEFAULT_FONT_SIZES: Readonly<ThemeFontSizes> = Object.freeze({
 
 export const GLASS_BLUR_MIN_PX = 2;
 export const GLASS_BLUR_MAX_PX = 24;
-export const OVERLAY_OPACITY_MIN = 0.3;
-export const OVERLAY_OPACITY_MAX = 1;
-
 export const DEFAULT_EFFECTS: Readonly<ThemeEffects> = Object.freeze({
   cornerStyle: "soft",
   surfaceStyle: "full",
