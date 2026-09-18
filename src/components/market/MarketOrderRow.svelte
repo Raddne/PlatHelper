@@ -24,7 +24,6 @@
     order: WfmOrder,
     updates: { platinum: number; quantity: number },
   ) => Promise<boolean>;
-  // Null while the inventory has not parsed; nothing is flagged until it has.
   export let inventoryMatch: ListingInventoryMatch | null = null;
 
   let draftPlatinum = 0;
@@ -198,8 +197,6 @@
     </svelte:fragment>
     <svelte:fragment slot="compactBody">
       <div class="flex min-w-0 flex-1 flex-col gap-1.5">
-        <!-- A stepper cannot shrink below its field and arrows, so the pair wraps
-             instead of running under the shrink-0 actions at a raised text scale. -->
         <div class="flex flex-wrap items-center gap-2">
           <span class="flex items-center gap-0.5" title={$tr("common.listedQuantity")}>
             <span class="text-xs font-semibold uppercase tracking-[0.04em] text-text-muted"
@@ -296,7 +293,6 @@
       >
     </svelte:fragment>
     <svelte:fragment slot="fullBody">
-      <!-- fullContentClass is "contents", so this wrapper is the single grid cell. -->
       <div class="flex min-w-0 flex-col gap-1">
         <MarketOrderSummary
           {modVariant}

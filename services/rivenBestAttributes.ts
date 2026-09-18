@@ -22,14 +22,12 @@ interface CachePayload {
   data: GoodRollMap;
 }
 
-// Past this age the sheet is refetched in the background; a failed refetch is
-// not retried on every riven read.
 const CACHE_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
 const REFETCH_COOLDOWN_MS = 10 * 60 * 1000;
 const SHEET_FETCH_TIMEOUT_MS = 20_000;
 
-// Affixes the sheet folds into the base row that VARIANT_PREFIXES leaves alone,
-// because warframe.market keys those variants as riven families of their own.
+// Affixes the sheet folds into the base row that VARIANT_PREFIXES leaves alone:
+// warframe.market keys those variants as riven families of their own.
 const SHEET_ONLY_PREFIXES = ["Coda ", "Dex ", "Mara ", "Carmine ", "Ceti ", "Prime "];
 
 let goodRolls: GoodRollMap | null = null;
@@ -55,7 +53,6 @@ function isGoodRollData(value: unknown): value is GoodRollData {
   return Array.isArray(data.goodAttrs) && Array.isArray(data.acceptedBadAttrs);
 }
 
-// An all-garbage entry map is treated as no cache at all so the sheet is refetched.
 const cache = createJsonCache<CachePayload>("riven-good-rolls-cache.json", (raw) => {
   const parsed = raw as Partial<CachePayload>;
   if (!parsed.updatedAt || !parsed.data || typeof parsed.data !== "object") return null;
@@ -89,8 +86,7 @@ function stripVariantAffix(nameLc: string): string {
   return name.replace(/\s+/g, " ").trim();
 }
 
-// The sheet rates one row per weapon family, so a variant only reaches it with
-// its affix removed. Stripping is safe because an exact row always wins first.
+// The sheet rates one row per weapon family, so a variant only matches with its affix removed.
 function lookupName(weaponName: string): string | null {
   if (!weaponName) return null;
   loadCacheIfNeeded();
@@ -158,16 +154,12 @@ async function refreshSheet(): Promise<void> {
   }
 }
 
-/** Whether the sheet on hand is one a caller can settle on, reading the disk
- *  cache once. A stale cache answers false: it still grades, but a background
- *  refresh behind {@link ensureRivenGoodRollsLoaded} can still change it. */
 export function rivenGoodRollsAreCurrent(): boolean {
   loadCacheIfNeeded();
   return hasSheet() && !sheetIsStale();
 }
 
-/** Loads the sheet once, then refreshes it in the background once it is a week
- *  old. Only a missing sheet (or `force`) makes the caller wait for the fetch. */
+/** Only a missing sheet (or `force`) makes the caller wait for the fetch. */
 export async function ensureRivenGoodRollsLoaded(force = false): Promise<void> {
   loadCacheIfNeeded();
   const loaded = hasSheet();
@@ -187,7 +179,6 @@ export function setRivenGoodRollsForTest(data: GoodRollMap, updatedAt: string | 
   lastFetchStartedAt = 0;
 }
 
-/** When the sheet was last fetched, independent of any one weapon's entry. */
 export function getRivenGoodRollsUpdatedAt(): string | null {
   loadCacheIfNeeded();
   return goodRollsUpdatedAt;
@@ -206,8 +197,6 @@ function toAttribute(tag: string, isMelee: boolean): RivenGoodRollAttribute {
   };
 }
 
-/** The weapon's entry with every attribute resolved to a WFM url_name and a
- *  label, so a caller never has to re-map tags. Null for an unknown weapon. */
 export function getGoodRollDetail(weaponName: string, isMelee = false): RivenGoodRoll | null {
   const data = getGoodRolls(weaponName);
   if (!data) return null;

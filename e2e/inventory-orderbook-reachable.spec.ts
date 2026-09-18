@@ -73,7 +73,6 @@ interface Reachability {
   viewportHeight: number;
   panelTop: number;
   stickyBottom: number;
-  /** Whether hit-testing the button centre lands on the button itself. */
   hitsButton: boolean;
 }
 
@@ -97,9 +96,6 @@ async function measure(page: Page): Promise<Reachability> {
   });
 }
 
-// Issue #29: the panel is sticky in the same scroll container as the filter
-// band, which is opaque and paints above it. Pinned at the scrollport top, its
-// whole action row lands under the band and out of reach of a click.
 test.describe("Inventory order book stays reachable while scrolled", () => {
   test.setTimeout(180_000);
 
@@ -133,8 +129,7 @@ test.describe("Inventory order book stays reachable while scrolled", () => {
   async function openPanelDeepInTheList(): Promise<void> {
     const cards = page.locator(".item-card");
     await expect.poll(async () => cards.count(), { timeout: 30_000 }).toBeGreaterThan(24);
-    // Playwright scrolls the target into view, which leaves the grid deep in
-    // the list exactly the way the report describes.
+    // Playwright scrolls the target into view, which leaves the grid deep in the list.
     await cards.nth(24).click();
     await expect(page.locator("[data-orderbook-wfm]")).toBeVisible({ timeout: 30_000 });
     await page.waitForTimeout(400);

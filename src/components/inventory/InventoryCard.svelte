@@ -27,7 +27,6 @@
   export let canExpand = true;
   export let selectionMode = false;
   export let selected = false;
-  /** False for rows the bulk-sell queue would reject; the box stays disabled. */
   export let selectable = true;
 
   const dispatch = createEventDispatcher<{
@@ -42,7 +41,6 @@
 
   $: shardCopies = $archonShardsBySuit.get(item.uniqueName || item.internalName || "") ?? [];
 
-  // Only a reserving verdict earns the badge; the owned count covers the rest.
   $: verdict = verdictFor(item, $inventorySafetyVerdicts);
   $: reservedVerdict = showsSafetyBadge(item, verdict) ? verdict : null;
   $: safeToSellTitle = reservedVerdict
@@ -130,8 +128,6 @@
   bind:this={cardEl}
 >
   {#if selectionMode}
-    <!-- Sits where the Details button would be, which selection mode hides. The
-         card is the labelled control, so the box is state paint, not a second one. -->
     <input
       type="checkbox"
       class="absolute top-1.5 right-1.5 z-10"
@@ -179,7 +175,6 @@
       </span>
     {/if}
     {#if shardCopies.length > 0}
-      <!-- Absolute so a shardless card keeps exactly the same height. -->
       <span class="absolute bottom-1.5 left-1.5 flex flex-col items-start gap-0.5">
         {#each shardCopies as copy, copyIndex (copy.instanceId ?? copyIndex)}
           <ArchonShardPips

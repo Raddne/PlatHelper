@@ -34,7 +34,6 @@ import {
 const MAX_AUCTION_STATS = 8;
 const MAX_DESCRIPTION_LENGTH = 1000;
 const MAX_MIN_REPUTATION = 1_000_000;
-// Twice the Market tab's own batch, so a wider batch still fits one call.
 const MAX_GRADED_CONTRACTS = 100;
 const MAX_RIVEN_MOD_RANK = 8;
 
@@ -61,15 +60,12 @@ interface ContractGradesResult {
   sheetReady: boolean;
 }
 
-// url_name to every tag that shares it; "base_damage_/_melee_damage" carries
-// both damage tags and the card's class picks one.
+// WFM's "base_damage_/_melee_damage" url_name carries both damage tags.
 const WFM_URL_NAME_TO_TAGS = new Map<string, string[]>();
 for (const [tag, urlName] of Object.entries(TAG_TO_WFM_URL_NAME)) {
   WFM_URL_NAME_TO_TAGS.set(urlName, [...(WFM_URL_NAME_TO_TAGS.get(urlName) ?? []), tag]);
 }
 
-// Rebuilt rather than narrowed: a numeric string or a boxed number passes the
-// check, and the grader has to receive the converted value, not the raw field.
 function parseContractGradeStat(value: unknown): ContractGradeStat | null {
   if (!isObject(value)) return null;
   const name = toNonEmptyString(value.name, 100);
@@ -83,8 +79,6 @@ function parseContractGradeRequest(value: unknown): ContractGradeRequest | null 
   if (!isObject(value)) return null;
   const weaponName = toNonEmptyString(value.weaponName, 120);
   if (!weaponName) return null;
-  // Absent is "rank unknown"; a rank outside a riven's own range is a payload
-  // the renderer never sends, so it is refused rather than graded at a guess.
   let modRank: number | null = null;
   if (value.modRank != null) {
     const rank = toFiniteNumber(value.modRank);
@@ -104,16 +98,14 @@ function parseContractGradeRequest(value: unknown): ContractGradeRequest | null 
   return { weaponName, modRank, stats };
 }
 
-// A contract names its weapon by WFM family slug, title-cased by the renderer,
-// so "Silva And Aegis" only reaches the export through the slug.
+// A contract names its weapon by WFM family slug, title-cased: "Silva And Aegis".
 function resolveContractWeapon(name: string): string | null {
   if (rivenData.getWeaponDisposition(name) != null) return name;
   const slug = normalizeWfmSlugKey(name);
   return slug ? weaponNameForFamilySlug(slug) : null;
 }
 
-// WFM speaks url_names; a seller's client may have sent a localized label.
-// Both fold to the tag, and the grader reads the tag's English card label.
+// WFM speaks url_names, but a seller's client may have sent a localized label.
 function contractStatTag(name: string, isMelee: boolean): string | null {
   const key = name.toLowerCase().trim();
   const tags = WFM_URL_NAME_TO_TAGS.get(key);
@@ -130,8 +122,6 @@ function gradeContract(request: ContractGradeRequest): ContractGrade | null {
     return {
       name: tag ? rivenData.getStatDisplayName(tag, isMelee) : stat.name,
       positive: stat.positive,
-      // A listed value keeps the sign the card shows, and the grader reads
-      // magnitudes; a multiplier is already unsigned.
       value: stat.value == null ? null : Math.abs(stat.value),
       multiplier: tag != null && isMultiplierTag(tag),
     };
@@ -190,7 +180,6 @@ function hasVariantAffix(name: string): boolean {
   );
 }
 
-// One entry per WFM riven family, named locally so the disposition lookup still resolves it.
 async function rivenMarketWeaponNames(): Promise<string[]> {
   const names = rivenData.getAllRivenWeaponNames();
   const families = await getRivenWeaponSlugs();
@@ -200,7 +189,6 @@ async function rivenMarketWeaponNames(): Promise<string[]> {
     const slug = rivenData.getRivenFamilySlug(name);
     if (!slug || !families.has(slug)) continue;
     const chosen = byFamily.get(slug);
-    // Prefer the affix-free base form; a family without one keeps its first member.
     if (chosen && (!hasVariantAffix(chosen) || hasVariantAffix(name))) continue;
     byFamily.set(slug, name);
   }
@@ -272,8 +260,7 @@ function register(): void {
       await rivenBestAttributes.ensureRivenGoodRollsLoaded();
       const detail = rivenBestAttributes.getGoodRollDetail(weapon, rivenData.isMeleeWeapon(weapon));
       if (detail) return detail;
-      // A saved alert rule carries only the WFM family slug, and slugs spell the
-      // ampersand out ("silva_and_aegis"), so the sheet's own name never matches.
+      // WFM slugs spell the ampersand out ("silva_and_aegis"), so the sheet's name never matches.
       const bySlug = weaponNameForFamilySlug(weapon);
       return bySlug
         ? rivenBestAttributes.getGoodRollDetail(bySlug, rivenData.isMeleeWeapon(bySlug))
@@ -281,8 +268,6 @@ function register(): void {
     },
   );
 
-  // Refetches the community sheet on user request, then answers with the same
-  // shape the initial load did so the caller needs one round trip, not two.
   handleAuthorized(
     RIVENS_REFRESH_GOOD_ROLLS,
     assertMainRendererSender,
@@ -297,10 +282,6 @@ function register(): void {
     },
   );
 
-  // One answer per request entry, so the renderer merges by index; a malformed
-  // entry or a weapon the export does not know answers null in its slot. Only
-  // the attribute grade needs the community sheet, so a cold profile starts the
-  // fetch and answers now: `sheetReady` tells the caller to ask again later.
   handleAuthorized(
     RIVENS_GRADE_CONTRACTS,
     assertMainRendererSender,
@@ -311,7 +292,6 @@ function register(): void {
       }
       const requests = payload.map(parseContractGradeRequest);
       if (requests.some((request) => request != null)) {
-        // Loaded means instant; unloaded would block on five sheet tabs.
         if (sheetReady) await rivenBestAttributes.ensureRivenGoodRollsLoaded();
         else void rivenBestAttributes.ensureRivenGoodRollsLoaded();
       }
@@ -367,8 +347,7 @@ function register(): void {
         };
       });
 
-      // WFM rejects an unknown polarity, and every riven carries one, so an
-      // absent value is the default polarity rather than an error.
+      // WFM rejects an unknown polarity, so an absent value defaults instead of erroring.
       const wfmPolarity = polarityToWfm(toNonEmptyString(polarity, 32)) ?? "madurai";
 
       // WFM expects only the generated suffix portion of the riven name in lowercase
@@ -415,13 +394,11 @@ function register(): void {
       if (!id || !/^[a-zA-Z0-9]+$/.test(id)) {
         return { ok: false, error: "Invalid auction id" };
       }
-      // Null is a direct sell, which never had an opening bid; only a present
-      // but unusable value is an error.
+      // Null is a direct sell, which never had an opening bid.
       const price = startingPrice == null ? null : boundedInt(startingPrice, 1, 10_000_000);
       if (startingPrice != null && price == null) {
         return { ok: false, error: "Invalid price" };
       }
-      // With neither flag the service would default a hidden listing to visible.
       if (typeof visible !== "boolean" && typeof isPrivate !== "boolean") {
         return { ok: false, error: "Invalid visibility" };
       }

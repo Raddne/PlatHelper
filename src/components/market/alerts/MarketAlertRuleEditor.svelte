@@ -59,8 +59,6 @@
 
   const cooldownLeftMinutes = $derived(Math.ceil(cooldownLeftMs / 60_000));
 
-  // The editor seeds from its props exactly once; the parent remounts it per
-  // rule, so the initial value is the only one that can ever arrive.
   // svelte-ignore state_referenced_locally
   const initialRule = rule;
   // svelte-ignore state_referenced_locally
@@ -76,12 +74,9 @@
   let noCooldown = $state(initialRule?.noCooldown === true);
   let native = $state(initialBinding?.native !== false);
   let enabled = $state(initialRule?.enabled !== false);
-  // Key and params, never a resolved string: a language switch while the editor
-  // is open has to re-render the message.
   let error = $state<{ key: MessageKey; params?: Record<string, string> } | null>(null);
   let saving = $state(false);
 
-  // Riven form state; number fields stay strings so "" cleanly means "unset".
   const existingWeaponSlug = riven?.weaponUrlName ?? "";
   let weaponInput = $state(existingWeaponSlug ? titleFromSlug(existingWeaponSlug) : "");
   let weaponDirty = $state(false);
@@ -100,7 +95,6 @@
     riven?.hasNegative === true ? "required" : riven?.hasNegative === false ? "forbidden" : "any",
   );
   let statLayout = $state<StatLayout>(layoutFromMatch(riven));
-  // Kept apart from statLayout, which cannot spell a buff count with no curse rule.
   let positiveCount = $state<number | null>(riven?.positiveCount ?? null);
   let similarityPct = $state(
     riven?.minSimilarityPct !== undefined ? String(riven.minSimilarityPct) : "",
@@ -141,10 +135,7 @@
   let ownedBelow = $state(item?.ownedBelow !== undefined ? String(item.ownedBelow) : "");
   let ownedAbove = $state(item?.ownedAbove !== undefined ? String(item.ownedAbove) : "");
 
-  // Device-local: which saved selection "Open Bulk Sell" applies for this rule.
   let sellLink = $state(initialRule?.id ? getAlertSellLink(initialRule.id) : "");
-  // A link whose selection was deleted stays listed, so saving keeps it instead
-  // of silently dropping it behind the user's back.
   const sellLinkOptions = $derived(
     sellLink && !$savedSelections.some((entry) => entry.name === sellLink)
       ? [sellLink, ...$savedSelections.map((entry) => entry.name)]
@@ -153,8 +144,7 @@
 
   let weaponNames = $state<string[]>([]);
 
-  // One bound per attribute: the alert card keys its chips by attribute and the
-  // rule parser keeps only the first bound on a stat.
+  // One bound per attribute: the rule parser keeps only the first bound on a stat.
   const nextFreeBoundAttribute = $derived(
     statOptions.find((option) => !statBounds.some((row) => row.attribute === option.wfmUrlName))
       ?.wfmUrlName ?? null,
@@ -182,8 +172,6 @@
     statBounds = [...statBounds, { attribute, min: "", max: "" }];
   }
 
-  // 44bananas god-roll prefill. Keys, never translated strings, so a language
-  // switch while the editor is open still resolves.
   let godRollGroups = $state<RivenGoodRollGroup[]>([]);
   let godRollNegatives = $state<RivenGoodRollAttribute[]>([]);
   let godRollOptional = $state<string[]>([]);
@@ -228,8 +216,6 @@
       : [...statuses, status];
   }
 
-  /** WFM url_names in sheet order, deduped and capped; tags WFM has no
-   *  attribute for are dropped and reported separately. */
   function urlNames(attributes: RivenGoodRollAttribute[]): string[] {
     const out: string[] = [];
     for (const attribute of attributes) {
@@ -245,7 +231,6 @@
     if (!group) return;
     requirePositive = urlNames(group.mandatory);
     allowedNegatives = urlNames(godRollNegatives);
-    // Optional stats stay a suggestion: requiring them rejects most good rolls.
     godRollOptional = group.optional.map((attribute) => attribute.displayName);
     godRollSkipped = [...group.mandatory, ...godRollNegatives]
       .filter((attribute) => !attribute.wfmUrlName)
@@ -254,8 +239,6 @@
   }
 
   async function loadGodRoll(): Promise<void> {
-    // Same rule as save(): an untouched rule is identified by its slug, which
-    // main can reverse better than titleFromSlug can spell the display name.
     const weapon = weaponDirty || !existingWeaponSlug ? weaponInput.trim() : existingWeaponSlug;
     if (!weapon) {
       error = { key: "marketAlerts.weaponRequired" };
@@ -295,14 +278,11 @@
       bounds.push(bound);
     }
     const match: RivenAlertMatch = {
-      // Replaced by main when a weapon display name travels with the save; left
-      // empty the rule fails the slug check instead of alerting on nothing.
       weaponUrlName: existingWeaponSlug,
       requirePositive,
       excludeAttributes,
       statBounds: bounds,
     };
-    // An empty list is "no restriction", which the absent field already means.
     if (allowedNegatives.length > 0) match.allowedNegatives = allowedNegatives;
     if (excludeNegatives.length > 0) match.excludeNegatives = excludeNegatives;
     if (negativeMode === "required") match.hasNegative = true;
@@ -397,7 +377,6 @@
         error = { key: "marketAlerts.saveFailed", params: { error: result.error } };
         return;
       }
-      // Only now is the id known for a rule main just created.
       if (kind === "item") setAlertSellLink(result.rule.id, sellLink);
       onClose(true);
     } finally {
@@ -863,7 +842,6 @@
               max: MARKET_ALERT_MAX_COOLDOWN_MINUTES,
             })}
           </span>
-          <!-- Also on the card, but a muted rule is usually reopened here. -->
           {#if initialRule && onClearCooldown}
             <span class="flex items-center gap-2">
               <button

@@ -74,7 +74,6 @@ function crashDumps(harness: ElectronTestHarness): string[] {
       .filter((name) => name.endsWith(".dmp"))
       .map((name) => path.join(dir, name));
   } catch {
-    // No Crashpad dir means the process never wrote a dump.
     return [];
   }
 }
@@ -111,10 +110,7 @@ function mib(bytes: number): string {
   return `${Math.round(bytes / (1024 * 1024))}MiB`;
 }
 
-/** The webContents id counts rebuilds. A transparent overlay destroyed and
- *  recreated on show-from-hidden is the path that crashed the compositor, so
- *  the run reports the distinct ids per controller. The id comes from the
- *  shared context because a just-created window reports no URL yet. */
+/** The id comes from the shared context because a just-created window reports no URL yet. */
 function churn(
   app: ElectronApplication,
   target: ChurnTarget,
@@ -123,8 +119,6 @@ function churn(
   return evaluateInMain(
     app,
     ({ app: electronApp }, options) => {
-      // The module cache holds the live controller singletons; a fresh require
-      // of the same resolved path would hand back the same instances anyway.
       const mainModule = process.mainModule as unknown as {
         require: (id: string) => unknown;
       };

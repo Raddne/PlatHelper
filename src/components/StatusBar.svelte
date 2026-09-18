@@ -18,13 +18,10 @@
     markNotificationsSeen();
     showNotifications = true;
   }
-  /** Version the changelog already popped for, so it opens once per update. */
   let autoOpenedVersion: string | null = null;
 
   $: statusLabel = $statusText ? $tr($statusText.key, $statusText.params) : "";
 
-  // available / downloading / downloaded all mean "there is an update": the pill
-  // turns green and opens the changelog instead of re-checking the feed.
   $: hasUpdate =
     $appUpdateState.status === "available" ||
     $appUpdateState.status === "downloading" ||
@@ -35,8 +32,6 @@
     showChangelog = true;
   }
 
-  // The startup check finding an update opens the changelog on its own; the pill
-  // stays the way back in after it is closed.
   $: if (hasUpdate && $appUpdateState.version && autoOpenedVersion !== $appUpdateState.version) {
     autoOpenChangelog($appUpdateState.version);
   }
@@ -125,8 +120,6 @@
     }
   }
 
-  // Green pill click: if an update is waiting, show the changelog; otherwise
-  // run a manual check (auto-checks already run in the background).
   function onUpdateButton(): void {
     if (hasUpdate) {
       showChangelog = true;

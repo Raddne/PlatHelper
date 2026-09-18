@@ -30,8 +30,6 @@ function fissureWorld(now: number): WorldState {
   };
 }
 
-// Every widget reads a store that exists with no inventory and no world state,
-// so the grid renders on a cold sandbox; the panels are empty, not absent.
 const WIDGET_IDS = [
   "widget.cycles",
   "widget.fissures",
@@ -93,7 +91,6 @@ test.describe("Dashboard", () => {
       await expect(page.locator(`[data-widget="${id}"]`)).toHaveCount(1);
     }
     expect(await sections()).toEqual(WIDGET_IDS.map((id) => id.replace("widget.", "dashboard.")));
-    // Nothing is stored until the user actually edits something.
     expect(await page.evaluate((key) => localStorage.getItem(key), LAYOUT_KEY)).toBeNull();
   });
 
@@ -113,7 +110,6 @@ test.describe("Dashboard", () => {
 
   test("an empty widget says where its data comes from", async () => {
     const empties = page.locator("[data-widget-empty]");
-    // A cold sandbox has no inventory, no pins and no runs, so several are empty.
     await expect.poll(() => empties.count()).toBeGreaterThan(0);
     for (let index = 0; index < (await empties.count()); index += 1) {
       await expect(empties.nth(index).locator("[data-widget-open-empty]")).toHaveCount(1);
@@ -133,7 +129,6 @@ test.describe("Dashboard", () => {
     await openView(page, "dashboard");
     await expect(page.locator('[data-layout-grid="dashboard"]')).toBeVisible({ timeout: 30_000 });
     await expect.poll(sections).not.toContain("dashboard.baro");
-    // Edit mode is session state; the reload must not leave the chrome behind.
     await expect(page.locator('[data-layout-chrome="dashboard.cycles"]')).toHaveCount(0);
 
     await page.locator('[data-layout-edit-toggle="dashboard"]').click();

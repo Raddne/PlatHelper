@@ -15,8 +15,6 @@ interface Layout {
   scale: number;
 }
 
-// The window sizes where the shared filter bars run out of room, at the scales
-// Settings > Appearance > Font Sizes offers from 100% up.
 const SIZES = [
   { width: 1366, height: 728 },
   { width: 1280, height: 680 },
@@ -77,8 +75,6 @@ async function forEachLayout(
   }
 }
 
-/** Hidden width of an inline bar's controls, plus how far one control that has to
- *  stay reachable sits outside the window. */
 function measureInlineBar(page: Page, barSelector: string, edgeSelector: string) {
   return page.evaluate(
     ({ bar, edge }) => {
@@ -169,8 +165,6 @@ test.describe("Filter bars keep their controls at a raised text scale", () => {
     await closeElectronTestHarness(harness);
   });
 
-  // The inline bar used to take a zero flex basis, so its row kept every shrink-0
-  // sibling on one line and squeezed the bar into an unreachable scroll window.
   test("the rivens filter bar shows every control it holds", async () => {
     await forEachLayout(harness, async (layout) => {
       const at = `${layout.width}x${layout.height} at ${layout.scale}x`;
@@ -196,8 +190,6 @@ test.describe("Filter bars keep their controls at a raised text scale", () => {
     });
   });
 
-  // The row was justify-between with no gap, so the mod name and the challenge
-  // text rendered flush against each other.
   test("the veiled riven row keeps a gap between name and challenge", async () => {
     await forEachLayout(harness, async (layout) => {
       const at = `${layout.width}x${layout.height} at ${layout.scale}x`;
@@ -212,8 +204,6 @@ test.describe("Filter bars keep their controls at a raised text scale", () => {
     });
   });
 
-  // Fixed widths clipped the selected option mid-word; they size to content now,
-  // which is the only width that holds for every language.
   test("the relic filter selects show their whole value", async () => {
     await forEachLayout(harness, async (layout) => {
       const at = `${layout.width}x${layout.height} at ${layout.scale}x`;
@@ -235,8 +225,6 @@ test.describe("Filter bars keep their controls at a raised text scale", () => {
     });
   });
 
-  // Same bar as the rivens row: the toolbar scrolled sideways and cut the
-  // advanced-filter button in half at the container edge.
   test("the inventory toolbar keeps its buttons whole", async () => {
     await forEachLayout(harness, async (layout) => {
       const at = `${layout.width}x${layout.height} at ${layout.scale}x`;
@@ -266,7 +254,6 @@ test.describe("Filter bars keep their controls at a raised text scale", () => {
     });
   });
 
-  // A 15rem minimum centred the message below the fold of a short window.
   test("an empty foundry category shows its message in view", async () => {
     await forEachLayout(harness, async (layout) => {
       const at = `${layout.width}x${layout.height} at ${layout.scale}x`;

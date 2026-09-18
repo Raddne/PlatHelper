@@ -1,11 +1,9 @@
-// Relic refinements shared by order forms, order books and worker summaries.
 export const WFM_ORDER_SUBTYPES = ["intact", "exceptional", "flawless", "radiant"] as const;
 export const WFM_MOD_VARIANTS = ["regular", "atragraph"] as const;
 export type WfmOrderSubtype = (typeof WFM_ORDER_SUBTYPES)[number];
 
 const WFM_ORDER_SUBTYPE_SET = new Set<string>(WFM_ORDER_SUBTYPES);
 
-/** Case-insensitive subtype allowlist; null for anything else. */
 export function parseWfmOrderSubtype(value: unknown): WfmOrderSubtype | null {
   if (typeof value !== "string") return null;
   const normalized = value.trim().toLowerCase();
@@ -91,7 +89,6 @@ function unitPlatinumOf(platinum: number, perTrade: number): number {
   return Math.round((platinum / perTrade) * 100) / 100;
 }
 
-/** Trailing zeros go, so a whole unit price reads like a listed price does. */
 export function formatUnitPlatinum(value: number): string {
   const rounded = Math.round(value * 100) / 100;
   return Number.isInteger(rounded) ? String(rounded) : rounded.toFixed(2).replace(/0+$/, "");

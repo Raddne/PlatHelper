@@ -20,13 +20,10 @@ interface ElectronTestHarnessOptions {
   storage?: Record<string, string>;
   inventory?: unknown;
   onPage?: (page: Page) => void | Promise<void>;
-  /** Electron --lang switch, which is what navigator.language reports. */
   lang?: string;
   /** Leave app-language unset so detectLocale() falls through to the OS locale. */
   skipLanguageSeed?: boolean;
-  /** JSON files to drop into userData before launch, keyed by file name. */
   userDataFiles?: Record<string, unknown>;
-  /** Extra variables for the Electron process (fixture switches), applied last. */
   env?: Record<string, string>;
 }
 
@@ -121,8 +118,6 @@ async function startHarness(
     await saveArtifacts(true, error).catch((artifactError: unknown) =>
       console.warn("[harness] artifacts:", artifactError),
     );
-    // Without this the caller never gets a harness, so the process and the
-    // sandbox dir would both leak on any failure above.
     try {
       if (app) await stopElectron(app);
     } catch {
@@ -322,8 +317,6 @@ export async function closeElectronTestHarness(
 }
 
 export async function stopElectron(app: ElectronApplication): Promise<void> {
-  // Playwright waits for any exit, including a crash. Bound the wait and check
-  // the actual process status before counting teardown as successful.
   const child = harnessProcesses.get(app) ?? app.process();
   if (child.exitCode !== null || child.signalCode) {
     if (child.exitCode !== 0 || child.signalCode)
@@ -363,7 +356,6 @@ function removeSandbox(dir: string): void {
   try {
     fs.rmSync(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 500 });
   } catch (error) {
-    // A leaked temp sandbox beats failing the run over cleanup.
     console.warn(`[harness] sandbox cleanup left ${dir}: ${String(error)}`);
   }
 }

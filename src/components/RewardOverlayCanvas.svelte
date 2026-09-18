@@ -21,7 +21,6 @@
   const descriptor = $derived(getOverlayDescriptor(kind));
   let frame = $state<HTMLIFrameElement>();
   function selection() {
-    // The preview owns the selection before IPC acknowledges it.
     return (
       frame?.contentWindow as
         | (Window & { rewardEditorSelection?: { field?: string; select: (field: string) => void } })
@@ -62,7 +61,6 @@
       frame?.contentWindow?.postMessage({ type: "reward-preview-flush", id }, "*");
     });
   }
-  // Preview zoom fits the logical canvas without changing saved field offsets.
   const scale = $derived(
     Math.max(0.25, Math.min(1, (width - 48) / (canvas.width * editState.scale))) * editState.scale,
   );

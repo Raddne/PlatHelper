@@ -37,7 +37,6 @@ const LEDGER_ROWS = [
     items: [{ internalName: "", displayName: "Orokin Cell", count: 1, direction: "received" }],
     partner: "Vor",
   },
-  // One arcane at two ranks: same market slug, so only the rank keeps them apart.
   {
     id: "live-arcane-r0",
     date: SEEDED_AT,
@@ -72,8 +71,6 @@ const LEDGER_ROWS = [
   },
 ];
 
-// The first record repeats live-a exactly, so the preview counts it as a
-// duplicate and only the second row is ever staged.
 const IMPORT_ROWS = [
   { date: SEEDED_AT, type: "sale", items: "Forma", platinum: 10, partner: "Kestrel" },
   { date: SEEDED_AT, type: "sale", items: "Nitain Extract", platinum: 42, partner: "Teshin" },
@@ -138,7 +135,6 @@ test.describe("Market analysis", () => {
     await expect(range).toHaveAttribute("data-analysis-range-current", "custom");
     await expect(page.locator("[data-analysis-row]")).toHaveCount(0);
 
-    // The pending edit would otherwise fire after the preset and re-empty the table.
     await editBound(`${YEAR + 1}-01-01`, "all");
     await page.waitForTimeout(1_000);
     await expect(range).toHaveAttribute("data-analysis-range-current", "all");

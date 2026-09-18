@@ -32,7 +32,6 @@ const SHEET: Record<string, GoodRollData> = {
   nikana: row("WeaponMeleeRangeIncMod"),
   karak: row("WeaponReloadSpeedMod"),
   braton: row("WeaponClipMaxMod"),
-  // A variant the sheet rates separately still wins over its base row.
   "telos akbolto": row("WeaponProcTimeMod"),
   akbolto: row("WeaponAmmoMaxMod"),
 };
@@ -47,7 +46,6 @@ describe("riven good-roll freshness", () => {
     const eightDaysAgo = new Date(Date.now() - 8 * 24 * 60 * 60 * 1000).toISOString();
     setRivenGoodRollsForTest(SHEET, eightDaysAgo);
     expect(rivenGoodRollsAreCurrent()).toBe(false);
-    // The stale rows still grade; only settling on them is refused.
     expect(getGoodRolls("Boltor")).toBe(SHEET.boltor);
   });
 

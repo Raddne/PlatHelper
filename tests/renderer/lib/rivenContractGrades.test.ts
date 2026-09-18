@@ -27,7 +27,6 @@ describe("mergeContractGrades", () => {
   });
 
   it("settles a weapon the grader could not resolve even without the sheet", () => {
-    // Null is about the export, not the sheet, so asking again cannot change it.
     const merged = mergeContractGrades(["a", "b"], [null, graded("?")], false);
 
     expect(merged.provisional).toEqual(["b"]);

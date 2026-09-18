@@ -18,8 +18,6 @@ vi.mock("../../services/wfmRivenSearch", () => ({}));
 vi.mock("../../services/rivenFingerprint", () => ({}));
 vi.mock("../../services/wfmRivenItems", () => ({ getRivenWeaponSlugs: async () => null }));
 
-// Only the sheet's availability is faked; the injected rows below still reach
-// the grader through the real module state.
 vi.mock("../../services/rivenBestAttributes", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../../services/rivenBestAttributes")>();
   return {
@@ -162,7 +160,6 @@ describe("grade-riven-contracts payload validation", () => {
     await expect(grade([contract("Akstiletto", stats, 9)])).resolves.toEqual([null]);
     await expect(grade([contract("Akstiletto", stats, -1)])).resolves.toEqual([null]);
     await expect(grade([contract("Akstiletto", stats, 1.5)])).resolves.toEqual([null]);
-    // Converted like the stat values, so a rank the payload spelled survives.
     const [text] = await grade([contract("Akstiletto", stats, "8")]);
     const [plain] = await grade([contract("Akstiletto", stats, 8)]);
     expect(text).toEqual(plain);
@@ -170,8 +167,6 @@ describe("grade-riven-contracts payload validation", () => {
 });
 
 describe("grade-riven-contracts rank", () => {
-  // The same roll as warframe.market lists it at rank 0 and at rank 8; every
-  // displayed value scales with the rank the listing states.
   const RANK_0 = [
     { name: "critical_damage", positive: true, value: 10 },
     { name: "multishot", positive: true, value: 13 },
@@ -183,15 +178,12 @@ describe("grade-riven-contracts rank", () => {
     const [unranked] = await grade([contract("Akstiletto", RANK_0, 0)]);
     const [maxRank] = await grade([contract("Akstiletto", RANK_8, 8)]);
 
-    // Rolls inside their ranges, so this is not two cards clamped to the floor.
     expect(unranked?.stats.every((s) => s.rollFloat > 0 && s.rollFloat < 1)).toBe(true);
     expect(unranked?.stats.map((s) => s.grade)).toEqual(maxRank?.stats.map((s) => s.grade));
     expect(unranked?.overallGrade).toBe(maxRank?.overallGrade);
   });
 
   it("forwards the stated rank instead of guessing it", async () => {
-    // One value fits several ranks, so the search stays at rank 8 and only the
-    // listing's own rank can place it.
     const oneStat = RANK_0.slice(0, 1);
     const [stated] = await grade([contract("Akstiletto", oneStat, 0)]);
     const [guessed] = await grade([contract("Akstiletto", oneStat)]);
@@ -202,8 +194,6 @@ describe("grade-riven-contracts rank", () => {
   });
 
   it("does not pin a rank the listed values contradict", async () => {
-    // Sellers relist max-rank rolls as rank 0; grading those at rank 0 would
-    // clamp every buff to a fabricated S.
     const [stated] = await grade([contract("Akstiletto", RANK_8, 0)]);
     const [searched] = await grade([contract("Akstiletto", RANK_8)]);
 
@@ -218,7 +208,6 @@ describe("grade-riven-contracts sheet availability", () => {
   it("answers the roll grade while the sheet is still loading", async () => {
     setRivenGoodRollsForTest({}, null);
     vi.mocked(rivenGoodRollsAreCurrent).mockReturnValue(false);
-    // A load that never settles: awaiting it would hang this test instead.
     vi.mocked(ensureRivenGoodRollsLoaded).mockReturnValue(new Promise<void>(() => {}));
 
     const result = await gradeAll([contract("Akstiletto", CARD, 8)]);
@@ -226,7 +215,6 @@ describe("grade-riven-contracts sheet availability", () => {
     expect(result.sheetReady).toBe(false);
     expect(result.grades[0]?.overallGrade).toMatch(/^[SABCF][+-]?$/);
     expect(result.grades[0]?.attributeGrade).toBe("?");
-    // The answer still starts the load the next call needs.
     expect(ensureRivenGoodRollsLoaded).toHaveBeenCalledTimes(1);
   });
 
@@ -237,8 +225,6 @@ describe("grade-riven-contracts sheet availability", () => {
     expect(result.grades[0]?.attributeGrade).not.toBe("?");
   });
 
-  // A week-old cache grades, but a refresh can still change it, so the renderer
-  // must be told to ask again rather than settling on these letters.
   it("reports a stale sheet as not ready", async () => {
     vi.mocked(rivenGoodRollsAreCurrent).mockReturnValue(false);
 
@@ -267,7 +253,6 @@ describe("grade-riven-contracts grading", () => {
 
     expect(result).not.toBeNull();
     expect(result?.overallGrade).toMatch(/^[SABCF][+-]?$/);
-    // The sheet's whole good roll is present and Zoom is an accepted negative.
     expect(result?.attributeGrade).toBe("Great");
     expect(result?.stats).toHaveLength(3);
     for (const stat of result?.stats ?? []) {
@@ -283,7 +268,6 @@ describe("grade-riven-contracts grading", () => {
     ]);
 
     expect(result).not.toBeNull();
-    // The sheet has no Silva & Aegis row, so only the roll grade is available.
     expect(result?.attributeGrade).toBe("?");
     expect(result?.stats[0].grade).toMatch(/^[SABCF][+-]?$/);
   });
@@ -294,8 +278,6 @@ describe("grade-riven-contracts grading", () => {
     ]);
 
     expect(result).not.toBeNull();
-    // Read as a raw fraction the 1.45 overshoots the stat's range and clamps to
-    // a perfect roll; read as the x1.45 the card shows it lands mid-range.
     expect(result?.stats[0].rollFloat).toBeGreaterThan(0);
     expect(result?.stats[0].rollFloat).toBeLessThan(1);
   });

@@ -16,8 +16,6 @@ import {
   type ElectronTestHarness,
 } from "./electronTestHarness";
 
-// The sweep that found these five defects ran every view at 1280x680 and
-// 1366x728 with the global text scale at 125% and 150%.
 const SIZES = [
   { width: 1280, height: 680 },
   { width: 1366, height: 728 },
@@ -72,7 +70,6 @@ const TOP_TRADED: TopTradedDoc = {
   byValue: [],
 };
 
-// Nine-character partners: the rail used to cut them down to "D..".
 const LEDGER: TradeEvent[] = Array.from({ length: 12 }, (_, index) => ({
   id: `layout-${index}`,
   date: `2026-09-${String(index + 10)}T20:48:00.000Z`,
@@ -142,8 +139,6 @@ test.describe("Panels hold their layout on a small window at a raised text scale
     }
   });
 
-  // The bar used to sit on the last character of ESTIMATED VALUE and on the
-  // right edge of every figure under it.
   test("top traded keeps the scrollbar off its right-aligned columns", async () => {
     for (const scale of SCALES) {
       await setFontScale(page, scale);
@@ -179,8 +174,6 @@ test.describe("Panels hold their layout on a small window at a raised text scale
     }
   });
 
-  // The stepper cannot shrink, so the sell card's body used to slide under the
-  // Edit and delete buttons and lose its up/down arrows.
   test("a sell order's stepper stays clear of the row actions", async () => {
     for (const scale of SCALES) {
       await setFontScale(page, scale);
@@ -216,8 +209,6 @@ test.describe("Panels hold their layout on a small window at a raised text scale
       }
     }
 
-    // The wrap is a fallback: at the default scale both stepper groups still
-    // share one line, which pins the look users see today.
     await setFontScale(page, 1);
     for (const size of SIZES) {
       await setLayoutViewport(page, size.width, size.height);
@@ -247,8 +238,6 @@ test.describe("Panels hold their layout on a small window at a raised text scale
     }
   });
 
-  // Ten rem-sized cell gutters pushed the table past the card, which answered
-  // with a full-width horizontal scrollbar.
   test("the runs table fits inside its card", async () => {
     for (const scale of SCALES) {
       await setFontScale(page, scale);
@@ -301,7 +290,6 @@ test.describe("Panels hold their layout on a small window at a raised text scale
         }));
 
         const at = `${size.width}px, ${scale}x`;
-        // Nine characters, whichever row the ledger sorted to the top.
         expect(measured.text, `the partner name is not whole at ${at}`).toMatch(/^Partner\d\d$/);
         expect(measured.clipped, `the partner name is cut off at ${at}`).toBe(false);
         expect(measured.width, `the partner span has no width at ${at}`).toBeGreaterThan(0);
@@ -309,8 +297,6 @@ test.describe("Panels hold their layout on a small window at a raised text scale
     }
   });
 
-  // The pinned dev rail and Feedback button used to leave the icon list two
-  // rows tall, with the next icon sliced into a stripe at the boundary.
   test("the collapsed rail shows most of its destinations", async () => {
     for (const scale of SCALES) {
       await setFontScale(page, scale);

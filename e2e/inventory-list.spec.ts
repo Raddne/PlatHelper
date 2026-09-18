@@ -111,7 +111,6 @@ test.describe("Inventory list view", () => {
     await expect(page.locator("[data-list-row]").first()).toBeVisible();
     expect(await page.locator("[data-list-row]").count()).toBe(cardCount);
 
-    // Widening the filter has to move both renderers by the same amount.
     await setSearch("prime");
     const listCount = await page.locator("[data-list-row]").count();
     await setMode("cards");
@@ -146,7 +145,6 @@ test.describe("Inventory list view", () => {
       "descending",
     );
 
-    // Re-clicking the active column flips it instead of restarting the sort.
     await page.locator('[data-list-sort="platinum"]').click();
     await expect(sortSelect).toHaveValue("platinum");
     await expect(page.locator('[data-list-column="platinum"]')).toHaveAttribute(
@@ -155,8 +153,6 @@ test.describe("Inventory list view", () => {
     );
   });
 
-  // The header offers a sort only where the active tab can compute it, and the
-  // Owned column resolves its key from the rows rather than from the column list.
   test("a header sorts only where the tab has the key", async () => {
     await page.locator('[data-tour-tab="all_parts"]').click();
     await setMode("list");
@@ -168,7 +164,6 @@ test.describe("Inventory list view", () => {
     await expect(
       page.locator('[data-list-column="ducats"] [data-list-sort="ducats"]'),
     ).toBeVisible();
-    // Mastery carries no shared sort key, so it stays plain text on every tab.
     await expect(page.locator('[data-list-column="mastery"] [data-list-sort]')).toHaveCount(0);
     await expect(page.locator('[data-list-column="mastery"]')).toHaveAttribute("aria-sort", "none");
 

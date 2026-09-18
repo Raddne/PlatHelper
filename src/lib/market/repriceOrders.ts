@@ -19,7 +19,6 @@ export interface RepriceRow {
   sellBook: readonly PricingListing[] | null;
   nextPrice: number | null;
   skipReason: RepriceSkipReason | null;
-  /** Send gate. An unselected row is still priced, so the preview stays complete. */
   selected: boolean;
 }
 
@@ -82,7 +81,6 @@ export function repriceRowsToSend(rows: readonly RepriceRow[]): RepriceRow[] {
 }
 
 interface RepriceTotals {
-  /** Every row in the list; the other counts cover the selected rows a run would send. */
   rows: number;
   sending: number;
   raised: number;

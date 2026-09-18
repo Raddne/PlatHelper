@@ -31,9 +31,7 @@ interface PlannerComponent {
   missing: number;
   craftable: boolean;
   isBlueprint: boolean;
-  /** Mark only: owned/missing above stay the readiness numbers. */
   state: PartState;
-  /** Chip label only: copies really built, so a held blueprint reads 0. */
   built: number;
 }
 
@@ -52,12 +50,10 @@ export interface PlannedItem {
   displayName?: string;
   imageUrl: string | null;
   masteryXpRemaining: number;
-  /** False when the item DB has no recipe to walk; the row then has no plan. */
   hasRecipe: boolean;
   components: PlannerComponent[];
   resources: PlannerResource[];
   credits: number;
-  /** Share of the top-level requirements already covered, 0..1. */
   completeness: number;
   craftableNow: boolean;
 }
@@ -71,13 +67,10 @@ export interface MasteryPlan {
 
 export type PlannerSort = "mastery_xp" | "completeness" | "name";
 
-// A raw material the root recipe asks for is billed against the inventory pool
-// instead of getting a part chip.
 function isPartLike(node: CraftingTreeNode): boolean {
   return node.isCraftable || node.isBlueprintItem === true || isRecipePartPath(node.uniqueName);
 }
 
-/** Aliases are one pile in two spellings, so a take lowers every spelling. */
 function consumeOwned(budget: Map<string, number>, uniqueName: string, units: number): void {
   if (units <= 0) return;
   for (const alias of componentUniqueNameAliases(uniqueName)) {
@@ -122,8 +115,6 @@ function collectNode(
 
   let remaining = needed;
   if (depth > 0 && isPartLike(node)) {
-    // Read live: one part can appear twice in a tree, and earlier pins already
-    // spent their share of the same pile.
     const owned = Math.min(ownedComponentCount(node.uniqueName, budget), remaining);
     consumeOwned(budget, node.uniqueName, owned);
     remaining -= owned;
@@ -133,15 +124,12 @@ function collectNode(
   const recipe = node.recipe;
   if (!recipe || node.children.length === 0) {
     if (depth === 0) return;
-    // A farmed part of the pinned item is already a component chip on the row.
     if (depth === 1 && isPartLike(node)) return;
-    // planPin measures the row against the shared pool, so it needs the gross
-    // count; `remaining` already had the owned copies taken out of the budget.
+    // planPin measures the row against the shared pool, so it needs the gross count.
     addResource(state, node, needed);
     return;
   }
 
-  // A run yields `num` units, so runs - not units - drive costs and ingredients.
   const num = Math.max(1, recipe.num || 1);
   const fullRuns = Math.max(1, Math.ceil(node.count / num));
   const runs = Math.max(1, Math.ceil(remaining / num));
@@ -184,8 +172,6 @@ function planPin(
     };
   }
 
-  // Every top-level child counts toward readiness, but only parts get a chip:
-  // a raw material the root recipe asks for already has its own material row.
   const topLevel = tree.children;
   const components: PlannerComponent[] = topLevel.filter(isPartLike).map((child) => ({
     uniqueName: child.uniqueName,
@@ -205,8 +191,6 @@ function planPin(
   collectNode(tree, 1, 0, state, budget);
 
   const resources: PlannerResource[] = [...state.resources.entries()].map(([uniqueName, tally]) => {
-    // Take this pin's share of the pile so the rows below a shared material add
-    // up to the total row instead of each claiming the whole pool.
     const owned = Math.min(ownedComponentCount(uniqueName, pool), tally.needed);
     consumeOwned(pool, uniqueName, owned);
     return {
@@ -236,9 +220,6 @@ function planPin(
   };
 }
 
-// One plan per pin. Owned parts AND raw materials are allocated to pins in
-// order, so a single spare cannot satisfy two of them. The total row still
-// measures the summed need once against the untouched inventory pool.
 export function buildMasteryPlan(
   pins: readonly PlannerPin[],
   itemDb: Record<string, ItemDbEntry>,
@@ -290,8 +271,6 @@ interface PlannerRow {
 
 // Planner rows carry the item database's parent-prefixed name ("Braton Prime
 // Receiver"), while the detail modal prices a part as `${parentName} ${name}`.
-// Resolving the row back to its parent's short part name keeps that join from
-// doubling the parent, and leaves a raw material with no parent at all.
 export function plannerModalTarget(
   row: PlannerRow,
   itemDb: Record<string, ItemDbEntry>,
@@ -309,19 +288,16 @@ export function plannerModalTarget(
   };
 }
 
-/** The planner is a to-do list, so covered rows stay hidden until asked for. */
 export function missingOnly<T extends { missing: number }>(rows: readonly T[]): T[] {
   return rows.filter((row) => row.missing > 0);
 }
 
-/** Part chips: a held blueprint still has a build ahead of it, so it stays listed. */
 export function unfinishedParts<T extends { missing: number; state: PartState }>(
   rows: readonly T[],
 ): T[] {
   return rows.filter((row) => row.missing > 0 || row.state === "blueprint");
 }
 
-/** Craftable-now floats to the top of every sort mode. */
 export function sortPlannedItems(
   items: readonly PlannedItem[],
   sort: PlannerSort,
@@ -338,7 +314,6 @@ export function sortPlannedItems(
   );
 }
 
-/** Same order as the flat sort, split so each half can carry its own heading. */
 export function groupPlannedItems(
   items: readonly PlannedItem[],
   sort: PlannerSort,

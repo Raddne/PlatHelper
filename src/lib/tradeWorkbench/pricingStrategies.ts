@@ -1,10 +1,8 @@
 import { isActiveOrderStatus } from "../../../config/shared/wfmOrders.js";
 
-/** One competing sell listing, in the shape the order book already provides. */
 export interface PricingListing {
   /** Price of one trade as WFM lists it; a bulk order hands over several items. */
   platinum: number;
-  /** platinum / perTrade. Absent on older callers, which then price per trade. */
   unitPlatinum?: number;
   quantity: number;
   status: string | null;
@@ -13,23 +11,15 @@ export interface PricingListing {
 
 export interface PricingContext {
   sellListings: readonly PricingListing[];
-  /** Our own live listing price for this item; null when we are not listed. */
   currentPrice: number | null;
-  /** Items our own listing hands over per trade, so the suggested price comes
-   *  back in the same units as `currentPrice`. Default 1. */
   ownPerTrade?: number | null;
-  /** Excluded from the competition so we never undercut ourselves. */
   ownUserName?: string | null;
-  /** Only ingame/online sellers count as competition. Default true. */
   activeOnly?: boolean;
 }
 
-/** Downward damping: a reprice may only follow the market down when enough
- *  listings actually sit below us AND the drop stays inside the item's bound. */
 export interface DampingRule {
   minListingsBelow: number;
   maxDropPercent: number;
-  /** Absolute plat ceiling for one reprice step; the smaller allowance binds. */
   maxDropPlat: number;
 }
 
@@ -47,7 +37,6 @@ export type WorkbenchStrategyId =
   | "target-margin"
   | "manual";
 
-/** Picker order for the UI. */
 export const WORKBENCH_STRATEGY_IDS: readonly WorkbenchStrategyId[] = [
   "match-cheapest",
   "cheapest-minus-one",
@@ -67,7 +56,6 @@ export type StrategyConfig =
 
 interface PriceSuggestionInputs {
   listingsConsidered: number;
-  /** Per-item prices, so bulk and single listings are comparable. */
   cheapest: number | null;
   average?: number;
   currentPrice?: number;
@@ -75,21 +63,16 @@ interface PriceSuggestionInputs {
   costPlat?: number;
 }
 
-/** Which half of the damping rule held the drop back. */
 export type WorkbenchDampingReason = "depth" | "max-drop";
 
 export interface PriceSuggestion {
   strategyId: WorkbenchStrategyId;
-  /** Null when the strategy has nothing to price from (empty book). */
   price: number | null;
-  /** 0..1 heuristic; carried with the suggestion so the UI can show doubt. */
   confidence: number;
   inputs: PriceSuggestionInputs;
   damping?: { applied: true; reason: WorkbenchDampingReason; undampedPrice: number };
 }
 
-/** What a competitor really charges for one item: a 97p order that hands over
- *  six of them undercuts nobody at 97p. */
 export function listingUnitPrice(listing: PricingListing): number {
   const unit = listing.unitPlatinum;
   return typeof unit === "number" && Number.isFinite(unit) && unit > 0 ? unit : listing.platinum;
@@ -112,9 +95,8 @@ function competition(ctx: PricingContext): PricingListing[] {
     .sort((a, b) => listingUnitPrice(a) - listingUnitPrice(b));
 }
 
-/** Null rather than a 1p floor: an input that cannot produce a real ask (a zero
- *  cost, an empty book) must leave the row unpriced instead of silently
- *  listing it for one platinum. */
+/** Null rather than a 1p floor: an input that cannot produce a real ask must leave
+ *  the row unpriced instead of silently listing it for one platinum. */
 function clampPrice(value: number): number | null {
   if (!Number.isFinite(value)) return null;
   const rounded = Math.round(value);
@@ -129,7 +111,6 @@ function marketConfidence(considered: number): number {
   return round2(Math.min(1, considered / 5));
 }
 
-/** Allowed one-step drop for an item priced at `currentPrice`. */
 export function maxAllowedDrop(currentPrice: number, rule: DampingRule): number {
   const percentBound = Math.floor((currentPrice * rule.maxDropPercent) / 100);
   return Math.max(1, Math.min(percentBound, rule.maxDropPlat));
@@ -157,7 +138,6 @@ function applyDamping(
   };
 
   if (listingsBelow < rule.minListingsBelow) {
-    // Thin undercutting does not justify a race to the bottom: hold the price.
     return {
       ...suggestion,
       price: current,
@@ -188,14 +168,10 @@ export function suggestPrice(
 ): PriceSuggestion {
   const book = competition(ctx);
   const perTrade = ownPerTradeOf(ctx);
-  // Strategies compare per-item prices and hand the result back in the caller's
-  // own trade units, so a single-item listing (the usual case) is unchanged.
   const listPrice = (unitValue: number): number | null => clampPrice(unitValue * perTrade);
   const cheapest = book.length > 0 ? listingUnitPrice(book[0]) : null;
 
   if (config.id === "manual") {
-    // Manual prices only ever come from the per-row field, so the strategy
-    // itself suggests nothing and the row stays unpriced until the user types.
     return {
       strategyId: "manual",
       price: null,
@@ -205,11 +181,8 @@ export function suggestPrice(
   }
 
   if (config.id === "target-margin") {
-    // The cost is what one item cost us, so the ask is built per item too.
     const unitAsk = Math.ceil(config.costPlat * (1 + config.marginPercent / 100));
     const price = listPrice(unitAsk);
-    // Cost-based, so no market damping; confidence drops when the ask sits
-    // above the cheapest competitor and is unlikely to move.
     const overpriced = price != null && cheapest != null && unitAsk > cheapest;
     return {
       strategyId: "target-margin",
@@ -241,8 +214,6 @@ export function suggestPrice(
     case "cheapest-minus-one":
       suggestion = {
         strategyId: config.id,
-        // A 1p book cannot be undercut, and matching it is still a real ask, so
-        // this floor is deliberate rather than a rescued invalid price.
         price: listPrice(Math.max(1, cheapest - 1)),
         confidence: marketConfidence(book.length),
         inputs: { listingsConsidered: book.length, cheapest },
@@ -265,7 +236,6 @@ export function suggestPrice(
       suggestion = {
         strategyId: config.id,
         price: listPrice(average),
-        // Confidence follows how much of the requested sample actually exists.
         confidence: round2(Math.min(1, pool.length / count)),
         inputs: { listingsConsidered: pool.length, cheapest, average: round2(average) },
       };
@@ -273,7 +243,6 @@ export function suggestPrice(
     }
   }
 
-  // Nothing to damp, and a suggestion with no price carries no confidence.
   if (suggestion.price == null) return { ...suggestion, confidence: 0 };
   return applyDamping(suggestion, ctx, book, rule, perTrade);
 }

@@ -76,7 +76,6 @@ export const DEFAULT_THEME: Readonly<ThemeSettings> = Object.freeze({
   viewOverrides: {},
 });
 
-/** Limits for font size global scale */
 export const FONT_SCALE_MIN = 0.75;
 export const FONT_SCALE_MAX = 1.5;
 export const FONT_SCALE_STEP = 0.05;
@@ -88,5 +87,4 @@ export const VIEW_FONT_SIZE_MAX = 3;
 /** Base font size in px (from app.css html rule) */
 export const BASE_FONT_SIZE_PX = 15;
 
-/** Default app name shown in titlebar */
 export const DEFAULT_APP_NAME = "WFHELPER";

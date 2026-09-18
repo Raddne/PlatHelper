@@ -5,7 +5,6 @@ import * as wfmCatalog from "./wfmCatalog";
 
 export { parseTradedItemName };
 
-/** Catalog entry for a traded name, ignoring rank suffix and blueprint wording. */
 export function lookupTradedCatalogItem(
   displayName: string,
 ): ReturnType<typeof wfmCatalog.lookupByName> {

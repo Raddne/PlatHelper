@@ -42,7 +42,6 @@ interface FixtureOrder {
 interface FixtureOrders {
   sell: FixtureOrder[];
   buy: FixtureOrder[];
-  /** Riven contracts, already in the normalized shape the renderer reads. */
   contracts: WfmContract[];
 }
 
@@ -73,8 +72,7 @@ export function registerWfmFixtures(): boolean {
 
   const allOrders = () => [...orders.sell, ...orders.buy];
 
-  // Rewriting the fixture mid-run stands in for a change made outside the app
-  // (unlisted on the website). Unchanged file keeps in-app edits in memory.
+  // Rewriting the fixture mid-run stands in for a change made outside the app.
   let fixtureMtimeMs = 0;
   const syncFixtureFromDisk = (): void => {
     try {

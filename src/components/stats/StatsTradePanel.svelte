@@ -10,7 +10,6 @@
   type TradeFilter = "all" | "sale" | "purchase" | "trade";
   let tradeFilter: TradeFilter = "all";
   let tradeSearch = "";
-  // Rows rendered at once; a filter change starts over so search results show from the top.
   const PAGE_ROWS = 300;
   let visibleRows = PAGE_ROWS;
 
@@ -96,7 +95,6 @@
     </div>
   </div>
 
-  <!-- Trade list -->
   <div class="flex-1 overflow-y-auto min-h-0 py-3 px-4" data-stats-trade-list>
     {#if filteredTrades.length === 0}
       <div class="flex flex-col items-center justify-center gap-2 py-8 px-4 text-center">
@@ -157,8 +155,6 @@
                 </span>
               {/if}
               {#if trade.partner}
-                <!-- The cap is the same 120px at 100%, but in rem so a raised
-                     scale keeps the character count instead of cutting it. -->
                 <span
                   data-trade-partner
                   class="text-xs text-accent font-semibold whitespace-nowrap overflow-hidden text-ellipsis max-w-[8rem]"

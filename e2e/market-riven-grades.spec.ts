@@ -58,7 +58,6 @@ function fixtureOrders() {
         attribute("multishot", "Multishot", 88.2, true),
         attribute("zoom", "Zoom", -31.4, false),
       ]),
-      // No such weapon in the export, so main can only answer "no grade".
       contract(UNKNOWN_ID, "zzz_not_a_weapon", [
         attribute("critical_chance", "Critical Chance", 100, true),
       ]),
@@ -119,7 +118,6 @@ test.describe("Market riven contract grades (fixture mode)", () => {
     const badges = page.locator(`[data-contract-grade="${GRADED_ID}"]`);
     await expect(badges).toBeVisible({ timeout: 30_000 });
     await expect(badges.locator("[data-riven-grade]")).toHaveText(/^[SABCF][+-]?$/);
-    // Without the community sheet the attribute grade is "?", which still shows.
     await expect(badges.locator("[data-riven-attr-grade]")).toHaveCount(1);
   });
 

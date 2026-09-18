@@ -117,13 +117,11 @@ describe("crafting tree", () => {
       [chassisBp]: item("Caliban Prime Chassis Blueprint"),
     };
 
-    // The inventory holds the blueprint spelling; the recipe names the component.
     const tree = buildCraftingTree("/items/CalibanPrime", db, new Map([[chassisBp, 3]]));
     const chassisNode = tree?.children.find((child) => child.uniqueName === chassis);
 
     expect(chassisNode?.owned).toBe(3);
     expect(chassisNode?.children.map((child) => child.uniqueName)).toEqual(["/resources/Rubedo"]);
-    // The main blueprint is a separate item and still shows.
     expect(tree?.children.some((child) => child.uniqueName === "/blueprints/CalibanPrime")).toBe(
       true,
     );
@@ -159,8 +157,6 @@ describe("crafting tree", () => {
   });
 
   it("scales ingredients by recipe runs when a run yields several units", () => {
-    // Real case: Caliban needs 100 Hespazym Alloy; the alloy recipe yields 20
-    // per run, so 5 runs consume 1500 Plastids, not 30000.
     const db: Record<string, ItemDbEntry> = {
       "/items/Caliban": item("Caliban", {
         blueprintUniqueName: "/blueprints/Caliban",
@@ -199,7 +195,6 @@ describe("crafting tree", () => {
     expect(byName("/blueprints/HespazymAlloy")?.count).toBe(1);
 
     const summary = computeCraftingSummary(tree!);
-    // 25000 for Caliban plus 5 alloy runs at 200 credits and 60s each.
     expect(summary.totalCredits).toBe(25_000 + 5 * 200);
     expect(summary.maxBuildTime).toBe(5 * 60);
   });
@@ -229,7 +224,6 @@ describe("crafting tree", () => {
     const batch = tree?.children.find((child) => child.uniqueName === "/items/Batch");
     const batchBp = batch?.children.find((child) => child.uniqueName === "/blueprints/Batch");
 
-    // 25 units at 10 per run = 3 runs = 3 blueprints and 15 Plastids.
     expect(batchBp?.count).toBe(3);
     expect(batch?.children.find((child) => child.uniqueName === "/resources/Plastids")?.count).toBe(
       15,
@@ -248,7 +242,6 @@ const ALLOY_BP = "/Lotus/Types/Recipes/Components/HespazymAlloyBlueprint";
 const RUBEDO = "/Lotus/Types/Items/MiscItems/Rubedo";
 const MORPHICS = "/Lotus/Types/Items/MiscItems/Morphic";
 
-/** A weapon whose receiver is craftable and whose Forma sits behind the leaf rule. */
 function expandableDb(): Record<string, ItemDbEntry> {
   return {
     [WEAPON]: item("Sepulcrum", {
@@ -302,7 +295,6 @@ function childOf(node: CraftingTreeNode | null | undefined, uniqueName: string) 
   return node?.children.find((child) => child.uniqueName === uniqueName);
 }
 
-/** A card the tree handed out with no children of its own yet. */
 function looseNode(uniqueName: string, name: string): CraftingTreeNode {
   return {
     uniqueName,
@@ -341,7 +333,6 @@ describe("crafting tree expansion", () => {
 
   it("never expands a blueprint back into the item it hangs under", () => {
     const db = expandableDb();
-    // Blueprint entries carry buildsProduct, not a recipe of their own.
     db[WEAPON_BP] = { ...db[WEAPON_BP], buildsProduct: WEAPON };
     const tree = buildCraftingTree(WEAPON, db, new Map())!;
     const weaponBp = childOf(tree, WEAPON_BP)!;
@@ -369,10 +360,7 @@ describe("crafting tree expansion", () => {
 
     expect(canExpandCraftingNode(loose, db, [WEAPON])).toBe(true);
     const children = expandCraftingNode(loose, db, new Map(), [WEAPON]);
-    // The blueprint builds the product it was expanded into, so it must not
-    // hang under itself.
     expect(children.map((child) => child.uniqueName).sort()).toEqual([MORPHICS, RUBEDO].sort());
-    // The blueprint entry itself must stay recipe-free; parseFoundry scans that field.
     expect(db[FORMA_BP].recipe).toBeUndefined();
   });
 
@@ -388,7 +376,6 @@ describe("crafting tree expansion", () => {
     expect(children.map((child) => child.uniqueName).sort()).toEqual(
       [FORMA_BP, MORPHICS, RUBEDO].sort(),
     );
-    // Expanding builds nothing into the node the tree already handed out.
     expect(forma.children).toHaveLength(0);
   });
 
@@ -401,7 +388,6 @@ describe("crafting tree expansion", () => {
     const children = expandCraftingNode(alloy, db, new Map(), [WEAPON]);
     const byName = (un: string) => children.find((child) => child.uniqueName === un);
 
-    // 100 units at 20 per run = 5 runs: 5 blueprints, 1500 Rubedo, 10 Morphics.
     expect(byName(ALLOY_BP)?.count).toBe(5);
     expect(byName(RUBEDO)?.count).toBe(1500);
     expect(byName(MORPHICS)?.count).toBe(10);
@@ -409,7 +395,6 @@ describe("crafting tree expansion", () => {
 
   it("lists a sub-blueprint once, under the alias the inventory holds", () => {
     const db = expandableDb();
-    // The recipe names the component; the owned pile is the blueprint spelling.
     db[FORMA] = {
       ...db[FORMA],
       recipe: { ...db[FORMA].recipe!, blueprintUniqueName: FORMA_BP },
@@ -455,7 +440,6 @@ describe("crafting tree expansion", () => {
     const db = expandableDb();
     const tree = buildCraftingTree(FORMA, db, new Map())!;
 
-    // The leaf rule only stops recursion into a resource, never blanks its own tree.
     expect(tree.children.map((child) => child.uniqueName).sort()).toEqual(
       [FORMA_BP, MORPHICS, RUBEDO].sort(),
     );
@@ -495,7 +479,6 @@ describe("crafting tree expansion", () => {
 
     while (canExpandCraftingNode(node, db, ancestors) && levels < MAX_EXPAND_DEPTH) {
       const children = expandCraftingNode(node, db, new Map(), ancestors);
-      // Each call resolves exactly one level; grandchildren stay unresolved.
       expect(children.every((child) => child.children.length === 0)).toBe(true);
       ancestors = [...ancestors, node.uniqueName];
       node = children.find((child) => child.uniqueName === chain[levels + 1])!;
@@ -505,7 +488,6 @@ describe("crafting tree expansion", () => {
     expect(MAX_EXPAND_DEPTH).toBe(3);
     expect(levels).toBe(3);
     expect(node.uniqueName).toBe(chain[3]);
-    // Still craftable at the cap - that is where the modal escape hatch takes over.
     expect(canExpandCraftingNode(node, db, ancestors)).toBe(true);
   });
 });
@@ -518,7 +500,6 @@ describe("expanded child ancestors", () => {
 
     const path = expandedChildAncestors(blueprint, db, [WEAPON]);
     expect(path).toEqual([WEAPON, FORMA_BP, FORMA]);
-    // The pair must not re-offer itself one level down.
     expect(canExpandCraftingNode(looseNode(FORMA, "Forma"), db, path)).toBe(false);
     expect(canExpandCraftingNode(blueprint, db, path)).toBe(false);
   });
@@ -530,8 +511,6 @@ describe("expanded child ancestors", () => {
     db[WEAPON_BP] = { ...db[WEAPON_BP], buildsProduct: trophy };
     const blueprint = looseNode(WEAPON_BP, "Sepulcrum Blueprint");
 
-    // Nothing to expand, so nothing was rooted through: an ancestor for the
-    // product would block a sibling the expansion never touched.
     expect(expandCraftingNode(blueprint, db, new Map(), [WEAPON])).toEqual([]);
     expect(expandedChildAncestors(blueprint, db, [WEAPON])).toEqual([WEAPON, WEAPON_BP]);
   });
@@ -557,7 +536,6 @@ describe("crafting tree expansion against owned copies", () => {
     const children = expandCraftingNode(forma, db, owned, [WEAPON]);
     const byName = (un: string) => children.find((child) => child.uniqueName === un);
 
-    // Two runs, not three: the copy already in the inventory is not built again.
     expect(byName(RUBEDO)?.count).toBe(1000);
     expect(byName(MORPHICS)?.count).toBe(2);
     expect(byName(FORMA_BP)?.count).toBe(2);
@@ -610,7 +588,6 @@ describe("crafting tree filters", () => {
 
     expect(part.children).toHaveLength(0);
     expect(part.childrenHidden).toBe(true);
-    // Without the flag the card would re-show the blueprint through expansion.
     expect(canExpandCraftingNode(part, db, [WEAPON])).toBe(false);
   });
 
@@ -656,11 +633,8 @@ describe("crafting tree filters", () => {
 describe("part state", () => {
   const FRAME = "/Lotus/Powersuits/Dragon/Dragon";
   const FRAME_BP = "/Lotus/Types/Recipes/WarframeRecipes/ChromaBlueprint";
-  // Real shape: the frame recipe names the ...Component, the chassis recipe key
-  // is the ...Blueprint the inventory holds, and the alias rule folds the two.
   const CHASSIS = "/Lotus/Types/Recipes/WarframeRecipes/ChromaChassisComponent";
   const CHASSIS_BP = "/Lotus/Types/Recipes/WarframeRecipes/ChromaChassisBlueprint";
-  // Real shape: a weapon part whose blueprint spelling is no alias of the part.
   const BARREL = "/Lotus/Types/Recipes/Weapons/WeaponParts/CrpArSniperBarrel";
   const BARREL_BP = "/Lotus/Types/Recipes/Weapons/WeaponParts/AmbassadorBarrelBlueprint";
   const PRIME_PART = "/Lotus/Types/Recipes/Weapons/WeaponParts/BoarPrimeReceiver";
@@ -715,7 +689,6 @@ describe("part state", () => {
     const owned = new Map([[CHASSIS_BP, 1]]);
     const chassis = childOf(buildCraftingTree(FRAME, db, owned), CHASSIS)!;
 
-    // The readiness numbers keep seeing the blueprint as the part.
     expect(chassis.owned).toBe(1);
     expect(chassis.missing).toBe(0);
     expect(partState(chassis, owned, db)).toBe("blueprint");
@@ -761,7 +734,6 @@ describe("part state", () => {
 
   it("keeps a blueprint row whose product is its own alias out of the owned state", () => {
     const db = partDb();
-    // Real shape: 455 DE recipes build ...Component from the ...Blueprint alias.
     const row = { uniqueName: CHASSIS_BP, count: 1 };
     const flagged = { ...row, isBlueprintItem: true };
 
@@ -777,17 +749,13 @@ describe("part state", () => {
     expect(builtPartCount(part(CHASSIS), new Map([[CHASSIS_BP, 1]]), db)).toBe(0);
     expect(builtPartCount(part(CHASSIS), new Map([[CHASSIS, 2]]), db)).toBe(2);
     expect(builtPartCount(part(BARREL), new Map([[BARREL_BP, 3]]), db)).toBe(0);
-    // A blueprint row is its own pile, so holding it still counts.
     expect(
       builtPartCount({ ...part(FRAME_BP), isBlueprintItem: true }, new Map([[FRAME_BP, 1]]), db),
     ).toBe(1);
-    // No recipe, nothing to build: the folded pile is the built count.
     expect(builtPartCount(part(SET_PART), new Map([[SET_PART_HELD, 1]]), db)).toBe(1);
   });
 
   it("reads the held blueprint when the recipe index names another one", () => {
-    // DE's export has two recipes producing the Sagek Prime Barrel, so the index
-    // keeps the Stock blueprint as the barrel's recipe key.
     const SAGEK_BARREL = "/Lotus/Types/Recipes/Weapons/WeaponParts/SagekPrimeBarrel";
     const SAGEK_BARREL_BP = `${SAGEK_BARREL}Blueprint`;
     const SAGEK_STOCK_BP = "/Lotus/Types/Recipes/Weapons/WeaponParts/SagekPrimeStockBlueprint";
@@ -819,9 +787,7 @@ describe("part state", () => {
   it("owns a part with no recipe under either spelling of its pile", () => {
     const db = partDb();
 
-    // The set spells the part ...Blueprint, the inventory row ...Component.
     expect(partState(part(SET_PART), new Map([[SET_PART_HELD, 1]]), db)).toBe("owned");
-    // A bare prime part the inventory files under the Blueprint suffix.
     expect(partState(part(PRIME_PART), new Map([[`${PRIME_PART}Blueprint`, 1]]), db)).toBe("owned");
     expect(partState(part(PRIME_PART), new Map(), db)).toBe("missing");
   });

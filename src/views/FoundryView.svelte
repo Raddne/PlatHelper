@@ -1,6 +1,5 @@
 ﻿<script context="module" lang="ts">
-  // This view is destroyed on every tab switch, so the retired-tab migration
-  // needs module scope to fire once a launch instead of once a visit.
+  // This view is destroyed on every tab switch, so the migration needs module scope.
   let readyTabMigrated = false;
   function claimReadyTabMigration(): boolean {
     if (readyTabMigrated) return false;
@@ -56,12 +55,9 @@
   import type { FoundryState } from "../types/filters.js";
 
   type SortMode = "name" | "time" | "count";
-  /** Unified status for sorting + badges. Order here defines default sort. */
   type ItemStatus = "claimable" | "in-progress" | "ready-to-build" | "not-ready";
-  /** One combined filter (merged status + category). */
   type FilterKey = "all" | "status:in-progress" | "status:ready" | `cat:${string}`;
 
-  /** Unified foundry entry: building (PendingRecipes) or blueprint (Recipes). */
   interface FoundryEntry {
     source: "building" | "blueprint";
     name: string;
@@ -69,22 +65,17 @@
     imageUrl: string | null;
     uniqueName: string | null;
     productUniqueName: string | null;
-    /** Normalised category (Warframe, Primary, ..., Misc). */
     category: string;
     ingredients: RecipeIngredient[];
     buildPrice: number;
     buildTime: number;
-    /** Blueprint count (copies owned). Only meaningful when source === "blueprint". */
     count: number;
-    /** End time for pending recipes; null otherwise. */
     endDate: Date | null;
-    /** True if the blueprint's product is itself consumed in another recipe. */
     isIngredient: boolean;
   }
 
   const FILTER_KEY = "foundryView.filter";
 
-  /** Card status to shared-filter state; only "claimable" reads as Ready. */
   const FOUNDRY_STATE_BY_STATUS: Record<ItemStatus, FoundryState> = {
     claimable: "claimable",
     "in-progress": "building",
@@ -103,19 +94,13 @@
     key: `cat:${cat}` as FilterKey,
     label: cat,
   }));
-  // Must precede the persistedString below, which drops this retired key from the
-  // store without writing it back.
+  // Must precede the persistedString below, which drops this retired key from the store.
   const retiredReadyTab = readStorage(FILTER_KEY) === "status:ready" && claimReadyTabMigration();
-  // persistedString reads at init, so its key list must not wait on the translator.
   const activeFilter = persistedString<FilterKey>(
     FILTER_KEY,
     [...STATUS_FILTERS.map((tab) => tab.key), ...CATEGORY_FILTERS.map((tab) => tab.key)],
     "all",
   );
-  // Ready-to-build now lives in the Claim dropdown, as "buildable" not
-  // "buildable_sets": the retired tab counted loose component blueprints too.
-  // Consume the marker once honoured, or every launch would re-override
-  // whatever the user picks in that dropdown afterwards.
   if (retiredReadyTab) {
     updateSharedFilters("foundry", { foundryState: "buildable" });
     writeStorage(FILTER_KEY, "all");
@@ -171,7 +156,6 @@
     ...foundry.recipes.map(toEntryFromRecipe),
   ];
 
-  /** Lookup: ingredient uniqueName -> owned count (tracks componentOwnership store). */
   $: ownedMap = $componentOwnership;
   $: chainBuildable = chainBuildableBlueprints(foundry.recipes, ownedMap, $itemDb);
   function buildProductOwnedLookup(items: typeof $parsedItems): SvelteMap<string, number> {
@@ -192,8 +176,7 @@
   $: productOwnedLookup = buildProductOwnedLookup($parsedItems);
   $: masteryLookup = buildMasteryLookup($masteryData);
 
-  // chainBuildable is passed in: a $: statement tracks only what it names
-  // textually, so reading it here would leave every status stale.
+  // chainBuildable is passed in: a $: statement tracks only what it names textually.
   function statusOf(entry: FoundryEntry, now: number, chainSets: ReadonlySet<string>): ItemStatus {
     if (entry.source === "building") {
       if (entry.endDate && entry.endDate.getTime() <= now) return "claimable";
@@ -230,8 +213,6 @@
 
   $: decorated = allEntries.map((e) => ({ e, status: statusOf(e, nowMs, chainBuildable) }));
 
-  // Search matches materials anywhere in the crafting tree: "rubedo" finds every
-  // entry whose recipe - or a sub-part's recipe - consumes rubedo.
   function materialKeywords(productUniqueName: string | null | undefined): string[] {
     if (!productUniqueName) return [];
     return collectRecipeMaterialNames(productUniqueName, $itemDb);
@@ -271,7 +252,6 @@
       status: masteryStateFor(row.e),
       vaulted: db?.vaulted === true,
       foundryState: FOUNDRY_STATE_BY_STATUS[row.status],
-      // A part blueprint belongs to a parent, so the full-set view hides it.
       looseComponent: Boolean(db?.componentOf),
       subsumed:
         row.e.category === "Warframe" && isSubsumableFrame(row.e.name)
@@ -280,8 +260,6 @@
     };
   }
 
-  // activeKey is passed in: a $: statement tracks only what it names textually,
-  // so reading the store inside here would leave the list stale on every change.
   function passesActiveFilter(e: FoundryEntry, s: ItemStatus, activeKey: FilterKey): boolean {
     if (activeKey === "all") return true;
     if (activeKey === "status:in-progress") return s === "in-progress" || s === "claimable";
@@ -294,7 +272,6 @@
     return matchesSharedFilters(filterableFoundryEntry({ e, status }), $foundryFilters);
   });
 
-  /** Default ordering across statuses: claimable -> in-progress -> ready -> not-ready. */
   const STATUS_RANK: Record<ItemStatus, number> = {
     claimable: 0,
     "in-progress": 1,
@@ -326,7 +303,6 @@
 
   $: sorted = sortFoundryRows(filtered, $foundryFilters, pinnedSet);
 
-  /** Build a ParsedItem from an itemDb uniqueName and open the ItemDetailModal. */
   function openItem(uniqueName: string | null): void {
     if (!uniqueName) return;
     const db = $itemDb[uniqueName];
@@ -389,7 +365,6 @@
     </div>
   </div>
 
-  <!-- Pinned blueprints: combined resource needs across everything pinned -->
   {#if pinnedTotals.count > 0}
     <div class="resource-card mb-3 border-accent/35 px-3 py-2.5">
       <div class="flex flex-wrap items-center justify-between gap-2">
@@ -453,11 +428,8 @@
     </div>
   {/if}
 
-  <!-- Unified grid -->
   <div class="grid grid-cols-[repeat(auto-fill,minmax(380px,1fr))] gap-3">
     {#if sorted.length === 0}
-      <!-- Nothing to filter is not a filter miss: only blame the filters when
-           the unfiltered list actually had rows. -->
       <div class="empty-state col-span-full" data-foundry-empty>
         <p>{$tr(decorated.length === 0 ? "foundry.noItems" : "foundry.noItemsMatch")}</p>
       </div>
@@ -539,7 +511,6 @@
               </div>
             </div>
 
-            <!-- Ingredient grid - slots stay the same (2 cols); icon/text inside scale up when few ingredients. -->
             {#if item.ingredients.length > 0}
               {@const fewIng = item.ingredients.length <= 2}
               <div class="grid grid-cols-2 gap-x-4 gap-y-1.5 pl-1">

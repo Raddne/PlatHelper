@@ -31,8 +31,6 @@
   export let item: InventoryViewItem | null = null;
   export let onClose: (() => void) | null = null;
 
-  // Captured at open time so a background reselect cannot swap the chart out
-  // from under the reader.
   let statsSlug: string | null = null;
   let statsTitle = "";
 
@@ -138,8 +136,7 @@
   $: filteredBuyBase = filterStatus(orderBook?.buy ?? [], onlineIngameOnly);
   $: hiddenSell = (orderBook?.sell.length ?? 0) - filteredSellBase.length;
   $: hiddenBuy = (orderBook?.buy.length ?? 0) - filteredBuyBase.length;
-  // Per-item prices throughout: a bulk order's listed price buys perTrade items,
-  // so comparing listed prices reads a 97p-for-6 order as the best offer.
+  // A bulk order's listed price buys perTrade items.
   $: bestSell =
     filteredSellBase.length > 0
       ? Math.min(...filteredSellBase.map((entry) => entry.unitPlatinum))
@@ -344,8 +341,6 @@
     if (!item) return "";
     const rankSuffix = isRankedListingItem ? ` (Rank ${entry.rank ?? 0})` : "";
     const itemText = `${item.name}${rankSuffix}`;
-    // A bulk order's price is for the whole batch, so the count has to be in the
-    // line or the other player reads it as the price of one item.
     if (entry.perTrade > 1) {
       return $tr(side === "sell" ? "common.whisperBuyBulk" : "common.whisperSellBulk", {
         user: entry.userName,
@@ -438,10 +433,6 @@
   data-orderbook-panel
   class="inventory-orderbook-panel sticky flex flex-col gap-2.5 rounded-lg border border-border bg-bg-surface p-2.5 min-[1101px]:overflow-y-auto max-[1100px]:fixed max-[1100px]:right-2.5 max-[1100px]:top-[calc(var(--titlebar-height)+0.625rem)] max-[1100px]:bottom-[calc(var(--statusbar-height)+0.625rem)] max-[1100px]:z-40 max-[1100px]:w-[min(360px,calc(100vw-5rem))] max-[1100px]:overflow-y-auto"
 >
-  <!-- Sticky inside the panel's own scrollport so the warframe.market button
-       stays reachable however far the listings are scrolled (issue #29); the
-       breakpoint fix below only pins the panel itself. It wraps as a whole row
-       because a squeezed panel used to break labels and double button height. -->
   <div
     class="sticky -top-2.5 z-10 -mx-2.5 -mt-2.5 flex flex-wrap items-center justify-between gap-1.5 bg-bg-surface px-2.5 pt-2.5"
   >
@@ -670,10 +661,6 @@
 {/if}
 
 <style>
-  /* Pinned under the sticky filter band, not at the scrollport top: the band is
-     opaque and paints above this panel, so a top of 0.625rem buried the header
-     row with the warframe.market button (issue #29). The cap keeps an opened
-     filter popover from pushing the panel off the bottom of the window. */
   .inventory-orderbook-panel {
     --orderbook-pin-top: min(calc(var(--inventory-sticky-height, 0px) + 0.625rem), 45vh);
   }

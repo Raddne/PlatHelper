@@ -5,8 +5,6 @@
   import ThemedControlCard from "../ThemedControlCard.svelte";
 
   $: fontSizes = $themeSettings.fontSizes;
-  // Live slider position, committed on release: re-scaling the whole UI on every
-  // pointer move drags the thumb out from under the pointer.
   let draftScale: number | null = null;
   $: scaleValue = draftScale ?? fontSizes.globalScale;
   $: scalePercent = Math.round(scaleValue * 100);
@@ -27,9 +25,6 @@
     themeSettings.setGlobalScale(value);
   }
 
-  // Blur or Enter only: clamping per keystroke turns a half-typed "12" into 75,
-  // and the spinner arrows fire change, so committing there would re-scale the
-  // UI under the pointer on every click.
   function onScalePercentCommit(event: Event): void {
     const input = event.target as HTMLInputElement;
     const parsed = Number(input.value);

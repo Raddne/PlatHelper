@@ -45,7 +45,6 @@
   let isLoggedIn = $state(false);
   let bestAttrs = $state<RivenBestAttributes | null>(null);
   let dictionaryUpdatedAt = $state<string | null>(null);
-  /** Suppresses a "never downloaded" flash before the first answer arrives. */
   let dictionaryChecked = $state(false);
   let refreshingDictionary = $state(false);
   let showAllListings = $state(false);
@@ -119,8 +118,6 @@
       });
   });
 
-  // A weapon absent from a stale sheet answers null, so the refresh has to be
-  // reachable without a loaded entry.
   async function refreshDictionary(): Promise<void> {
     if (refreshingDictionary) return;
     refreshingDictionary = true;
@@ -229,8 +226,6 @@
     if (e.key === "Escape") onclose();
   }
 
-  // Match only buffs, using canonical names so melee and ranged labels still
-  // agree without allowing curses to light positive chips.
   const myStatNamesLc = $derived(
     new Set(riven.stats.filter((s) => s.positive).map((s) => canonicalRivenStatName(s.name))),
   );
@@ -246,7 +241,6 @@
         ? $tr("rivens.grade.unrated")
         : riven.attributeGrade,
   );
-  // A contract carries no grade until the grader answers; an owned riven always does.
   const hasRollGrade = $derived(riven.overallGrade !== "");
   const hasAttrGrade = $derived(riven.attributeGrade !== "");
   const listingErrorText = $derived(

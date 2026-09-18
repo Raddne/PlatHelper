@@ -46,7 +46,6 @@ describe("normalizeWfmOrderBookSide bulk orders", () => {
     );
 
     expect(rows).toHaveLength(6);
-    // An order cannot hand over more items per trade than it holds.
     expect(rows.find((row) => row.userName === "oversized")).toMatchObject({ perTrade: 24 });
     for (const name of ["absent", "zero", "negative", "fractional", "text"]) {
       expect(rows.find((row) => row.userName === name)).toMatchObject({

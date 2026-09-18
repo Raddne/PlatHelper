@@ -45,8 +45,6 @@
     onEdit,
   }: Props = $props();
 
-  // The parent only ever changes these through the callbacks below, so the local
-  // copies are seeded once instead of mirrored back on every prop change.
   let searchValue = $state(untrack(() => search));
   let typeValue = $state<TradeType | "all">(untrack(() => typeFilter));
 
@@ -72,8 +70,7 @@
   const canPrev = $derived(offset > 0);
   const canNext = $derived(offset + limit < total);
 
-  // $derived.by so the translator is read here: a helper that reads $t on its own
-  // is not reactive, because Svelte wraps template calls in untrack.
+  // A helper that reads $t on its own is not reactive, because Svelte wraps template calls in untrack.
   const countedItemLabel = $derived.by(() => {
     const translate = $t;
     return (item: TradeItem): string => {

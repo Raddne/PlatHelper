@@ -53,7 +53,6 @@
 
   $: priceText = priceKey ? $tr(priceKey, priceParams) : "";
 
-  // Inline component panel state
   let selectedComp: ComponentInfo | null = null;
   let showCraftingTree = false;
   let lastItemKey = "";
@@ -88,8 +87,6 @@
       ? buildCraftingTree(treeRootKey, $itemDb || {}, $componentOwnership)
       : null;
 
-  // A row opened from the inventory grid carries the raw database rows, so the
-  // doubled-ingredient merge and the owned counts are applied here.
   $: components = item ? enrichComponents(item.components || [], $componentOwnership) : [];
 
   $: safetyVerdict = item ? verdictFor(item, $inventorySafetyVerdicts) : null;
@@ -98,8 +95,7 @@
       ? safetyVerdict.reservations
       : [];
 
-  // A chain step is spelled as the recipe lists it, the database as the other
-  // half of the pair, so both spellings have to be tried.
+  // A chain step is spelled as the recipe lists it, the database as the other half of the pair.
   function chainLabel(claim: SafetyClaim, db: Record<string, ItemDbEntry>): string {
     return claim.chain
       .map((uniqueName) => {
@@ -112,7 +108,6 @@
       .join(" > ");
   }
 
-  // Reset selected component when the active item changes.
   $: if (item && itemKey !== lastItemKey) {
     if (!internalNavigation) {
       navigationStack = [];
@@ -160,7 +155,6 @@
   }
 
   function onModalClose() {
-    // Escape / backdrop: close inline panel first, then tree, then full close.
     if (selectedComp) closeCompPanel();
     else if (showCraftingTree) showCraftingTree = false;
     else close();
@@ -230,7 +224,6 @@
     </div>
 
     {#if showCraftingTree && craftingTree}
-      <!-- Crafting tree mode: compact header + full tree -->
       <div class="flex items-center gap-3 px-4 py-2 border-b border-border-subtle">
         <div class="shrink-0 h-10 w-10">
           <ItemImage
@@ -250,7 +243,6 @@
         <CraftingTree tree={craftingTree} onOpenItem={openCraftingTreeItem} />
       </div>
     {:else}
-      <!-- Normal detail mode -->
       <div class="detail-header">
         <div class="detail-img-wrap">
           <ItemImage

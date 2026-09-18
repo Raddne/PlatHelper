@@ -253,7 +253,6 @@ describe("relic selection planner", () => {
         error: vi.fn(),
       },
       ctx: {
-        // controller only reads autoTriggerEnabled
         overlaySettings: { autoTriggerEnabled: true } as OverlaySettings,
         currentInventoryData: {
           LevelKeys: [{ ItemType: "/Lotus/Types/Game/Projections/NeoTestIntact", ItemCount: 1 }],
@@ -493,8 +492,6 @@ describe("relic selection planner", () => {
       "1x Lith Test Intact",
       "1x Neo Test Intact",
     ]);
-    // tag set -> only the cheap label recheck runs; its lith answer carries no
-    // filter-label candidate, so the tag stands
     expect(ocrSpy).toHaveBeenCalledWith(expect.objectContaining({ labelOnly: true }));
   });
 
@@ -527,7 +524,6 @@ describe("relic selection planner", () => {
     await controller.onRelicSelectionTrigger("manual");
     await new Promise((resolve) => setTimeout(resolve, 10));
     expect(lastRecommendation().rows?.map((row) => row.label)).toEqual(["1x Neo Test Intact"]);
-    // while the tag rules, OCR is only consulted as the label-only recheck
     for (const call of ocrSpy.mock.calls) {
       expect(call).toEqual([expect.objectContaining({ labelOnly: true })]);
     }
@@ -548,7 +544,6 @@ describe("relic selection planner", () => {
     await new Promise((resolve) => setTimeout(resolve, 10));
     expect(lastRecommendation().era).toBe("omnia");
 
-    // extraction/abort routes the EndOfMission sentinel through the same callback
     controller.setActiveMissionTag("EndOfMission");
     controller.resetMissionTier();
     await controller.onRelicSelectionTrigger("manual");
@@ -558,8 +553,6 @@ describe("relic selection planner", () => {
   });
 
   it("leaves Requiem relics out of an omnia fissure", async () => {
-    // Omnia takes Lith, Meso, Neo and Axi; a Requiem relic only opens in a
-    // Requiem fissure, so it can never be equipped for this mission.
     const { controller, ocrSpy, lastRecommendation } = makeTwoEraController(undefined, {
       key: "Requiem Test",
       tier: "Requiem",
@@ -577,8 +570,6 @@ describe("relic selection planner", () => {
   });
 
   it("a Requiem label cannot override an omnia mission tag", async () => {
-    // The override exists because a stale tag lingers into the next picker, but
-    // an omnia fissure never offers a Requiem filter, so that read is wrong.
     const { controller, ocrSpy, lastRecommendation } = makeTwoEraController();
     controller.setActiveMissionTag("VoidT6");
 
@@ -590,8 +581,6 @@ describe("relic selection planner", () => {
   });
 
   it("a relic tile filters its own screen without pinning the era for 25 minutes", async () => {
-    // Reported case: a Requiem tile read first in an omnia fissure held the
-    // wrong era for the whole cache window.
     const { controller, ocrSpy, lastRecommendation } = makeTwoEraController();
 
     ocrSpy.mockResolvedValue({ era: "neo", confidence: 1, candidateId: "tile-slot-1" });
@@ -617,8 +606,6 @@ describe("relic selection planner", () => {
       await new Promise((resolve) => setTimeout(resolve, 10));
       expect(lastRecommendation().era).toBe("neo");
 
-      // Keep picking inside the window: the cached read is reused, but its
-      // clock must not restart, or a wrong era never expires.
       clock += 20 * 60 * 1000;
       await controller.onRelicSelectionTrigger("manual");
       await new Promise((resolve) => setTimeout(resolve, 10));
@@ -652,8 +639,6 @@ describe("relic selection planner", () => {
     const nowSpy = vi.spyOn(Date, "now").mockImplementation(() => clock);
 
     try {
-      // One truncated ladder pass costs its full budget, so a second pass would
-      // only re-read the same prefix it already ran out of time on.
       ocrSpy.mockImplementation(async () => {
         clock += 2400;
         return { era: null, confidence: 0 };
@@ -759,8 +744,6 @@ describe("relic selection planner", () => {
   }
 
   it("drops an era read that only matched the planner overlay's own cards", async () => {
-    // The band guard sees one era here, so nothing upstream rejects the
-    // self-read. The controller has to recognise the rows it just painted.
     expect(detectRelicEraFromBandText(OWN_OVERLAY_BAND).era).toBe("requiem");
 
     const { controller, ocrSpy, lastRecommendation } = makeRequiemController();
@@ -790,7 +773,6 @@ describe("relic selection planner", () => {
     await controller.onRelicSelectionTrigger("manual");
     await new Promise((resolve) => setTimeout(resolve, 900));
 
-    // A rejected read counts as empty, so it retries and then shows every era.
     expect(ocrSpy).toHaveBeenCalledTimes(2);
     const payload = lastRecommendation();
     expect(payload.era).toBeNull();
@@ -814,8 +796,6 @@ describe("relic selection planner", () => {
     await new Promise((resolve) => setTimeout(resolve, 10));
     expect(lastRecommendation().rows?.map((row) => row.label)).toEqual(["1x Lith Test Intact"]);
 
-    // The game's own tiles can echo the same words; only a contiguous run of a
-    // label we painted counts as reading ourselves.
     controller.resetMissionTier();
     ocrSpy.mockResolvedValue({
       era: "requiem",
@@ -834,8 +814,6 @@ describe("relic selection planner", () => {
     ).toEqual(["29x Requiem III Intact", "29x Requiem IV Intact"]);
   });
 
-  // An all-eras paint builds one row per owned relic group, and the planner
-  // grid scrolls, so every painted row can reach the screen and the capture.
   function makeManyRowController(rowCount: number) {
     const cacheFilePath = makeTempSnapshot({
       version: 1,
@@ -938,8 +916,6 @@ describe("relic selection planner", () => {
     expect(ocrSpy).toHaveBeenCalledTimes(2);
     expect(lastRecommendation().era).toBeNull();
 
-    // The last row scrolls into view like the first one, so quoting it back is
-    // the same self-read and has to be rejected the same way.
     controller.resetMissionTier();
     ocrSpy.mockClear();
     ocrSpy.mockResolvedValue({

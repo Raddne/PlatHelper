@@ -12,13 +12,11 @@
 
   export let contract: WfmContract;
   export let compact = false;
-  /** Undefined until the grader answers; null when it does not know the weapon. */
   export let grade: RivenContractGrade | null | undefined = undefined;
   export let onEdit: (contract: WfmContract) => void;
   export let onOpen: (contract: WfmContract) => void;
   export let onRemove: (contract: WfmContract) => void;
   export let onToggleVisible: (contract: WfmContract) => void;
-  /** Null while the riven list has not loaded; nothing is flagged until it has. */
   export let inventoryMatch: ListingInventoryMatch | null = null;
   export let busy = false;
 
@@ -49,7 +47,6 @@
     ...(contract.modRank != null ? [`R${contract.modRank}`] : []),
     ...(contract.rerolls != null ? [`RR${contract.rerolls}`] : []),
   ];
-  // An unknown weapon and a weapon the sheet lacks read the same: unrated.
   $: attrGrade = grade === undefined ? "" : (grade?.attributeGrade ?? "?");
   $: attrGradeKey = RIVEN_ATTR_GRADE_KEYS[attrGrade];
 </script>

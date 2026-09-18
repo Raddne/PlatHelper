@@ -81,7 +81,6 @@ function applyMutableThemeEdits(
   };
 }
 
-/** Rewrite one view's override, dropping the entry once nothing is left in it. */
 function withViewOverride(
   settings: ThemeSettings,
   view: ViewName,
@@ -111,7 +110,6 @@ function createThemeStore() {
 
   let saveTimer: ReturnType<typeof setTimeout> | null = null;
 
-  // Apply theme on every change and debounce save
   subscribe((settings) => {
     applyTheme(settings);
 
@@ -121,8 +119,6 @@ function createThemeStore() {
     }, SAVE_DEBOUNCE_MS);
   });
 
-  /** Override one base colour for a single view. The loader's validator decides:
-      anything it drops would apply now and vanish on the next launch. */
   function setViewColor(view: ViewName, key: keyof ThemeBaseColors, value: string): void {
     const color = asOverrideColor(value);
     if (!color) return;
@@ -134,7 +130,6 @@ function createThemeStore() {
     );
   }
 
-  /** Drop one per-view colour override so the view follows the global theme again. */
   function clearViewColor(view: ViewName, key: keyof ThemeBaseColors): void {
     update((s) => {
       const current = s.viewOverrides[view];
@@ -147,15 +142,14 @@ function createThemeStore() {
     });
   }
 
-  /** Override one font size for a single view; null clears it. The global scale is
-      not scopable: rem resolves against the root. */
+  /** Override one font size for a single view; null clears it. */
   function setViewFontSize(
     view: ViewName,
     key: Exclude<keyof ThemeFontSizes, "globalScale">,
     value: number | null,
   ): void {
-    // The loader drops out-of-range sizes, so accepting one here would apply it
-    // until the next launch and then lose it.
+    // The loader drops out-of-range sizes; accepting one here would apply it until
+    // the next launch and then lose it.
     if (
       value != null &&
       asOverrideFontSize(value, VIEW_FONT_SIZE_MIN, VIEW_FONT_SIZE_MAX) == null
@@ -190,7 +184,6 @@ function createThemeStore() {
     setViewFontSize,
     clearViewOverrides,
 
-    /** Apply a named preset. */
     applyPreset(presetKey: string): void {
       update((s) => {
         const preset = THEME_PRESETS[presetKey];
@@ -209,17 +202,14 @@ function createThemeStore() {
       });
     },
 
-    /** Update a single colour key. Switches activePreset to "custom". */
     setColor(key: keyof ThemeColors, value: string): void {
       update((s) => applyMutableThemeEdits(s, { colors: { ...s.colors, [key]: value } }));
     },
 
-    /** Update the global font scale. */
     setGlobalScale(globalScale: number): void {
       update((s) => applyMutableThemeEdits(s, { fontSizes: { ...s.fontSizes, globalScale } }));
     },
 
-    /** Update one optional font-size override. */
     setOptionalFontSize(
       key: Exclude<keyof ThemeFontSizes, "globalScale">,
       value: number | undefined,
@@ -235,7 +225,6 @@ function createThemeStore() {
       });
     },
 
-    /** Update theme effects such as corners, surface style, and glass blur. */
     setEffects(effects: Partial<ThemeEffects>): void {
       update((s) =>
         applyMutableThemeEdits(s, {
@@ -250,7 +239,6 @@ function createThemeStore() {
       );
     },
 
-    /** A cleared override follows the shared overlay opacity again. */
     setOverlayOpacity(kind: OverlayLayoutKind, opacity: number | null): void {
       update((s) => {
         const overlayOpacityOverrides = { ...s.effects.overlayOpacityOverrides };
@@ -262,7 +250,6 @@ function createThemeStore() {
       });
     },
 
-    /** Save the current edited appearance as a named custom theme. */
     saveCustomTheme(label: string): void {
       update((s) => {
         const name = sanitizeCustomThemeName(label);
@@ -284,7 +271,6 @@ function createThemeStore() {
       });
     },
 
-    /** Delete a saved custom theme. */
     deleteCustomTheme(themeId: string): void {
       update((s) => {
         if (!isCustomThemeId(themeId)) return s;
@@ -304,17 +290,14 @@ function createThemeStore() {
       });
     },
 
-    /** Set a per-view accent override (hex). */
     setViewAccent(view: ViewName, value: string): void {
       setViewColor(view, "accent", value);
     },
 
-    /** Drop a per-view accent override so the view follows the theme accent. */
     clearViewAccent(view: ViewName): void {
       clearViewColor(view, "accent");
     },
 
-    /** Toggle contrast-safe mode. */
     setContrastSafeMode(enabled: boolean): void {
       update((s) => ({
         ...s,
@@ -322,13 +305,11 @@ function createThemeStore() {
       }));
     },
 
-    /** Reset everything to default. */
     resetAll(): void {
       clearThemeSettings();
       set(cloneDefaultTheme());
     },
 
-    /** Reset only colours to the current preset (or default). */
     resetColors(): void {
       update((s) => {
         const preset = THEME_PRESETS[s.activePreset] || THEME_PRESETS.default;
@@ -336,12 +317,10 @@ function createThemeStore() {
       });
     },
 
-    /** Reset only font sizes to default. */
     resetFontSizes(): void {
       update((s) => applyMutableThemeEdits(s, { fontSizes: { ...DEFAULT_FONT_SIZES } }));
     },
 
-    /** Reset one colour to the active preset's value (or the default preset's). */
     resetColor(key: keyof ThemeColors): void {
       update((s) => {
         const preset = THEME_PRESETS[s.activePreset] ?? THEME_PRESETS.default;
@@ -353,6 +332,4 @@ function createThemeStore() {
 
 export const themeSettings = createThemeStore();
 
-/** True while the element inspector is picking. Owned here so Settings and the
-    App-level inspector overlay share one switch. */
 export const themeInspectorActive = writable(false);

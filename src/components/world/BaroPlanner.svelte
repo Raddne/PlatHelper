@@ -320,8 +320,6 @@
               >
                 <td class="px-4 py-3"
                   ><div class="flex min-w-44 items-center gap-3">
-                    <!-- Keep the slot: a skipped thumbnail pulled the name to the
-                         cell edge while its neighbours started 48px in. -->
                     {#if row.imageUrl}<ItemImage
                         src={row.imageUrl}
                         alt=""

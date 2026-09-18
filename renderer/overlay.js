@@ -9,12 +9,10 @@ const slotState = Array.from({ length: SLOTS }, () => ({
 }));
 let overlayInteractiveMode = false;
 let rewardGeneration = 0;
-// Max wait for slow price lookups before crowning the best-so-far reward.
 const BEST_PICK_SETTLE_CAP_MS = 4_000;
 const PLATINUM_ICON = "../assets/Platinum.png";
 const DUCAT_ICON = "../assets/OrokinDucats.png";
 
-// Every panel string is rebuilt from this state, so a language change needs no rescan.
 let scanningKey = "overlay.reward.scanning";
 let bestPlaceholderKey = "overlay.reward.detecting";
 let bannerMessage = null;
@@ -408,7 +406,6 @@ function prettyHotkey(hotkey) {
     .replace(/\+/g, " + ");
 }
 
-/* Label follows the live interaction hotkey; stays hidden while unbound. */
 function renderPlannerHint() {
   const hint = plannerHintElement();
   if (!hint) return;
@@ -417,7 +414,6 @@ function renderPlannerHint() {
   hint.classList.toggle("is-hidden", !plannerHintWanted || !label);
 }
 
-/* Header chip teaching the move mechanic; gone once the user has ever moved an overlay. */
 function updateDragHint() {
   const hint = document.getElementById("drag-hint");
   if (!hint) return;
@@ -656,8 +652,7 @@ async function applyRewardItems(payload) {
     return;
   }
 
-  // Slot scans stamp each item with its on-screen slot; honor that so a missed
-  // middle card leaves a gap instead of shifting later items into wrong slots.
+  // Slot scans stamp each item with its on-screen slot, so a missed middle card leaves a gap.
   const hasSlotIndexes =
     detectedItems.every(
       (item) => Number.isInteger(item?.slotIndex) && item.slotIndex >= 0 && item.slotIndex < SLOTS,
@@ -690,9 +685,7 @@ async function applyRewardItems(payload) {
 
   updateBestPick();
 
-  // A rAF callback still runs before the frame is painted, so the timeout task
-  // queued from it is the first moment the cards are actually on screen. Info
-  // level keeps a healthy paint out of the WARN lines main.log keeps for faults.
+  // A rAF callback still runs before the frame is painted, so the timeout task queued from it is the first moment the cards are on screen.
   requestAnimationFrame(() => {
     setTimeout(() => {
       if (generation !== rewardGeneration) return;
@@ -702,8 +695,6 @@ async function applyRewardItems(payload) {
     }, 0);
   });
 
-  // Delay crowning until prices settle to avoid a hopping highlight. The cap
-  // still crowns the best known item when one lookup stalls.
   const crownCap = setTimeout(() => {
     if (generation === rewardGeneration) updateBestPick();
   }, BEST_PICK_SETTLE_CAP_MS);
@@ -774,7 +765,6 @@ async function applyRewardItems(payload) {
   );
 }
 
-/* Rebuilds every string this panel writes from JS, for a live language change. */
 function renderDynamicText() {
   renderScanningText();
   renderErrorBanner();

@@ -80,8 +80,6 @@ function sellOrder(
   };
 }
 
-// Owned 5 against 1 listed and owned 2 against 9 listed are the two updates;
-// the blade already matches and the stock has no owned copy at all.
 function fixtureOrders(): { sell: FixtureOrder[]; buy: FixtureOrder[] } {
   return {
     sell: [
@@ -244,16 +242,12 @@ test.describe("Market quantity sync", () => {
 
     await expect.poll(async () => (await fixtureState()).updates.length).toBe(2);
     const state = await fixtureState();
-    // Two listings move, one is already right, one has no owned copy.
     expect(state.messages[0]).toContain("2");
     expect(state.messages[0]).toContain("1");
-    // Quantity alone: resending the price captured before the run would undo a
-    // reprice made while the run is still going.
     expect(state.updates).toEqual([
       { orderId: fixtureId(0), platinum: undefined, quantity: 5 },
       { orderId: fixtureId(1), platinum: undefined, quantity: 2 },
     ]);
-    // The stock listing owns nothing, so a zero was never sent in its name.
     expect(state.updates.some((entry) => entry.orderId === fixtureId(2))).toBe(false);
 
     await expect(quantityOf(0)).toHaveValue("5");
@@ -266,8 +260,6 @@ test.describe("Market quantity sync", () => {
     const before = await fixtureState();
     await page.locator("[data-market-sync-quantities]").click();
 
-    // Nothing differs any more: the run reports through a toast and returns
-    // before the confirmation, so neither counter moves.
     await page.waitForTimeout(500);
     const after = await fixtureState();
     expect(after.messages.length).toBe(before.messages.length);

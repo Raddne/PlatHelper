@@ -93,8 +93,6 @@ describe("parseMarketAlertRule", () => {
   });
 
   it("keeps only the first bound per attribute", () => {
-    // Duplicate attributes gave the alert card two chips with the same key,
-    // which Svelte 5 rejects at runtime.
     const result = parseMarketAlertRule(
       rivenRule({
         riven: {
@@ -222,7 +220,6 @@ describe("parseMarketAlertRule", () => {
     expect(off.ok).toBe(true);
     if (!off.ok) return;
     expect(off.value.noCooldown).toBe(true);
-    // Switching the toggle back off has to restore the window the user chose.
     expect(off.value.cooldownMinutes).toBe(90);
   });
 

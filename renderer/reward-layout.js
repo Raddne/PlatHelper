@@ -111,7 +111,6 @@
           bounds.left >= panel.right
         )
           continue;
-        // Scroll clipping does not change a repeated card's saved coordinate bounds.
         const left = bounds.left + 3;
         const top = bounds.top + 3;
         const right = bounds.right - 3;
@@ -152,7 +151,6 @@
         range.maxY = Math.min(range.maxY, position.bottom - position.height * position.scale);
       }
       for (const { element, field, style, scale } of positions) {
-        // A shared field offset must fit every visible repeated row.
         const range = limits.get(field);
         const x = Math.max(range.minX, Math.min(range.maxX, style.x));
         const y = Math.max(range.minY, Math.min(range.maxY, style.y));
@@ -198,7 +196,6 @@
         previous.previewVariant === next.previewVariant;
       if (!samePreview) pendingClamps.clear();
       else {
-        // Only an explicit geometry edit may save a clamp; preview changes stay visual.
         for (const [field, style] of Object.entries(next.layout.fields)) {
           const before = previous.layout.fields[field] || options.defaultFieldStyle;
           if (

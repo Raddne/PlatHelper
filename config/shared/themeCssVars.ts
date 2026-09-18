@@ -7,7 +7,6 @@ export function overlayOpacityCssVar(kind: OverlayLayoutKind): string {
 
 export const OVERLAY_OPACITY_CSS_VARS = OVERLAY_LAYOUT_KINDS.map(overlayOpacityCssVar);
 
-/** Color tokens (mirror of THEME_COLOR_CSS_MAP values + derived --accent-glow). */
 export const OVERLAY_FORWARDED_COLOR_VARS = [
   "--bg-deep",
   "--bg-base",
@@ -66,7 +65,6 @@ export const OVERLAY_FORWARDED_FONT_VARS = [
   "--font-small-size",
 ] as const;
 
-/** Effect tokens (mirror of THEME_EFFECT_CSS_MAP values). */
 export const OVERLAY_FORWARDED_EFFECT_VARS = [
   "--radius-sm",
   "--radius-md",
@@ -82,7 +80,6 @@ export const OVERLAY_FORWARDED_EFFECT_VARS = [
   ...OVERLAY_OPACITY_CSS_VARS,
 ] as const;
 
-/** Union of every CSS var forwarded to overlay windows. */
 export const OVERLAY_FORWARDED_CSS_VARS: readonly string[] = [
   ...OVERLAY_FORWARDED_COLOR_VARS,
   ...OVERLAY_FORWARDED_FONT_VARS,

@@ -33,11 +33,9 @@ import { asRecord } from "../../../config/shared/objectValidation.js";
 const STORAGE_KEY = "wf_theme_settings";
 const CURRENT_VERSION = 1;
 
-/** Fill missing fields in a partial theme -> complete ThemeSettings. */
 function migrateAndNormalize(raw: Record<string, unknown>): ThemeSettings {
   const version = typeof raw.version === "number" ? raw.version : 0;
 
-  // Currently only version 1 exists; future migrations go here.
   if (version < CURRENT_VERSION) {
     // Treat as fresh and merge with defaults.
   }
@@ -94,10 +92,8 @@ const PALETTE_COLOR_MAX_LEN = 96;
 // A per-view colour is re-emitted into an inline style attribute, so it stays short.
 const OVERRIDE_COLOR_MAX_LEN = 40;
 
-/** The one grammar every persisted colour passes, palette and per-view override alike:
-    a 3/4/6/8-digit hex, or rgb/rgba/hsl/hsla/oklch with a purely numeric body. ";" and
-    "{}" belong to no colour, and rejecting them is what stops a per-view value from
-    opening a second declaration. Only the length cap differs by destination. */
+/** ";" and "{}" belong to no colour, and rejecting them is what stops a per-view
+    value from opening a second declaration. */
 function asColor(value: unknown, maxLen: number): string | undefined {
   if (typeof value !== "string") return undefined;
   const trimmed = value.trim();
@@ -111,7 +107,6 @@ function asColorString(value: unknown, fallback: string): string {
   return asColor(value, PALETTE_COLOR_MAX_LEN) ?? fallback;
 }
 
-/** Exported so the store rejects at set time exactly what the loader would drop. */
 export function asOverrideColor(value: unknown): string | undefined {
   return asColor(value, OVERRIDE_COLOR_MAX_LEN);
 }
@@ -157,8 +152,6 @@ function normalizeColors(rawColors: Record<string, unknown>): ThemeColors {
     gradeDefault: asColorString(rawColors.gradeDefault, DEFAULT_BASE_COLORS.gradeDefault),
   };
 
-  // Settings saved before the semantic tokens existed fall back to the values
-  // derived from their own base palette, not from the shipped default palette.
   const derived = deriveThemeColors(base);
   const semantic = {} as ThemeDerivedColors;
   for (const key of Object.keys(derived) as Array<keyof ThemeDerivedColors>) {
@@ -183,8 +176,7 @@ function normalizeViewAccents(value: unknown): Partial<Record<ViewName, string>>
   return accents;
 }
 
-/** Out-of-range sizes are dropped, not clamped: the view then follows the global size.
-    Exported so the store rejects at set time exactly what the loader would drop. */
+/** Out-of-range sizes are dropped, not clamped: the view then follows the global size. */
 export function asOverrideFontSize(value: unknown, min: number, max: number): number | undefined {
   if (typeof value !== "number" || !Number.isFinite(value)) return undefined;
   return value >= min && value <= max ? value : undefined;
@@ -202,8 +194,6 @@ function normalizeViewOverride(raw: Record<string, unknown>): ViewThemeOverride 
     if (color) colors[key] = color;
   }
 
-  // globalScale is deliberately absent: rem resolves against the root, so only the
-  // per-category sizes can be scoped to a view. An old file carrying one is dropped.
   const rawFonts = (
     raw.fontSizes && typeof raw.fontSizes === "object" ? raw.fontSizes : {}
   ) as Record<string, unknown>;
@@ -231,7 +221,6 @@ function normalizeViewOverrides(
     if (override) overrides[key as ViewName] = override;
   }
 
-  // Accents saved before per-view overrides existed become that view's accent colour.
   for (const [key, accent] of Object.entries(accents) as Array<[ViewName, string]>) {
     const existing = overrides[key];
     if (existing?.colors?.accent) continue;
@@ -259,7 +248,6 @@ function asBlurPx(value: unknown, fallback: number): number {
     : Math.min(GLASS_BLUR_MAX_PX, Math.max(GLASS_BLUR_MIN_PX, parsed));
 }
 
-/** Stored and live edits use the same bounds, so a restart cannot change the setting. */
 export function normalizeOverlayOpacity(value: unknown): number {
   if (typeof value !== "number" || !Number.isFinite(value)) return DEFAULT_EFFECTS.overlayOpacity;
   return Math.min(OVERLAY_OPACITY_MAX, Math.max(OVERLAY_OPACITY_MIN, value));
@@ -279,7 +267,6 @@ function normalizeOverlayOpacityOverrides(
   return result;
 }
 
-/** Detach nested overrides when copying a preset or editing the active theme. */
 export function cloneThemeEffects(effects: ThemeEffects): ThemeEffects {
   return {
     ...effects,
@@ -351,7 +338,6 @@ function buildFontSizes(
   return result;
 }
 
-/** Deep-clone DEFAULT_THEME so callers get an independent copy. */
 export function cloneDefaultTheme(): ThemeSettings {
   return {
     ...DEFAULT_THEME,
@@ -379,7 +365,6 @@ export function normalizeThemeSettings(value: unknown): ThemeSettings {
   return migrateAndNormalize(value as Record<string, unknown>);
 }
 
-/** Load theme settings from localStorage. Returns DEFAULT_THEME on failure. */
 export function loadThemeSettings(): ThemeSettings {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
@@ -392,7 +377,6 @@ export function loadThemeSettings(): ThemeSettings {
   }
 }
 
-/** Save theme settings to localStorage. */
 export function saveThemeSettings(settings: ThemeSettings): void {
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
@@ -401,7 +385,6 @@ export function saveThemeSettings(settings: ThemeSettings): void {
   }
 }
 
-/** Remove theme settings from localStorage (reset). */
 export function clearThemeSettings(): void {
   try {
     localStorage.removeItem(STORAGE_KEY);

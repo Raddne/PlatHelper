@@ -48,11 +48,8 @@ export const arbiSummaryWindowsController = createOverlayWindowsController({
   setOverlayWindow: (window) => {
     ctx.arbiSummaryWindow = window;
   },
-  // Factory interactive mode would focus the window (steals game focus) - stay
-  // non-interactive and re-enable mouse events manually: clickable, never focused.
   getOverlayInteractiveMode: () => false,
   setOverlayInteractiveModeState: () => {},
-  // right-drag works without the unlock hotkey here, so save moves despite passive mode
   persistBoundsWhenPassive: true,
   // Click-through is never wanted here, and on X11 it cannot be undone.
   neverClickThrough: true,
@@ -82,7 +79,6 @@ function makeClickable(): void {
   const win = ctx.arbiSummaryWindow;
   if (!win || win.isDestroyed()) return;
   if (!arbiSummaryWindowsController.isOverlayWindowVisible()) {
-    // A renderer reload can reset the mouse flags after the content was blanked.
     if (arbiSummaryWindowsController.isKeepMappedActive()) {
       setClickThrough(win, true);
       win.setFocusable(false);
@@ -113,7 +109,6 @@ export function maybeShowArbiSummary(run: ArbiRunRecord): void {
   arbiSummaryWindowsController.scheduleOverlayAutoHide(AUTO_HIDE_MS);
 }
 
-/** Setup placement step: where the window would appear right now (saved or default). */
 export function getArbiSummaryPlacementRect() {
   return arbiSummaryWindowsController.getOverlayBoundsForActiveDisplay();
 }

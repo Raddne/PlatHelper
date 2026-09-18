@@ -1,6 +1,3 @@
-/** Trade-dialog name parsing. Runtime-neutral: the renderer reads the rank off a
- *  ledger row, main matches the base name against WFM listings. */
-
 interface ParsedTradedName {
   baseName: string;
   rank: number | null;

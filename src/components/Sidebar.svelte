@@ -40,37 +40,27 @@
 
   $: visibleNavItems = navItems.filter((item) => !$hiddenTabs.has(item.view));
 
-  // Live drag width, uncommitted: a pointer move must not hit localStorage per frame.
   let dragWidth: number | null = null;
   let resizing = false;
   let dragStartX = 0;
   let dragStartWidth = 0;
 
   $: effectiveWidth = dragWidth ?? $sidebarWidth;
-  // Follows the live drag, not the committed width: labels would otherwise stay
-  // rendered while the grip is already past the rail threshold.
   $: collapsed = dragWidth != null ? dragWidth < SIDEBAR_EXPAND_MIN : $sidebarCollapsed;
 
   const narrowRail = typeof window === "undefined" ? null : window.matchMedia("(max-width: 800px)");
 
-  // The rail carries rem-sized icons and padding, so it has to follow the font
-  // scale: at a fixed 60px the icon is wider than the button and preflight's
-  // img max-width shrinks it. The expanded width stays the px the user dragged.
+  // At a fixed 60px the icon is wider than the button and preflight's img max-width shrinks it.
   function railScaledWidth(px: number, fontScale: number): number {
     return px <= SIDEBAR_RAIL_WIDTH ? Math.round(px * fontScale) : px;
   }
 
-  // Publish the width globally so the content area and any other consumer of
-  // var(--sidebar-width) reflow with it. Under 800px responsive.css pins the icon
-  // rail, so the inline value is dropped there rather than fighting its :root rule.
   function writeWidthVar(px: number): void {
     const root = document.documentElement.style;
     if (narrowRail?.matches) root.removeProperty("--sidebar-width");
     else root.setProperty("--sidebar-width", `${px}px`);
   }
 
-  // One write per frame while the grip is held: each write relayouts the whole
-  // content area, which on the mastery tab is a four-figure card count.
   let widthFrame: number | null = null;
   let pendingWidth = 0;
 
@@ -103,15 +93,12 @@
   });
 
   function startResize(e: PointerEvent): void {
-    // Only the primary button drags; a right- or middle-click would otherwise
-    // capture the pointer and never see a matching pointerup.
     if (e.button !== 0) return;
     resizing = true;
     dragStartX = e.clientX;
     dragStartWidth = $sidebarWidth;
     dragWidth = dragStartWidth;
     (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
-    // Stops the drag from starting a text selection in the content area.
     e.preventDefault();
   }
 
@@ -140,12 +127,9 @@
     e.preventDefault();
   }
 
-  // If the active tab gets hidden, fall back to inventory so we never strand
-  // the user on a view with no way back to it.
   $: if ($hiddenTabs.has($currentView)) currentView.set("inventory");
 
   async function loadInventoryFile(): Promise<void> {
-    // seeds the helper source without claiming it - Settings owns the switch
     const result = await invoke("openInventoryFile", "helper");
     if (result) currentView.set("inventory");
   }
@@ -170,8 +154,6 @@
     : 'overflow-hidden'}"
   class:sidebar-collapsed={collapsed}
 >
-  <!-- Collapsed, a pinned dev rail plus Feedback leaves the icon list a third of
-       the height, so the whole rail scrolls as one and the nav keeps its own. -->
   <div
     data-sidebar-nav
     class="flex flex-col gap-0.5 {collapsed
@@ -340,8 +322,6 @@
   <FeedbackModal onClose={() => (feedbackOpen = false)} />
 {/if}
 
-<!-- A flex sibling rather than an overlay: the nav scrolls, so an absolutely
-     positioned grip inside it would scroll away from the edge. -->
 <div
   data-sidebar-grip
   class="sidebar-grip"
@@ -364,9 +344,6 @@
 ></div>
 
 <style>
-  /* At rest it must read as nothing at all. A transparent grip shows the shell's
-     --bg-deep, which paints a dark stripe beside the sidebar's gold border, so it
-     carries the same --bg-base as the sidebar and the content on either side. */
   .sidebar-grip {
     flex: 0 0 auto;
     width: 5px;
@@ -383,7 +360,6 @@
     background: var(--accent);
     outline: none;
   }
-  /* Under 800px responsive.css pins the rail, so a drag here would do nothing. */
   @media (max-width: 800px) {
     .sidebar-grip {
       display: none;
@@ -399,8 +375,7 @@
     padding-right: 0.5rem;
     gap: 0;
   }
-  /* Preflight caps an img at its own box, so the scrollbar the taller rows add
-     would shrink the icon below its expanded size. The rail has room for it. */
+  /* Preflight caps an img at its own box. */
   .sidebar-collapsed :global(.nav-btn img) {
     max-width: none;
   }
@@ -408,7 +383,6 @@
     .nav-btn :global(span) {
       display: none;
     }
-    /* Same padding and icon sizing as the collapsed rail. */
     .nav-btn {
       justify-content: center;
       padding-left: 0.5rem;

@@ -75,7 +75,6 @@
       label: value === "all" ? $tr("common.all") : value,
     })),
   );
-  // "?" is not offered: an unknown weapon has no attribute verdict to filter on.
   const ATTR_GRADES = ["all", "Great", "Good", "OK", "Bad"];
   const ATTR_GRADE_OPTIONS = $derived(
     ATTR_GRADES.map((value) => ({
@@ -139,13 +138,11 @@
 
   const listingByRiven = $derived(matchRivenListings(rivens, $marketContracts.contracts));
 
-  // The buyout is what a buyer can take; only an auction without one advertises
-  // its opening bid instead.
+  // The buyout is what a buyer can take.
   function listingPlatinum(contract: WfmContract): number {
     return contract.buyoutPlatinum ?? contract.platinum;
   }
 
-  // Right-click menus are placed by hand, so keep the box inside the viewport.
   const MENU_WIDTH = 224;
   const MENU_HEIGHT = 96;
 
@@ -172,7 +169,6 @@
     }
   }
 
-  /** The cached list is stale the moment the modal creates or removes a listing. */
   function reloadListings(): void {
     invalidateRivenContractsRefresh();
     void ensureRivenContractsLoaded(true);
@@ -223,7 +219,6 @@
 
   onMount(() => {
     loadRivens();
-    // Read-only and TTL-gated inside the loader, so entering the tab never polls.
     void ensureRivenContractsLoaded();
     const unsub = on("inventory-updated", () => {
       loadRivens();
@@ -284,7 +279,6 @@
       data-riven-attr-grade={riven.attributeGrade}>{$tr(attrGradeKey)}</span
     >
   {:else if riven.attributeGrade === "?"}
-    <!-- The sheet has no row for this weapon; say so instead of leaving a gap. -->
     <span
       class="{attrCls} text-text-muted"
       title={$tr("rivens.detail.noGoodRollData")}
@@ -319,8 +313,6 @@
   >
 {/snippet}
 
-<!-- Full cards get double-size buttons and carry the listing badge in the same row.
-     The wrapper stays click-through so the gaps between the buttons still open the card. -->
 {#snippet cardActions(
   riven: DecodedRiven,
   listing: WfmContract | undefined,
@@ -457,8 +449,6 @@
     {#if loading}
       {@render emptyState($tr("rivens.loading"))}
     {:else if filteredRivens.length === 0}
-      <!-- Rivens are decoded from the loaded inventory, so an empty list with an
-           inventory present means the account owns none, not that nothing loaded. -->
       {@render emptyState(
         rivens.length > 0
           ? $tr("rivens.noResults")
@@ -468,8 +458,6 @@
       )}
     {:else}
       {#if $rivenCardSize === "compact"}
-        <!-- The compact tile drops the rank pips and the dissolve-endo badge on purpose:
-             there is no room at this size and both are in the detail modal. -->
         <div
           class="grid grid-cols-[repeat(auto-fill,minmax(180px,1fr))] gap-3"
           data-riven-card-size={$rivenCardSize}
@@ -484,8 +472,6 @@
                 oncontextmenu={(event) => openCardMenu(event, riven)}
               >
                 <div class="flex items-start gap-2">
-                  <!-- ItemImage's own h-auto/w-auto outrank a size utility, so the box
-                       clamps the art instead. -->
                   <div class="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden">
                     <ItemImage
                       src={$itemDb[riven.weaponUniqueName]?.imageUrl ?? null}
@@ -624,7 +610,6 @@
                 </div>
               </button>
 
-              <!-- The bottom-right corner is frame ornament, so the actions sit top-left. -->
               {@render cardActions(
                 riven,
                 listing,

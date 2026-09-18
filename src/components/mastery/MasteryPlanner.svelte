@@ -41,8 +41,6 @@
     missing: number;
   }
 
-  // Past this many chips a card reads as a bill of materials, so the rest wait
-  // behind one expander.
   const MATERIAL_CHIP_LIMIT = 4;
 
   let showCovered = $state(false);
@@ -53,7 +51,6 @@
   const visibleTotals = $derived(showCovered ? plan.totals : shortTotals);
   const credits = $derived(creditsRow(plan.totalCredits, $inventoryData));
   const creditsVisible = $derived(credits.needed > 0 && (showCovered || credits.missing > 0));
-  // Covered rows go last in name order, so revealing them never reshuffles the rest.
   const sortedRows: MaterialRow[] = $derived(
     [
       ...visibleTotals.map((row) => ({
@@ -96,7 +93,6 @@
     return row.needed > 0 ? row.missing / row.needed : 0;
   }
 
-  // Floor so a hair under full still reads 99%; only a covered row claims 100%.
   function coveredPercent(row: { owned: number; needed: number; missing: number }): number {
     if (row.missing <= 0) return 100;
     const fraction = row.needed > 0 ? Math.max(0, Math.min(1, row.owned / row.needed)) : 1;
@@ -109,8 +105,6 @@
 
   const nameIndex = $derived(buildItemNameIndex($itemDb));
 
-  // The detail modal keys off ComponentInfo, so a planner chip hands it the same
-  // shape the collection cards do: a short part name plus its parent.
   function openRow(entry: {
     uniqueName: string;
     name: string;
@@ -141,8 +135,6 @@
       <img src={row.iconUrl} alt="" class="relative h-4 w-4 shrink-0 object-contain" />
     {/if}
     <span class="relative min-w-0 flex-1 truncate text-xs text-text-primary">{row.label}</span>
-    <!-- Compact counts so nothing clips; the title carries the exact numbers. Fixed
-         widths line the numbers up bar to bar. -->
     <span
       class="material-bar__value relative w-[6.25rem] shrink-0 text-right text-xs tabular-nums text-text-primary"
       >{formatNumber(row.owned, $locale)} / {formatNumber(row.needed, $locale)}</span
@@ -264,9 +256,6 @@
           <div class="flex min-w-0 flex-wrap gap-1.5">
             {#each listedParts as comp (comp.uniqueName)}
               {@const blueprintHeld = comp.state === "blueprint"}
-              <!-- The tone still follows the missing count, so a part listed only
-                   for its held blueprint stays neutral and carries the mark. The
-                   label counts built copies there; the plan's numbers do not. -->
               <span class="relative" data-part-state={comp.state}>
                 <ItemTile
                   tileKey={comp.uniqueName}
@@ -440,8 +429,6 @@
       {#if sortedRows.length === 0}
         <p class="text-xs text-text-muted">{$tr("mastery.planner.noMaterialsNeeded")}</p>
       {:else}
-        <!-- min() so a container narrower than one bar shrinks the track instead
-             of overflowing. -->
         <div class="grid gap-2 grid-cols-[repeat(auto-fill,minmax(min(100%,270px),1fr))]">
           {#each sortedRows as row (row.key)}
             {@render materialBar(row)}
@@ -481,8 +468,6 @@
 {/if}
 
 <style>
-  /* Tinted rather than solid: the name sits on top of this fill and has to stay
-     legible where the bar ends and where it covers the whole row. */
   .material-bar__fill {
     position: absolute;
     inset: 0 auto 0 0;
@@ -491,13 +476,8 @@
   .material-bar__fill.covered {
     background: color-mix(in oklab, var(--success) 26%, transparent);
   }
-  /* Darkens fill and empty track alike, so one pill style works at any percent. */
   .material-bar__value {
     border-radius: var(--radius-sm);
-    /* Rajdhani fills the text-xs line box to the pixel, so the percent sat flush
-       against its pill's top edge while the Barlow count sat a pixel inside its
-       own. Page zoom is fractional on a 1440p or 4K display and the rounding has
-       to land somewhere, so the box owns slack instead of inheriting none. */
     padding: 0.125rem 0.25rem;
     line-height: 1.25;
     background: color-mix(in oklab, var(--bg-deep) 55%, transparent);

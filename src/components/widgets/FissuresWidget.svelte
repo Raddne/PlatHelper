@@ -27,10 +27,7 @@
   const wd = $derived($worldData);
   const settings = $derived(widgetSettings($dashboardLayout, "widget.fissures"));
   const limit = $derived(settingNumber(settings, "limit", 5));
-  // The World tab's own mode filter, so the two lists agree on what counts.
   const modeRows = $derived(buildFissureRows(wd?.fissures, $worldFissureMode, nowMs, nowCoarseMs));
-  // A tier the stored layout has no setting for (an older file, or a tier this
-  // build does not know) stays visible rather than disappearing silently.
   const rows = $derived(modeRows.filter((row) => settingBoolean(settings, row.tierCls, true)));
   const shown = $derived(rows.slice(0, limit));
   const modeKey = $derived(MODE_LABEL_KEYS[$worldFissureMode] ?? "common.all");

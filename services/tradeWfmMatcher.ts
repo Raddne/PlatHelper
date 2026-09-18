@@ -1,5 +1,3 @@
-/** Matches traded quantities to active WFM listings. */
-
 import { withScope } from "./logger";
 import * as wfmOrders from "./wfmOrders";
 import type { NormalisedOrder } from "./wfmOrders";
@@ -48,7 +46,7 @@ async function matchesTradeRank(order: NormalisedOrder, rank: number): Promise<b
   if (rank !== 0 || order.modRank !== null || !order.itemId || !order.itemUrlName) return false;
 
   try {
-    // Rankless mods still log RANK 0. Confirm their identity and rank policy before closing.
+    // Rankless mods still log RANK 0.
     const details = await wfmCatalog.lookupItemDetails(order.itemUrlName);
     return (
       details?.id === order.itemId &&

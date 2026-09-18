@@ -13,8 +13,6 @@ import {
   type ElectronTestHarness,
 } from "./electronTestHarness";
 
-// The sizes and scales a layout sweep flagged: the arbitration split, the Baro
-// pill and the week strip all break between 1280x680 and 1366x728 above 100%.
 const SIZES = [
   { width: 1366, height: 728 },
   { width: 1280, height: 680 },
@@ -117,9 +115,7 @@ function measureArbiTable(page: Page) {
     const row = document.querySelector<HTMLElement>("[data-arbi-row]");
     if (!scroller || !head || !row) throw new Error("arbitration table is missing");
 
-    // Grid cells never overlap each other; the defect was a one-word header
-    // painting past its starved cell. Measure the text run, not the box: range
-    // rects ignore the ellipsis clip, so every header has to fit its floor.
+    // Measure the text run, not the box: range rects ignore the ellipsis clip.
     let spill = 0;
     for (const cell of Array.from(head.children)) {
       if (!cell.textContent?.trim()) continue;
@@ -187,8 +183,7 @@ function measureWeekCards(page: Page) {
     );
     if (cards.length === 0) throw new Error("the week strip has no cards");
     const spread = (values: number[]) => Math.max(...values) - Math.min(...values);
-    // Cards wrap into rows on a narrow window, so a row is the unit that has to
-    // line up; the offset check catches the defect even in a one-card row.
+    // Cards wrap into rows on a narrow window, so a row is the unit that has to line up.
     const rows = new Map<number, number[]>();
     for (const card of cards)
       rows.set(card.rowTop, [...(rows.get(card.rowTop) ?? []), card.contentTop]);
@@ -234,10 +229,6 @@ test.describe("World layout holds at a raised text scale", () => {
     await closeElectronTestHarness(harness);
   });
 
-  // The header cells had no truncate, so MISSION printed over FACTION once the
-  // flexible columns shrank; the columns themselves starved to one character.
-  // The swept sizes all stack the split; 1920 keeps the sidebar beside the
-  // table, which is the branch the rem floors have to fit into.
   test("the arbitration table keeps every column readable", async () => {
     const cases = [
       ...SIZES.flatMap((size) => SCALES.map((scale) => ({ ...size, scale, columns: 1 }))),
@@ -265,14 +256,12 @@ test.describe("World layout holds at a raised text scale", () => {
         table.mission.sixCh,
       );
       expect(table.overflow, `the table scrolls sideways at ${where}`).toBeLessThanOrEqual(0.5);
-      // Side by side, the sidebar takes a measured height; stacked it must not.
       if (item.columns === 2)
         expect(table.asideHeight, `sidebar height unset at ${where}`).toBeGreaterThanOrEqual(280);
       else expect(table.asideHeight, `sidebar height pinned at ${where}`).toBe(0);
     }
   });
 
-  // The node list is the column that gives way when the cards above it grow.
   test("the node list keeps at least four rows in view", async () => {
     for (const size of SIZES) {
       for (const scale of SCALES) {
@@ -298,8 +287,6 @@ test.describe("World layout holds at a raised text scale", () => {
     }
   });
 
-  // Svelte trims the line break that used to precede the separator, which
-  // printed "0h 49m 24s- Kronia Relay (Saturn)".
   test("the Baro pill keeps a space before the relay name", async () => {
     await setFontScale(page, 1);
     await setWindowSize(harness, 1366, 728);
@@ -309,8 +296,6 @@ test.describe("World layout holds at a raised text scale", () => {
     expect(await pill.textContent()).toMatch(/\S - \S/);
   });
 
-  // A stretched button centres its content, so the shortest card's title sat
-  // lower than its neighbours'.
   test("the week cards start their content at the same height", async () => {
     for (const size of SIZES) {
       for (const scale of [1, ...SCALES]) {
@@ -338,8 +323,6 @@ test.describe("World layout holds at a raised text scale", () => {
     }
   });
 
-  // A skipped thumbnail pulled the name to the cell edge; the slot is reserved
-  // now, so both kinds of row start at the same x.
   test("the Baro planner lines up names with and without a thumbnail", async () => {
     await setFontScale(page, 1);
     await setWindowSize(harness, 1366, 728);

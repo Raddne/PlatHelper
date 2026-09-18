@@ -77,8 +77,7 @@
   </div>
   <div class="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-5">
     {#each rows as row (row.id)}
-      <!-- A stretched button centres its content block (UA auto margins), which
-           dropped a short card's title below its neighbours; column flex pins it. -->
+      <!-- A stretched button centres its content block (UA auto margins). -->
       <button
         type="button"
         class="flex min-w-0 flex-col rounded-lg border border-border bg-surface-card p-3 text-left transition-colors hover:border-accent/50"

@@ -54,16 +54,10 @@
   const nowClock = clockStore(1000);
   $: nowMs = $nowClock;
 
-  // The sidebar starts below the view header, so a pure 100vh calc either
-  // overflows the fold (unscrolled) or leaves a gap (stuck). Measure instead.
   let asideEl: HTMLElement | null = null;
   let splitEl: HTMLElement | null = null;
 
-  // The split is a container query, so a second px threshold here would be
-  // blind to the text scale; read the resolved template back instead. It is
-  // cached on resize because a style read on every scroll forces a layout.
   let stacked = true;
-  // The status bar's height is a calc() token, so it is measured, not parsed.
   let statusbarPx = 0;
 
   function syncSplit(): void {
@@ -104,8 +98,6 @@
   onMount(() => {
     void refresh();
     syncSplit();
-    // The split also flips when the rail collapses or the text scale changes,
-    // neither of which fires a window resize.
     const splitResize = new ResizeObserver(() => syncSplit());
     if (splitEl) splitResize.observe(splitEl);
     window.addEventListener("resize", syncSplit);
@@ -336,16 +328,12 @@
   }
 </script>
 
-<!-- Container query, not a viewport one: the sidebar and the table's fixed
-     columns keep their px width while the text grows, so the split has to be
-     measured in text units or the flexible columns starve. -->
 <div class="@container">
   <div
     class="grid grid-cols-1 gap-5 @4xl:grid-cols-[18rem_minmax(0,1fr)]"
     data-tour="arbi-schedule"
     bind:this={splitEl}
   >
-    <!-- NODE SIDEBAR -->
     <aside
       data-tour="arbi-filters"
       bind:this={asideEl}
@@ -380,8 +368,6 @@
         >
       {/if}
 
-      <!-- Beside the table the list takes what the cards leave; the minimum
-           keeps about five rows once a raised text scale has grown those cards. -->
       <div
         class="flex max-h-[420px] min-h-0 flex-none flex-col overflow-y-auto rounded-[var(--radius-md)] border border-border/60 @4xl:max-h-none @4xl:min-h-[12rem] @4xl:flex-1"
         data-arbi-node-list
@@ -503,7 +489,6 @@
       </div>
     </aside>
 
-    <!-- SCHEDULE TABLE -->
     <div class="flex min-w-0 flex-col gap-2">
       <div class="flex flex-wrap items-center gap-x-4 gap-y-1.5">
         <select
@@ -570,9 +555,6 @@
       {:else if visibleEntries.length === 0}
         <div class="empty-state"><p>{$tr("arbisched.empty")}</p></div>
       {:else}
-        <!-- Fixed columns and gaps total about 460px, plus the node and mission
-             floors (8.25rem) that keep them from collapsing to an ellipsis when
-             a raised text scale eats the row; scroll the table, never the page. -->
         <div class="overflow-x-auto" data-arbi-table>
           <div class="flex flex-col">
             <div

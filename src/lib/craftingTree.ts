@@ -16,9 +16,7 @@ export interface CraftingTreeNode {
   owned: number;
   missing: number;
   isCraftable: boolean;
-  /** True for blueprint-item child nodes (the "Hide blueprints" toggle filters these). */
   isBlueprintItem?: boolean;
-  /** A filter removed children here, so the card must not offer to re-expand them. */
   childrenHidden?: boolean;
   recipe: RecipeData | null;
   usedFor: Array<{
@@ -48,10 +46,8 @@ interface CraftingTreeSummary {
 
 const MAX_DEPTH = 5;
 
-/** Lazily expanded levels allowed below the eagerly built tree. */
 export const MAX_EXPAND_DEPTH = 3;
 
-/** Common resource path prefixes - never recurse into these sub-trees. */
 const LEAF_RESOURCE_PREFIXES = ["/Lotus/Types/Items/MiscItems/", "/Lotus/Types/Items/Research/"];
 
 interface BuildContext {
@@ -68,8 +64,6 @@ export function buildCraftingTree(
   const item = itemDb[uniqueName];
   if (!item?.recipe) return null;
 
-  // The leaf rule stops recursion INTO a common resource; asking for its own
-  // tree is explicit, so the root always shows its recipe.
   return buildNode(
     { itemDb, ownership, maxDepth: MAX_DEPTH },
     uniqueName,
@@ -100,7 +94,6 @@ function isAncestor(ancestors: Iterable<string>, uniqueName: string): boolean {
 
 const materialNameCache = new WeakMap<Record<string, ItemDbEntry>, Map<string, string[]>>();
 
-/** All ingredient names in an item's crafting tree (direct + nested part recipes). */
 export function collectRecipeMaterialNames(
   uniqueName: string,
   itemDb: Record<string, ItemDbEntry>,
@@ -157,21 +150,16 @@ function buildNode(
   const owned = ownedComponentCount(uniqueName, ownership);
   const missing = Math.max(0, count - owned);
 
-  // Treat common resources as leaf nodes even if they have recipes. Expanding
-  // one is an explicit user request, so that node alone opts out of the rule.
   const effectiveRecipe = !ignoreLeafRule && isLeafResource(uniqueName) ? null : recipe;
 
-  // A run of the recipe can yield several units (num), so blueprints,
-  // ingredients, credits and time all scale with runs, not units.
+  // A run of the recipe can yield several units (num), so costs scale with runs.
   const builds = effectiveRecipe
     ? Math.max(1, Math.ceil(count / Math.max(1, effectiveRecipe.num || 1)))
     : 0;
 
   const children: CraftingTreeNode[] = [];
   if (effectiveRecipe && depth < ctx.maxDepth) {
-    // Blueprints are not listed as ingredients. Skip alternate component spellings
-    // (the same owned pile twice) and one already on the path above, which builds
-    // this very node and would hang it under itself.
+    // Blueprints are not listed as ingredients.
     if (
       effectiveRecipe.blueprintUniqueName &&
       !isSameOwnedItem(uniqueName, effectiveRecipe.blueprintUniqueName) &&
@@ -180,7 +168,6 @@ function buildNode(
       const bpUn = effectiveRecipe.blueprintUniqueName;
       const bpItem = itemDb[bpUn];
       const bpOwned = ownedComponentCount(bpUn, ownership);
-      // Reusable (infinite-use) blueprints cover any build count with one copy.
       const bpNeeded = effectiveRecipe.reusableBlueprint ? 1 : builds;
       children.push({
         uniqueName: bpUn,
@@ -242,9 +229,7 @@ interface ExpandableRecipe {
   recipe: RecipeData;
 }
 
-// The recipe a node could expand into. A blueprint entry never carries a recipe
-// of its own (parseFoundry maps blueprint -> product by scanning entry.recipe and
-// would self-map), so it roots through buildsProduct like ItemDetailModal.
+// A blueprint entry never carries a recipe of its own, so it roots through buildsProduct.
 function resolveExpandableRecipe(
   uniqueName: string,
   itemDb: Record<string, ItemDbEntry>,
@@ -260,15 +245,11 @@ function resolveExpandableRecipe(
   return null;
 }
 
-// Whether a childless node has a sub-recipe worth a chevron. `ancestors` is the
-// uniqueName path above the node, root first. A blueprint builds the item it hangs
-// under, so matching it there is what keeps the expansion from looping.
 export function canExpandCraftingNode(
   node: CraftingTreeNode,
   itemDb: Record<string, ItemDbEntry>,
   ancestors: readonly string[],
 ): boolean {
-  // Children a filter removed must stay removed, and an owned node has no bill left.
   if (node.children.length > 0 || node.childrenHidden) return false;
   if (missingUnits(node) <= 0) return false;
   const resolved = resolveExpandableRecipe(node.uniqueName, itemDb);
@@ -280,7 +261,6 @@ export function canExpandCraftingNode(
   );
 }
 
-/** What the node still costs: copies already owned are not built again. */
 function missingUnits(node: CraftingTreeNode): number {
   return Math.max(0, node.count - node.owned);
 }
@@ -293,18 +273,15 @@ interface PartRef {
   isBlueprintItem?: boolean;
 }
 
-// Components and blueprints live under /Types/Recipes/; anything else a recipe
-// asks for is a raw material, which never carries a "blueprint held" mark.
+// Components and blueprints live under /Types/Recipes/; anything else is a raw material.
 const RECIPE_PATH = /\/Types\/Recipes\//i;
 
 export function isRecipePartPath(uniqueName: string): boolean {
   return RECIPE_PATH.test(uniqueName);
 }
 
-/** Every blueprint key that builds the part: the recipe index's pick plus any
- *  alias that is itself a recipe. DE's export carries duplicate result types
- *  (two Sagek Prime recipes both produce the Barrel), so the index alone can
- *  name the wrong blueprint and a held real one would then count as built. */
+/** DE's export carries duplicate result types (two Sagek Prime recipes both produce
+ *  the Barrel), so the recipe index alone can name the wrong blueprint. */
 function blueprintKeysOf(part: PartRef, itemDb: Record<string, ItemDbEntry>): ReadonlySet<string> {
   const keys = new Set<string>();
   const blueprint = itemDb[part.uniqueName]?.recipe?.blueprintUniqueName;
@@ -315,7 +292,6 @@ function blueprintKeysOf(part: PartRef, itemDb: Record<string, ItemDbEntry>): Re
   return keys;
 }
 
-/** The part's own pile with every blueprint spelling left out. */
 function builtCopies(
   uniqueName: string,
   ownership: ReadonlyMap<string, number>,
@@ -329,17 +305,14 @@ function builtCopies(
   return built;
 }
 
-// Display only. Every count and readiness rule keeps folding a part and its
-// blueprint into one pile (ownedComponentCount: sets say ...Component or the bare
-// part, the inventory holds ...Blueprint), so a held blueprint reads as owned
-// there; this counts what is actually built, for the chip label and the mark.
+// Sets say ...Component or the bare part, the inventory holds ...Blueprint, so the
+// folded count reads a held blueprint as owned; this counts what is actually built.
 export function builtPartCount(
   part: PartRef,
   ownership: ReadonlyMap<string, number>,
   itemDb: Record<string, ItemDbEntry>,
 ): number {
   const entry = itemDb[part.uniqueName];
-  // A blueprint item is its own pile, so holding it is what owning that row means.
   if (part.isBlueprintItem === true || entry?.buildsProduct !== undefined) {
     return ownedComponentCount(part.uniqueName, ownership);
   }
@@ -349,7 +322,6 @@ export function builtPartCount(
     : ownedComponentCount(part.uniqueName, ownership);
 }
 
-/** The mark a part row carries; the numbers around it stay the folded ones. */
 export function partState(
   part: PartRef,
   ownership: ReadonlyMap<string, number>,
@@ -358,8 +330,6 @@ export function partState(
   const entry = itemDb[part.uniqueName];
   const product = entry?.buildsProduct;
   if (part.isBlueprintItem === true || product !== undefined) {
-    // A ...Blueprint is an alias of the ...Component it builds, so folding the
-    // product's pile would read this very blueprint as the built part.
     const built =
       product === undefined
         ? 0
@@ -378,9 +348,6 @@ export function partState(
   return "missing";
 }
 
-/** The uniqueName path below a node the user expanded, root first. Expansion
- *  roots a blueprint through the product it builds, so that product belongs on
- *  the path too or the pair re-offers itself one level down. */
 export function expandedChildAncestors(
   node: CraftingTreeNode,
   itemDb: Record<string, ItemDbEntry>,
@@ -392,7 +359,6 @@ export function expandedChildAncestors(
   return path;
 }
 
-/** One level of children for a node the user chose to expand. */
 export function expandCraftingNode(
   node: CraftingTreeNode,
   itemDb: Record<string, ItemDbEntry>,
@@ -404,7 +370,6 @@ export function expandCraftingNode(
   if (!resolved) return [];
 
   const nextAncestors = new Set(expandedChildAncestors(node, itemDb, ancestors));
-  // One level per click: every child re-earns its own chevron.
   return buildNode(
     { itemDb, ownership, maxDepth: 1 },
     resolved.productUniqueName,
@@ -440,13 +405,11 @@ function filterCompleted(node: CraftingTreeNode, isRoot: boolean): CraftingTreeN
   const children = node.children
     .map((child) => filterCompleted(child, false))
     .filter((child): child is CraftingTreeNode => child !== null);
-  // The root is the item the tree is about, so it stays even when covered.
   if (isRoot) return withFilteredChildren(node, children);
   if (node.owned >= node.count && children.length === 0) return null;
   return withFilteredChildren(node, children);
 }
 
-/** Toolbar filters for the eagerly built tree. */
 export function applyCraftingTreeFilters(
   root: CraftingTreeNode,
   filters: CraftingTreeFilters,
@@ -456,7 +419,6 @@ export function applyCraftingTreeFilters(
   return result;
 }
 
-/** The same predicates for a lazily expanded level the tree filter never saw. */
 export function filterExpandedChildren(
   children: readonly CraftingTreeNode[],
   filters: CraftingTreeFilters,
@@ -496,7 +458,6 @@ function findUsedFor(
   return matches;
 }
 
-/** Compute a summary of all leaf resources needed. */
 export function computeCraftingSummary(tree: CraftingTreeNode): CraftingTreeSummary {
   let totalCredits = 0;
   let minBuildTime = 0;
@@ -507,8 +468,7 @@ export function computeCraftingSummary(tree: CraftingTreeNode): CraftingTreeSumm
   function walk(node: CraftingTreeNode, depth: number): number {
     let subtreeTime = 0;
     if (node.recipe) {
-      // Same yield rule as the tree: costs accrue per run, and one recipe
-      // cannot run twice in parallel, so repeat runs stack sequentially.
+      // One recipe cannot run twice in parallel, so repeat runs stack sequentially.
       const runs = Math.max(1, Math.ceil(node.count / Math.max(1, node.recipe.num || 1)));
       totalCredits += node.recipe.buildPrice * runs;
       subtreeTime = node.recipe.buildTime * runs;
@@ -527,7 +487,6 @@ export function computeCraftingSummary(tree: CraftingTreeNode): CraftingTreeSumm
         });
       }
     } else {
-      // Craftable item with children = blueprint
       if (depth > 0 && node.isCraftable) {
         const existing = blueprintMap.get(node.uniqueName);
         if (existing) {
@@ -549,8 +508,6 @@ export function computeCraftingSummary(tree: CraftingTreeNode): CraftingTreeSumm
         maxChildTime = Math.max(maxChildTime, childTime);
         totalChildTime += childTime;
       }
-      // Min = parallel crafting (max of children + own build)
-      // Max = sequential crafting (sum of children + own build)
       if (depth === 0) {
         minBuildTime = subtreeTime + maxChildTime;
         maxBuildTime = subtreeTime + totalChildTime;

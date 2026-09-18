@@ -64,8 +64,6 @@ function measureAppearanceCards(page: Page) {
         selector,
         sectionOverflow: section.scrollWidth - section.clientWidth,
         cardOverflow: Math.max(...cards.map((card) => card.scrollWidth - card.clientWidth)),
-        // A control that dropped below its label; at the default scale every
-        // card still has both on one line, which is what pins today's look.
         stacked: cards.filter((card) => {
           const row = rowInside ? (card.firstElementChild as HTMLElement) : card;
           const label = row.firstElementChild!.getBoundingClientRect();
@@ -180,8 +178,6 @@ test.describe("Layout holds at a raised text scale", () => {
     }
   });
 
-  // Both controls used to write the store on every keystroke and every pointer
-  // move, which re-scaled the page the user was still typing or dragging in.
   test("the text size controls apply on release", async () => {
     await setFontScale(page, 1.25);
     await setWindowSize(harness, 1920, 1200);
@@ -215,8 +211,6 @@ test.describe("Layout holds at a raised text scale", () => {
     expect(await rootSize(), "releasing the slider did not apply the scale").not.toBe(scaled);
   });
 
-  // The bar height was a fixed 28px while the update pill inside it is rem-sized,
-  // so at 1.5x the pill's bottom half was cut off by the window edge.
   test("the status bar keeps its update pill inside the window", async () => {
     for (const scale of [1, 1.25, 1.5]) {
       await setFontScale(page, scale);
@@ -240,8 +234,6 @@ test.describe("Layout holds at a raised text scale", () => {
     await setWindowSize(harness, 1920, 1200);
   });
 
-  // The trade rail is content-sized inside a fixed-height row; when the header
-  // grew at a raised scale the rail ran past the row and was clipped, unscrollable.
   test("the stats trade rail scrolls instead of running past its row", async () => {
     await setFontScale(page, 1.5);
     await setWindowSize(harness, 1366, 728);
@@ -268,8 +260,6 @@ test.describe("Layout holds at a raised text scale", () => {
     await setWindowSize(harness, 1920, 1200);
   });
 
-  // The wrap is a fallback, so at the default scale both halves of every card
-  // must still share one line - that is what keeps the 100% render unchanged.
   test("the cards stay on one line at the default text scale", async () => {
     await setFontScale(page, 1);
     for (const width of [1400, 1920]) {

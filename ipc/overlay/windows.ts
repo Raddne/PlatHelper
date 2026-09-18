@@ -25,9 +25,7 @@ import type {
   OverlayWindowKey,
 } from "../../config/runtime/overlaySettings";
 
-// Shared with the z-order poll: re-stacking a window in its last seconds before a
-// queued hide crashes under injected hooks. Lives here to keep zOrder.ts
-// out of this module's electron-free import graph.
+// Re-stacking a window in its last seconds before a queued hide crashes under injected hooks.
 export const HIDE_IMMINENT_MS = 3_000;
 
 const OVERLAY_WINDOW_BOUNDS = Object.freeze({
@@ -79,8 +77,7 @@ type OverlayWindowsControllerOptions = {
   ) => void;
   overlayWindowFile: string;
   windowLabel?: string;
-  /** Stable, untranslated window title. Compositor rules match on it, so it
-   *  must not follow the UI language or a user's rule breaks on a switch. */
+  /** Stable, untranslated window title: compositor rules match on it. */
   windowTitle?: string;
   preloadFileName?: string;
   fileSearch?: string;
@@ -92,31 +89,23 @@ type OverlayWindowsControllerOptions = {
   minWindowWidth?: number;
   minWindowHeight?: number;
   hasShadow?: boolean;
-  /** When false the window gets a solid background off linux (default: true = transparent). */
   transparent?: boolean;
   backgroundColor?: string;
   windowStateKey?: OverlayWindowKey;
   onWindowBoundsChanged?: (key: OverlayWindowKey, bounds: OverlaySavedWindowBounds) => void;
-  /** Persist moves even in passive mode (arbi summary drags without the unlock hotkey). */
   persistBoundsWhenPassive?: boolean;
-  /** Skip click-through entirely for windows that are meant to stay clickable. */
   neverClickThrough?: boolean;
-  /** Restore content the controller does not send itself after a rebuild. */
   onWindowCreated?: (window: import("electron").BrowserWindow) => void;
   canRaise?: () => boolean;
   platform?: NodeJS.Platform;
   isNativeWayland?: () => boolean;
   isTilingCompositor?: () => boolean;
   placeOnGameOutput?: (title: string, output: string | null) => Promise<boolean>;
-  /** Returns null to keep the ordinary window; the default answers null unless
-   *  the compositor offers layer-shell. */
   createPresentation?: (
     options: Parameters<typeof createLayerPresentation>[0],
   ) => ReturnType<typeof createLayerPresentation> | null;
 };
 
-/** Only a compositor that offers the protocol gets a layer surface; everything
- *  else keeps the window path unchanged. */
 function defaultPresentationFactory(
   options: Parameters<typeof createLayerPresentation>[0],
 ): ReturnType<typeof createLayerPresentation> | null {
@@ -128,19 +117,16 @@ interface MovableWindow {
   setPosition(x: number, y: number, animate?: boolean): void;
 }
 
-// setPosition, never setBounds: a move has no business writing the size, and
-// writing it is what let the window drift when Windows adjusted the frame.
+// setPosition, never setBounds: writing the size let the window drift when Windows
+// adjusted the frame.
 export function moveWindowBy(win: MovableWindow, dx: number, dy: number): void {
   const { x, y } = win.getBounds();
   win.setPosition(x + dx, y + dy, false);
 }
 
-// Controllers register the window they present as a layer surface, so the drag
-// IPC can move one without knowing which overlay it belongs to.
 const layerMovers = new Map<number, (dx: number, dy: number) => void>();
 
-/** Nudge an overlay by a drag delta. A layer surface has no window position to
- *  write, so its controller rewrites the saved spot and re-anchors it instead. */
+/** A layer surface has no window position to write, so its controller re-anchors instead. */
 export function moveOverlayWindowBy(
   win: MovableWindow & { webContents?: { id: number } },
   dx: number,
@@ -160,7 +146,6 @@ export function createOverlayWindowBoundsChangeHandler(
   return (key, bounds) => {
     options.ctx.overlaySettings = {
       ...options.ctx.overlaySettings,
-      // live drag = mechanic learned, retire the hint; arbi drags don't count (no hotkey needed there)
       ...(key === "arbiSummary" ? {} : { overlayDragHintDismissed: true }),
       overlayWindowBounds: {
         ...(options.ctx.overlaySettings.overlayWindowBounds || {}),
@@ -211,9 +196,8 @@ export function createOverlayWindowsController(options: OverlayWindowsController
     createPresentation = defaultPresentationFactory,
   } = options;
 
-  // Every linux overlay is transparent whatever the caller asked for: only a
-  // transparent window can be blanked instead of unmapped on native Wayland,
-  // where each map steals game focus. The solid panel lives in the overlay CSS.
+  // Linux overlays are always transparent: only a transparent window can be blanked
+  // instead of unmapped, and each map steals game focus on native Wayland.
   const transparentWindow = transparent || platform === "linux";
   const resizeMinWidth = Math.round(Math.min(windowWidth * 0.75, 240));
   const resizeMinHeight = Math.round(Math.min(windowHeight * 0.75, 100));
@@ -222,8 +206,8 @@ export function createOverlayWindowsController(options: OverlayWindowsController
   let overlayAutoHideTimer: ReturnType<typeof setTimeout> | null = null;
   let overlayAutoHideAt = 0;
   let suppressMoveSave = false;
-  // Windows delivers resize events after setBounds returns, so a timer-based
-  // suppression races them. Remember the size we asked for instead.
+  // Windows delivers resize events after setBounds returns, so a timer-based suppression
+  // races them.
   let selfRequestedSize: { width: number; height: number } | null = null;
   let moveSaveTimer: ReturnType<typeof setTimeout> | null = null;
   let resizeSaveTimer: ReturnType<typeof setTimeout> | null = null;
@@ -231,8 +215,6 @@ export function createOverlayWindowsController(options: OverlayWindowsController
   let contentHeight: number | null = null;
   let rendererReady = false;
   let logicalVisible = false;
-  // Non-null only while this overlay is presented as a layer surface, which
-  // means its window is offscreen and never mapped.
   let layer: ReturnType<typeof createLayerPresentation> | null = null;
   let lastAppliedInteractive: boolean | null = null;
   let clickThroughApplied = false;
@@ -306,7 +288,6 @@ export function createOverlayWindowsController(options: OverlayWindowsController
       const point = screen.getCursorScreenPoint();
       return screen.getDisplayNearestPoint(point);
     } catch {
-      // Cursor position unavailable (e.g. headless/locked session) - fall back to primary.
       return screen.getPrimaryDisplay();
     }
   }
@@ -416,14 +397,11 @@ export function createOverlayWindowsController(options: OverlayWindowsController
     return { x, y, width, height, zoomFactor };
   }
 
-  /** The overlay's spot as an offset inside its monitor, which is the only
-   *  placement a layer surface understands: the compositor owns the screen
-   *  position and the client owns the margin from the output's edge. */
+  /** A layer surface is placed as a margin from its output's edge, not a screen position. */
   function layerGeometry(): LayerGeometry | null {
     const bounds = getOverlayBoundsForActiveDisplay(lastOverlayAnchorMeta);
     const display = displayMatchingBounds(bounds) || getDisplayForOverlay(lastOverlayAnchorMeta);
-    // The surface sets an exclusive zone of -1, so its margins are measured from
-    // the whole output rather than from what panels left over.
+    // Exclusive zone -1, so margins are measured from the whole output.
     const area = display?.bounds;
     if (!area) return null;
     return {
@@ -435,9 +413,6 @@ export function createOverlayWindowsController(options: OverlayWindowsController
     };
   }
 
-  /** A drag has no window position to move in layer mode, so it rewrites the
-   *  saved spot and re-anchors the surface from it. Reading the bounds back
-   *  clamps them, so a drag past an edge cannot run away. */
   function moveLayerOverlayBy(dx: number, dy: number): void {
     if (!windowStateKey || !onWindowBoundsChanged) return;
     const bounds = getOverlayBoundsForActiveDisplay(lastOverlayAnchorMeta);
@@ -457,15 +432,12 @@ export function createOverlayWindowsController(options: OverlayWindowsController
     const overlayWindow = readOverlayWindow();
     if (!overlayWindow || overlayWindow.isDestroyed()) return;
     if (nativeResizeInProgress) return;
-    // A data refresh can arrive before the last drag position reaches disk.
     if ((moveSaveTimer || resizeSaveTimer) && !suppressMoveSave) {
       saveCurrentWindowBounds(overlayWindow, resizeSaveTimer !== null);
       if (moveSaveTimer) clearTimeout(moveSaveTimer);
       if (resizeSaveTimer) clearTimeout(resizeSaveTimer);
       moveSaveTimer = resizeSaveTimer = null;
     }
-    // The compositor places and sizes a layer surface, so the geometry goes to
-    // the surface and the offscreen window behind it follows its buffer.
     if (isLayerMode()) {
       layer?.applyGeometry();
       return;
@@ -480,7 +452,6 @@ export function createOverlayWindowsController(options: OverlayWindowsController
     }, 0);
   }
 
-  /** Automatic sizing never turns a dragged position into a manual size. */
   function fitOverlayContentHeight(logicalHeight: number): void {
     if (!Number.isFinite(logicalHeight) || logicalHeight <= 0 || logicalHeight > 10_000) return;
     const window = readOverlayWindow();
@@ -502,7 +473,6 @@ export function createOverlayWindowsController(options: OverlayWindowsController
     try {
       return screen.getDisplayMatching(bounds) || null;
     } catch {
-      // No display matched the bounds.
       return null;
     }
   }
@@ -572,13 +542,10 @@ export function createOverlayWindowsController(options: OverlayWindowsController
     });
   }
 
-  // A map is not instant on Wayland, so the compositor may not know the window
-  // yet on the first ask. The second attempt is what usually lands.
+  // A map is not instant on Wayland, so the compositor may not know the window yet.
   const PLACEMENT_ATTEMPT_DELAYS_MS = [120, 500];
 
-  /** Native Wayland ignores setPosition, so the compositor is asked to move the
-   *  window to the game's output instead. Never awaited: a show must not block
-   *  on a socket, and a compositor that says no leaves the window as it was. */
+  /** Native Wayland ignores setPosition, so the compositor is asked to move the window. */
   async function placeOverlayOnGameOutput(): Promise<void> {
     if (platform !== "linux" || !windowTitle || !isNativeWayland()) return;
     const target = await resolveOutputForGame();
@@ -597,8 +564,6 @@ export function createOverlayWindowsController(options: OverlayWindowsController
   }
 
   function isKeepMappedActive(): boolean {
-    // Keep-mapped works around a window's map stealing focus. A layer surface
-    // never takes focus, so the workaround would only re-map a hidden window.
     if (isLayerMode()) return false;
     return keepMapped.isActive();
   }
@@ -607,16 +572,11 @@ export function createOverlayWindowsController(options: OverlayWindowsController
     return layer !== null;
   }
 
-  /** Keep-mapped mode where a raise is meaningless: Wayland has no stacking to
-   *  re-assert. Windows still maps on the first show, and a raise can lose that
-   *  race, so the re-assert stays there. */
+  /** Wayland has no stacking to re-assert; Windows still needs it for the first map. */
   function raiseReassertPointless(): boolean {
     return isKeepMappedActive() && platform === "linux";
   }
 
-  /** Show the surface and say so when nothing lands. The window behind it was
-   *  built offscreen, so there is nothing to fall back to and the log line is
-   *  the only evidence a blank overlay leaves. */
   function showLayerSurface(): void {
     logicalVisible = true;
     void layer?.show().then((up) => {
@@ -625,15 +585,10 @@ export function createOverlayWindowsController(options: OverlayWindowsController
     });
   }
 
-  /** A layer surface serves both modes: it swaps its input region live and
-   *  forwards pointer events into the offscreen window behind it. */
   function layerModeAllowed(): boolean {
     return platform === "linux" && isNativeWayland();
   }
 
-  /** Whether the surface should accept clicks. Interactive mode asks for them,
-   *  and so does an overlay that is never click-through: the arbi summary is
-   *  right-draggable and has a deep-link button without the unlock hotkey. */
   function layerWantsInput(): boolean {
     return neverClickThrough || readInteractiveMode();
   }
@@ -644,10 +599,8 @@ export function createOverlayWindowsController(options: OverlayWindowsController
     setClickThrough(overlayWindow, true, platform);
   }
 
-  // X11 never hands input back after click-through: setIgnoreMouseEvents(false)
-  // leaves the empty input shape, so the window must be rebuilt to take clicks.
-  // Wayland keeps its input region settable, and on tiling compositors
-  // click-through never takes effect at all - see ipc/overlay/keepMapped.ts.
+  // X11 never hands input back after click-through: setIgnoreMouseEvents(false) leaves
+  // the empty input shape, so the window must be rebuilt to take clicks.
   function needsRebuildForInteractive(): boolean {
     return platform === "linux" && clickThroughApplied && !isNativeWayland();
   }
@@ -658,8 +611,6 @@ export function createOverlayWindowsController(options: OverlayWindowsController
 
     const replay = [...lastOverlayEvents];
     const bounds = staleWindow.getBounds();
-    // Destroying clears the auto-hide timer, so a pending one is re-armed below
-    // and the overlay cannot end up staying on screen forever.
     const autoHideWasPending = overlayAutoHideTimer !== null;
     log.warn(`[OverlayWindow] rebuilding ${windowLabel} for interactive mode`);
     staleWindow.destroy();
@@ -676,15 +627,12 @@ export function createOverlayWindowsController(options: OverlayWindowsController
     if (autoHideWasPending) scheduleOverlayAutoHide(lastAutoHideDelayMs);
   }
 
-  // An immediate raise can lose the race against the map, and the z-order poll
-  // no longer rescues buried windows. Pending timers are replaced, so stacked
-  // triggers raise once.
+  // An immediate raise can lose the race against the map.
   function scheduleRaiseReassert(overlayWindow: import("electron").BrowserWindow): void {
     for (const timer of raiseReassertTimers) clearTimeout(timer);
     raiseReassertTimers = CLICK_THROUGH_REASSERT_DELAYS_MS.map((delay) =>
       setTimeout(() => {
         if (overlayWindow.isDestroyed() || !isOverlayWindowVisible()) return;
-        // Same imminent-hide guard as the z-order poll.
         const hideDueIn = overlayHideDueIn();
         if (hideDueIn !== null && hideDueIn <= HIDE_IMMINENT_MS) return;
         if (!canRaise()) {
@@ -706,8 +654,6 @@ export function createOverlayWindowsController(options: OverlayWindowsController
   function showKeepMapped(overlayWindow: import("electron").BrowserWindow): void {
     keepMapped.present(overlayWindow, setKeepMappedContentVisible);
     keepOverlayAboveGame(overlayWindow);
-    // Blanking forces click-through even on a never-click-through window, so
-    // restoring the content has to hand its input back.
     if (neverClickThrough) setClickThrough(overlayWindow, false, platform);
   }
 
@@ -742,8 +688,6 @@ export function createOverlayWindowsController(options: OverlayWindowsController
       }
     });
     overlayWindow.webContents.on("console-message", (event) => {
-      // Overlays log their paint/price timing at info; a WARN in main.log has to
-      // keep meaning something went wrong.
       if (event.level === "info") {
         log.info(`[OverlayWindow] ${windowLabel} console: ${event.message}`);
         return;
@@ -767,17 +711,10 @@ export function createOverlayWindowsController(options: OverlayWindowsController
         if (isLayerMode()) {
           showLayerSurface();
         } else if (isKeepMappedActive()) {
-          // Keep-mapped windows stay OS-visible while logically hidden, so the
-          // visibility check below cannot gate this branch.
           showKeepMapped(existingWindow);
         } else if (!existingWindow.isVisible()) {
-          // Two callers drive one trigger: the route creates the window so the
-          // interaction and theme pushes have a target, then the feature
-          // controller creates it again with the anchor it resolved. Restacking
-          // a window already up is a second moveTop the game sees.
           existingWindow.showInactive();
-          // moveTop + alwaysOnTop confirmed AFTER showInactive so the window
-          // is definitely in the visible stack before we raise it.
+          // moveTop after showInactive: the window must be in the visible stack first.
           existingWindow.moveTop();
           keepOverlayAboveGame(existingWindow);
           void placeOverlayOnGameOutput();
@@ -822,8 +759,6 @@ export function createOverlayWindowsController(options: OverlayWindowsController
       alwaysOnTop: true,
       skipTaskbar: true,
       resizable: true,
-      // Non-focusable so showing can never activate the overlay and unfocus
-      // the game; interactive mode (F7) flips focusability on temporarily.
       focusable: false,
       hasShadow,
       webPreferences: {
@@ -831,16 +766,12 @@ export function createOverlayWindowsController(options: OverlayWindowsController
         contextIsolation: true,
         nodeIntegration: false,
         sandbox: true,
-        // Offscreen so paints can be handed to the layer surface; the window
-        // itself is never mapped in this mode.
         ...(nextLayer ? { offscreen: true } : {}),
       },
     });
 
     if (windowTitle) {
       createdWindow.setTitle(windowTitle);
-      // The overlays share one html file, so the page title cannot tell them
-      // apart; hold ours so each window stays individually addressable.
       createdWindow.on("page-title-updated", (event) => event.preventDefault());
     }
 
@@ -872,11 +803,8 @@ export function createOverlayWindowsController(options: OverlayWindowsController
     positionOverlayWindow(lastOverlayAnchorMeta);
     // z-order calls un-hide a hidden window on Windows - only touch it when showing
     if (shouldShow) {
-      // showInactive() first, or moveTop becomes what reveals the window - without
-      // the inactive part, so it took focus off the game on every riven open.
+      // showInactive() first, or moveTop is what reveals the window and takes game focus.
       if (isLayerMode()) {
-        // No map, no raise, no click-through: the compositor owns all three for
-        // a layer surface, and the window behind it stays offscreen.
         showLayerSurface();
       } else {
         createdWindow.showInactive();
@@ -900,11 +828,9 @@ export function createOverlayWindowsController(options: OverlayWindowsController
       if (!raiseReassertPointless()) scheduleRaiseReassert(createdWindow);
     }
     createdWindow.on("closed", () => {
-      // The interactive rebuild destroys and recreates within one tick. If this
-      // event lands late it would tear down the replacement, so only the window
-      // still registered gets to reset the controller.
+      // The interactive rebuild destroys and recreates within one tick, so a late
+      // event must not tear down the replacement.
       if (readOverlayWindow() !== createdWindow) return;
-      // The surface outlives the window unless it is torn down here.
       layer?.hide();
       layer = null;
       clearOverlayAutoHideTimer();
@@ -923,24 +849,16 @@ export function createOverlayWindowsController(options: OverlayWindowsController
       logicalVisible = false;
       pendingOverlayEvents.length = 0;
     });
-    // A layer surface's window is offscreen and only ever resized by us, so
-    // persisting those events would read our own paint as a user drag and
-    // rewrite the saved scale. Its spot is saved by the drag path instead.
     if (!isLayerMode()) attachBoundsPersistence(createdWindow);
-    // The window that just lost focus is the one the OS may have de-banded;
-    // this closes the z-order poll's 2s rescue gap to one reassert delay.
     createdWindow.on("blur", () => {
       if (createdWindow.isDestroyed() || readOverlayWindow() !== createdWindow) return;
       if (isOverlayWindowVisible() && !raiseReassertPointless())
         scheduleRaiseReassert(createdWindow);
     });
-    // Events sent while the page is still loading reach a renderer with no
-    // listeners and are lost; the owner replays them once the load finishes.
+    // Events sent while the page is still loading reach a renderer with no listeners.
     onWindowCreated?.(createdWindow);
   }
 
-  /** Milliseconds until the queued hide, null when none is queued. The planner arms
-   *  its hide two minutes ahead, so that alone is not "about to vanish". */
   function overlayHideDueIn(): number | null {
     if (overlayAutoHideTimer === null) return null;
     return Math.max(0, overlayAutoHideAt - Date.now());
@@ -972,10 +890,8 @@ export function createOverlayWindowsController(options: OverlayWindowsController
   function isOverlayWindowVisible(): boolean {
     const overlayWindow = readOverlayWindow();
     if (!overlayWindow || overlayWindow.isDestroyed()) return false;
-    // An offscreen window is never OS-visible, so only the logical flag knows.
     if (isLayerMode()) return logicalVisible;
     if (!overlayWindow.isVisible()) return false;
-    // Keep-mapped windows are always OS-visible; the logical flag is the truth.
     return isKeepMappedActive() ? logicalVisible : true;
   }
 
@@ -983,17 +899,12 @@ export function createOverlayWindowsController(options: OverlayWindowsController
     const overlayWindow = readOverlayWindow();
     if (!overlayWindow || overlayWindow.isDestroyed()) return;
     if (isLayerMode()) {
-      // Destroying the surface is what takes it off screen; the window behind
-      // it was never mapped to begin with.
       logicalVisible = false;
       layer?.hide();
       return;
     }
     if (keepMapped.hide(overlayWindow, setKeepMappedContentVisible)) {
-      // A blanked window is still mapped, so it would swallow clicks meant for
-      // the game. Windows and Wayland can undo this shape; only X11 could not.
       applyClickThrough(overlayWindow, true);
-      // Still mapped, so an interactive window would hold focus away from the game.
       overlayWindow.blur();
       overlayWindow.setFocusable(false);
       return;
@@ -1014,13 +925,10 @@ export function createOverlayWindowsController(options: OverlayWindowsController
       overlayWindow.showInactive();
       scheduleRaiseReassert(overlayWindow);
     }
-    // A window shown after a mode change carries the old input state; re-assert it.
     setOverlayInteractiveMode(readInteractiveMode());
   }
 
   function sendOverlayEvent(channel: string, payload?: unknown): void {
-    // Remembered in send order so a rebuilt window can be brought back to the
-    // same content; re-inserting keeps the newest payload last.
     lastOverlayEvents.delete(channel);
     lastOverlayEvents.set(channel, payload);
 
@@ -1045,9 +953,7 @@ export function createOverlayWindowsController(options: OverlayWindowsController
     if (targetWindow.webContents.id !== senderId) return false;
 
     rendererReady = true;
-    // The zoom set while loadFile was still in flight is reset by the
-    // navigation commit, so the first load re-applies it here. Only displays
-    // with a base zoom other than 1 ever see the difference.
+    // The navigation commit resets a zoom set while loadFile was in flight.
     if (isLayerMode()) layer?.applyGeometry();
     else targetWindow.webContents.setZoomFactor(getOverlayBoundsForActiveDisplay().zoomFactor);
     const pending = pendingOverlayEvents.splice(0);
@@ -1056,8 +962,6 @@ export function createOverlayWindowsController(options: OverlayWindowsController
       if (keepMappedActive && event.channel === OVERLAY_CONTENT_VISIBLE) continue;
       targetWindow.webContents.send(event.channel, event.payload);
     }
-    // A new document has forgotten an already-delivered hide, and navigation can
-    // reset native input flags. Reapply current policy even when the queue is empty.
     if (keepMappedActive) {
       targetWindow.webContents.send(OVERLAY_CONTENT_VISIBLE, logicalVisible);
     }
@@ -1078,7 +982,6 @@ export function createOverlayWindowsController(options: OverlayWindowsController
     visible: boolean,
   ): void {
     const interactive = readInteractiveMode() && visible;
-    // Hidden keep-mapped siblings retain requested interaction without accepting input.
     if (interactive || (neverClickThrough && visible)) {
       setClickThrough(overlayWindow, false, platform);
     } else {
@@ -1097,8 +1000,6 @@ export function createOverlayWindowsController(options: OverlayWindowsController
     const visible = isOverlayWindowVisible();
 
     if (isLayerMode()) {
-      // The surface swaps its input region in place, so there is no window to
-      // rebuild and no focus flag to flip; the compositor owns both.
       layer?.setInteractive(layerWantsInput());
       if (lastAppliedInteractive !== interactive) {
         lastAppliedInteractive = interactive;
@@ -1110,7 +1011,6 @@ export function createOverlayWindowsController(options: OverlayWindowsController
     }
 
     if (interactive && visible && needsRebuildForInteractive()) {
-      // The rebuilt window is created interactive, so it applies the mode itself.
       rebuildForInteractive();
       return;
     }
@@ -1124,7 +1024,6 @@ export function createOverlayWindowsController(options: OverlayWindowsController
       );
     }
 
-    // Stacking and focus only mean something for a window that is on screen.
     if (!visible) return;
 
     if (!interactive && !canRaise()) {
@@ -1138,11 +1037,9 @@ export function createOverlayWindowsController(options: OverlayWindowsController
     if (interactive) {
       overlayWindow.focus();
     } else if (!isKeepMappedActive()) {
-      // Keep-mapped: the window never unmapped, so there is nothing to re-show.
       overlayWindow.showInactive();
     }
-    // Either direction of the focusable flip can drop the window out of the
-    // topmost band mid-raise, and focus() only rescues the last-focused window.
+    // Either direction of the focusable flip can drop the window out of the topmost band.
     if (!raiseReassertPointless()) scheduleRaiseReassert(overlayWindow);
   }
 

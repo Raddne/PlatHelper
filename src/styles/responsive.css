@@ -1,10 +1,6 @@
-/* The relic grid sizes itself: rem-based auto-fill columns track the root
-   font scale, so px-blind viewport steps here would fight larger fonts. */
 @media (max-width: 800px) {
   :root {
     --content-gutter: 1rem;
-    /* Matches the collapsed rail (4rem at the default font size), which is what
-       keeps a 1.5rem nav icon from being squeezed by the button it sits in. */
     --sidebar-width: 4rem;
     --relic-grid-gap: 0.52rem;
     --relic-card-icon-size: 2.35rem;

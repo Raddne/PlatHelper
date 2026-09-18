@@ -29,8 +29,7 @@
   box-sizing: border-box;
 }
 
-/* #panel paints the surface, never the page: an html/body background would leak
-   through a keep-mapped hide (Wayland, transparent Windows) as a dark box. */
+/* An html/body background would leak through a keep-mapped hide (Wayland, transparent Windows) as a dark box. */
 html,
 body {
   background: transparent;
@@ -72,8 +71,7 @@ body {
   border-bottom: 0;
 }
 
-/* No app-region drag anywhere: passive mode is click-through on every platform,
-   and Linux never refreshes the region, so a stale caption ate every click. */
+/* No app-region drag anywhere: Linux never refreshes the region, so a stale caption ate every click. */
 #header {
   -webkit-app-region: no-drag;
 }
@@ -129,7 +127,6 @@ body {
   border-radius: 50%;
   /* steps(): ~9 repaints/s - the window is software-rendered over the game. */
   animation: spin 0.85s steps(8) infinite;
-  /* A narrow panel squashed the ring into an ellipse without this. */
   flex-shrink: 0;
 }
 
@@ -154,7 +151,6 @@ body {
   overflow-y: auto;
 }
 
-/* Planner scrolls; keep the close X clear of its scrollbar. */
 .planner-mode #header {
   right: 14px;
 }
@@ -637,7 +633,6 @@ body {
   color: var(--muted);
 }
 
-/* The reward uses color only, so its cell keeps the same outline as its neighbours. */
 .slot-set-part.is-reward {
   border-color: var(--accent-bright);
   background: color-mix(in oklab, var(--accent) 22%, transparent);

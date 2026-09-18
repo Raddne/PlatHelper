@@ -12,15 +12,12 @@
   interface Props {
     runs: TRun[];
     onSelect: (id: string) => void;
-    /** The feature's own columns, between the date and the log size. */
     headers: Snippet;
     cells: Snippet<[TRun]>;
     deleteRun: (id: string) => Promise<void>;
     deleteRunLog: (id: string) => Promise<void>;
-    /** Hooks the e2e specs locate the table and its rows by. */
     listAttrs?: Record<string, string>;
     rowAttrs?: (run: TRun) => Record<string, string>;
-    /** Selection column; null for a list without bulk actions. */
     selected?: Set<string> | null;
     onToggleSelect?: (id: string) => void;
     onToggleSelectAll?: () => void;
@@ -156,10 +153,6 @@
 </div>
 
 <style>
-  /* Ten rem-sized cell gutters, not the text, are what pushed this table past a
-     1280px window at 1.5x text. Tying them to the table's own width tightens
-     them only there: in a box wider than 60rem (every swept window at 100%)
-     1.25cqi already exceeds the 0.75rem cap, so the default look is unchanged. */
   .runs-scroll {
     container-type: inline-size;
   }

@@ -65,8 +65,6 @@ describe("mastery planner aggregation", () => {
     expect(totalFor(plan, FERRITE)).toEqual({ needed: 5000, owned: 4000, missing: 1000 });
     expect(plan.totalCredits).toBe(20_000);
 
-    // The pool is handed out in plan order, so the rows add up to the total
-    // instead of showing two covered bars above one short total.
     const rowFor = (index: number) =>
       plan.items[index].resources.find((row) => row.uniqueName === FERRITE);
     expect(rowFor(0)).toMatchObject({ needed: 3000, owned: 3000, missing: 0 });
@@ -95,7 +93,6 @@ describe("mastery planner aggregation", () => {
       new Map([[FERRITE, 900]]),
     );
 
-    // The row shows the share this pin uses; the total still reports the pile.
     expect(plan.items[0].resources[0]).toMatchObject({ needed: 100, owned: 100, missing: 0 });
     expect(totalFor(plan, FERRITE)).toEqual({ needed: 100, owned: 900, missing: 0 });
   });
@@ -254,11 +251,9 @@ describe("mastery planner ownership rules", () => {
       buildMasteryPlan([pin("/Lotus/Powersuits/Alpha", "Alpha")], db, ownership).items[0];
 
     const held = planFor(new Map([[chassisBp, 1]]));
-    // The alias rule keeps counting the blueprint as the part; only the mark differs.
     expect(held.components[0]).toMatchObject({ owned: 1, missing: 0, state: "blueprint" });
     expect(held.craftableNow).toBe(true);
     expect(held.completeness).toBe(1);
-    // The chip prints built/needed for a held blueprint, so "0/1", not "1/1".
     expect([held.components[0].built, held.components[0].needed]).toEqual([0, 1]);
 
     const built = planFor(new Map([[chassis, 1]])).components[0];
@@ -292,7 +287,6 @@ describe("mastery planner ownership rules", () => {
     );
     const blueprint = plan.items[0].components.find((comp) => comp.uniqueName === frameBp);
 
-    // The chip IS the blueprint, so its label keeps counting the held copy.
     expect(blueprint).toMatchObject({
       isBlueprint: true,
       missing: 0,
@@ -330,7 +324,6 @@ describe("mastery planner recipe walking", () => {
     expect(totalFor(plan, FERRITE).needed).toBe(900);
     expect(totalFor(plan, PLASTIDS).needed).toBe(220);
     expect(plan.totalCredits).toBe(40_000);
-    // The chassis stays a component chip and never doubles as a material row.
     expect(plan.totals.some((row) => row.uniqueName === chassis)).toBe(false);
     expect(plan.items[0].components[0].uniqueName).toBe(chassis);
   });
@@ -384,7 +377,6 @@ describe("mastery planner recipe walking", () => {
 
     const plan = buildMasteryPlan([pin("/Lotus/Weapons/Alpha", "Alpha")], db, new Map());
 
-    // Four widgets are two runs of a yield-2 recipe, not four.
     expect(totalFor(plan, FERRITE).needed).toBe(200);
     expect(plan.totalCredits).toBe(2000);
   });
@@ -418,8 +410,6 @@ describe("mastery planner recipe walking", () => {
   });
 
   it("needs one reusable blueprint no matter how many runs a part takes", () => {
-    // A name the alias rule cannot fold into the part, or the tree drops the
-    // blueprint child as the same owned pile.
     const widget = "/Lotus/Types/Recipes/Components/Gizmo";
     const widgetBp = "/Lotus/Types/Recipes/Components/GizmoConstructionBlueprint";
     const db: Record<string, ItemDbEntry> = {
@@ -448,7 +438,6 @@ describe("mastery planner recipe walking", () => {
     );
 
     expect(totalFor(plan, FERRITE).needed).toBe(20);
-    // Two runs, but a reusable blueprint is still only wanted once.
     expect(totalFor(plan, widgetBp).needed).toBe(1);
   });
 
@@ -470,10 +459,8 @@ describe("mastery planner recipe walking", () => {
       new Map([[FERRITE, 4000]]),
     );
 
-    // Ferrite belongs under materials only; a chip for it repeats the row below.
     expect(short.items[0].components).toEqual([]);
     expect(short.items[0].resources.map((row) => row.uniqueName)).toEqual([FERRITE]);
-    // Dropping the chip must not turn an unaffordable build into a ready one.
     expect(short.items[0].completeness).toBe(0);
     expect(short.items[0].craftableNow).toBe(false);
     expect(stocked.items[0].completeness).toBe(1);
@@ -507,7 +494,6 @@ describe("mastery planner recipe walking", () => {
       new Map([[widgetBp, 1]]),
     );
 
-    // Three runs need three blueprints; the one owned copy covers one of them.
     const row = plan.items[0].resources.find((entryRow) => entryRow.uniqueName === widgetBp);
     expect(row).toMatchObject({ needed: 3, owned: 1, missing: 2 });
     expect(totalFor(plan, widgetBp)).toEqual({ needed: 3, owned: 1, missing: 2 });
@@ -571,7 +557,6 @@ describe("mastery planner detail targets", () => {
     expect(target.parentName).toBe("Braton Prime");
     expect(target.comp).toMatchObject({ uniqueName: receiver, itemCount: 2, ownedCount: 1 });
     expect(target.comp.owned).toBe(false);
-    // The modal joins parent and component, so the planner must not pre-join them.
     expect(
       resolveComponentPriceLookup(target.comp, target.parentName, targetDb[receiver], lookup).name,
     ).toBe("Braton Prime Receiver");
@@ -666,8 +651,6 @@ describe("mastery planner sorting", () => {
       plannedItem({ name: "Zeta", masteryXpRemaining: 6000 }),
       plannedItem({ name: "Alpha", masteryXpRemaining: 100, craftableNow: true }),
       plannedItem({ name: "Beta", masteryXpRemaining: 900, craftableNow: true }),
-      // A pin with no recipe reads as craftable in the data, so the group guard
-      // has to check both flags.
       plannedItem({ name: "Gamma", craftableNow: true, hasRecipe: false }),
     ];
 

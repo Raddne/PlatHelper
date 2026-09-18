@@ -113,7 +113,6 @@ describe("detectRelicSelectionEra budget", () => {
     const granted: number[] = [];
     const ocr = {
       runOCR: vi.fn(async () => ""),
-      // Each crop costs 800ms of the 2000ms pass budget and reads nothing.
       runOCRBuffer: vi.fn(async (_buffer: Buffer, timeoutMs: number) => {
         granted.push(timeoutMs);
         clock += 800;
@@ -143,8 +142,6 @@ describe("detectRelicSelectionEra budget", () => {
 
     await detectRelicSelectionEra({ timeoutMs: 1000 }, ocr, { ocrTimeoutMs: 15_000 });
 
-    // The filter label burns the whole budget, so the 5 tile and 3 band rects
-    // must not still pay for a crop plus an OCR variant build each.
     expect(ocr.runOCRBuffer).toHaveBeenCalledTimes(1);
     expect(cropped.count).toBe(1);
   });

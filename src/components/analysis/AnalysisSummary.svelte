@@ -19,7 +19,6 @@
 
   const marginPct = $derived(formatPct(basis.estimatedMarginPct, $locale));
 
-  // The rank left the name when the rollup split by it, so the tile says it here.
   const bestName = $derived(
     !best
       ? ""
@@ -81,7 +80,6 @@
 <div class="flex flex-col gap-2" data-analysis-summary>
   <SummaryStrip {items} variant="grid" />
 
-  <!-- Never let the margin tile stand without its caveats. -->
   <div
     class="flex flex-wrap items-center gap-x-4 gap-y-1 px-1 text-xs text-text-muted"
     data-analysis-estimate-note

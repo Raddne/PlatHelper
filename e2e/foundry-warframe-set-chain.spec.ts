@@ -17,8 +17,6 @@ interface ChainSeed {
   misc: Array<{ ItemType: string; ItemCount: number }>;
 }
 
-// Pull Yareli's real chain from the shipped item DB: main BP, the part
-// blueprints, and enough raw resources for every part build.
 async function readChainSeed(page: Page): Promise<ChainSeed> {
   const seed = (await page.evaluate(async () => {
     const db = (await window.api.getItemDatabase()) as unknown as Record<
@@ -56,9 +54,6 @@ async function readChainSeed(page: Page): Promise<ChainSeed> {
   return seed!;
 }
 
-// Warframes gate "Can build (full set)" behind their crafting chain: the main
-// blueprint only turns buildable after the parts are BUILT, so the filter must
-// count a frame whose parts are all still craftable from owned blueprints.
 test.describe("Foundry buildable-set chain", () => {
   test.setTimeout(180_000);
 
@@ -100,7 +95,6 @@ test.describe("Foundry buildable-set chain", () => {
     await expect.poll(() => page.locator(".resource-card").count()).toBe(1);
     await expect(page.locator(".resource-card")).toContainText("Yareli");
 
-    // Dropping one part blueprint breaks the chain, so the frame disappears.
     write(seed, [seed.mainBp, ...seed.partBps.slice(1)]);
     await expect.poll(() => page.locator(".resource-card").count(), { timeout: 60_000 }).toBe(0);
 
@@ -113,8 +107,6 @@ test.describe("Foundry buildable-set chain", () => {
     const seed = await readChainSeed(page);
     const [heldPart, missingPart] = seed.partIngredients;
 
-    // Only the first part blueprint, so its row on the main blueprint card reads
-    // as blueprint-owned while the second part stays missing.
     write(seed, [seed.mainBp, seed.partBps[0]]);
     const held = page.locator(`[data-ingredient="${heldPart}"]`);
     await expect(held).toHaveAttribute("data-part-state", "blueprint", { timeout: 60_000 });
@@ -123,7 +115,6 @@ test.describe("Foundry buildable-set chain", () => {
       "missing",
     );
 
-    // Building the part flips the same row to owned.
     fs.writeFileSync(
       path.join(harness!.helperDir, "inventory.json"),
       JSON.stringify({

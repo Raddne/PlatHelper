@@ -172,8 +172,6 @@ describe("riven panels reused by a second session", () => {
 
     expect(controllers()).toHaveLength(2);
     for (const controller of controllers()) {
-      // Stale bounds and zoom survive a display change otherwise: nothing else
-      // re-derives them for a window that is never recreated.
       expect(controller.positionOverlayWindow).toHaveBeenCalledWith(controller.anchor);
       expect(controller.showOverlayWindowInactive).toHaveBeenCalled();
       expect(controller.createOverlayWindow).not.toHaveBeenCalled();
