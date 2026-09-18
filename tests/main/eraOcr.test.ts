@@ -5,26 +5,44 @@ import { createEraOcr } from "../../services/rewardScannerOcr";
 const PNG = Buffer.from("png");
 
 const stubImage = { toPNG: () => PNG, isEmpty: () => false };
-const cropped = vi.hoisted(() => ({ count: 0 }));
+const cropped = vi.hoisted(() => ({
+  count: 0,
+  costMs: 0,
+  charge(): void {
+    if (this.costMs <= 0) return;
+    const until = Date.now() + this.costMs;
+    while (Date.now() < until) {
+      /* the real crop costs wall time the budget has to survive */
+    }
+  },
+}));
+const capture = vi.hoisted(() => ({
+  onCapture: null as (() => void | Promise<void>) | null,
+}));
 
 vi.mock("../../services/screenCapture", () => ({
-  captureScreenFast: vi.fn(async () => ({
-    image: stubImage,
-    sourceType: "gdi",
-    sourceName: "Warframe",
-    sourceId: "1",
-    sourceDisplayId: "1",
-  })),
+  captureScreenFast: vi.fn(async () => {
+    await capture.onCapture?.();
+    return {
+      image: stubImage,
+      sourceType: "gdi",
+      sourceName: "Warframe",
+      sourceId: "1",
+      sourceDisplayId: "1",
+    };
+  }),
 }));
 
 vi.mock("../../services/rewardScannerImage", () => ({
   buildOcrVariants: () => [{ id: "raw", image: stubImage }],
   cropRect: () => {
     cropped.count += 1;
+    cropped.charge();
     return stubImage;
   },
   cropBand: () => {
     cropped.count += 1;
+    cropped.charge();
     return stubImage;
   },
 }));
@@ -99,12 +117,48 @@ describe("createEraOcr", () => {
   });
 });
 
+describe("detectRelicSelectionEra on a budget under one attempt minimum", () => {
+  beforeEach(() => {
+    cropped.count = 0;
+    cropped.costMs = 0;
+    capture.onCapture = null;
+  });
+
+  it("still reads once, on the real clock, when the retry budget is 600ms", async () => {
+    const { detectRelicSelectionEra } = await import("../../services/rewardScannerEra");
+    capture.onCapture = () => new Promise<void>((resolve) => setTimeout(resolve, 30));
+    cropped.costMs = 10;
+    const granted: number[] = [];
+    const ocr = {
+      runOCR: vi.fn(async () => ""),
+      runOCRBuffer: vi.fn(async (_buffer: Buffer, timeoutMs: number) => {
+        granted.push(timeoutMs);
+        await new Promise((resolve) => setTimeout(resolve, 20));
+        return "";
+      }),
+    };
+
+    const startedAt = Date.now();
+    const result = await detectRelicSelectionEra({ timeoutMs: 600 }, ocr, {
+      ocrTimeoutMs: 15_000,
+    });
+
+    expect(granted).toHaveLength(1);
+    expect(granted[0]).toBeGreaterThan(0);
+    expect(granted[0]).toBeLessThanOrEqual(600);
+    expect(Date.now() - startedAt).toBeLessThan(1200);
+    expect(result.era).toBeNull();
+  });
+});
+
 describe("detectRelicSelectionEra budget", () => {
   let clock = 0;
 
   beforeEach(() => {
     clock = 1_700_000_000_000;
     cropped.count = 0;
+    cropped.costMs = 0;
+    capture.onCapture = null;
     vi.spyOn(Date, "now").mockImplementation(() => clock);
   });
 
@@ -144,5 +198,49 @@ describe("detectRelicSelectionEra budget", () => {
 
     expect(ocr.runOCRBuffer).toHaveBeenCalledTimes(1);
     expect(cropped.count).toBe(1);
+  });
+
+  it("charges the capture to the same budget the caller asked for", async () => {
+    const { detectRelicSelectionEra } = await import("../../services/rewardScannerEra");
+    capture.onCapture = () => {
+      clock += 1200;
+    };
+    const granted: number[] = [];
+    const ocr = {
+      runOCR: vi.fn(async () => ""),
+      runOCRBuffer: vi.fn(async (_buffer: Buffer, timeoutMs: number) => {
+        granted.push(timeoutMs);
+        clock += 400;
+        return "";
+      }),
+    };
+
+    const startedAt = clock;
+    const result = await detectRelicSelectionEra({ timeoutMs: 2000 }, ocr, {
+      ocrTimeoutMs: 15_000,
+    });
+
+    expect(granted).toEqual([800]);
+    expect(clock - startedAt).toBeLessThanOrEqual(2000);
+    expect(result.elapsedMs).toBe(1600);
+  });
+
+  it("reads nothing when the capture alone spent the whole budget", async () => {
+    const { detectRelicSelectionEra } = await import("../../services/rewardScannerEra");
+    capture.onCapture = () => {
+      clock += 2500;
+    };
+    const ocr = {
+      runOCR: vi.fn(async () => ""),
+      runOCRBuffer: vi.fn(async () => ""),
+    };
+
+    const result = await detectRelicSelectionEra({ timeoutMs: 2000 }, ocr, {
+      ocrTimeoutMs: 15_000,
+    });
+
+    expect(ocr.runOCRBuffer).not.toHaveBeenCalled();
+    expect(ocr.runOCR).not.toHaveBeenCalled();
+    expect(result.era).toBeNull();
   });
 });
