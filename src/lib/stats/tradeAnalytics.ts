@@ -9,6 +9,7 @@ import {
 import { fallbackNameFromUniqueName } from "../../../config/shared/displayName.js";
 import { parseTradedItemName } from "../../../config/shared/tradeItemName.js";
 import { normalizeWfmSlug } from "../../../config/shared/wfm.js";
+import { rendererPriceCacheKey } from "../../../config/shared/wfmCacheKeys.js";
 import { gameRefKey } from "../marketNaming.js";
 import { readStorage, writeStorage } from "../persistence.js";
 import type {
@@ -63,7 +64,6 @@ export interface ItemRollup {
   name: string;
   /** Muted qualifier, currently the generated riven roll name. */
   secondary: string | null;
-  /** Mod/arcane rank the dialog tagged the item with; null when it carries none. */
   rank: number | null;
   units: number;
   events: number;
@@ -317,6 +317,16 @@ export function tradeItemLabel(item: TradeItem): TradeItemLabel {
 
 function itemName(item: TradeItem): string {
   return tradeItemLabel(item).primary;
+}
+
+/** Price-cache key for a trade row, or null when nothing names an item. A
+ *  bare-slug price on warframe.market is whichever rank sold last, so a row
+ *  that carries a rank only ever reads the entry pinned to it. */
+export function tradeItemPriceCacheKey(item: TradeItem, lookup: WfmItemsLookup): string | null {
+  const name = (item?.displayName ?? "").trim().toLowerCase();
+  const slug = normalizeWfmSlug(item?.wfmSlug) ?? normalizeWfmSlug(lookup[name]?.url_name);
+  if (!slug) return null;
+  return rendererPriceCacheKey(slug, tradeItemLabel(item).rank);
 }
 
 /** Item-database category to a kind, or null when the category says nothing. */
@@ -577,7 +587,6 @@ export function distinctItemCategories(
       });
     }
   }
-  // Two ranks of one arcane share a name, so the rank settles their order.
   return [...map.values()].sort(
     (a, b) => a.name.localeCompare(b.name) || (a.rank ?? -1) - (b.rank ?? -1),
   );
@@ -687,8 +696,6 @@ export function withCategoryOverrides(
 ): CategoryResolver {
   return (item) => {
     const key = itemKey(item);
-    // An override saved before the rank split sits on the bare key, so a ranked
-    // row still honours it until the user picks a category for that rank.
     const override = effectiveOverride(overrides, key);
     if (override) return override;
     const resolved = base(item);

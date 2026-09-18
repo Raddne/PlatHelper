@@ -18,6 +18,7 @@ import {
   resolveRangePreset,
   saveCategoryOverrides,
   topItems,
+  tradeItemPriceCacheKey,
   typeRollup,
   UNCATEGORIZED,
   withCategoryOverrides,
@@ -349,6 +350,46 @@ describe("rank rollups", () => {
   it("carries the rank into the worth rows", () => {
     const rows = worthToday(events, () => 30).rows;
     expect(rows.map((r) => r.rank).sort()).toEqual([0, 5]);
+  });
+
+  it("keys the price cache by the rank that sold", () => {
+    expect(tradeItemPriceCacheKey(ranked(0), {})).toBe("arcane_energize:rank-v3:r0");
+    expect(tradeItemPriceCacheKey(ranked(5), {})).toBe("arcane_energize:rank-v3:r5");
+  });
+
+  it("keeps an unranked row on the bare slug", () => {
+    const plain: TradeItem = {
+      internalName: "",
+      displayName: "Ash Prime Chassis",
+      count: 1,
+      direction: "given",
+      wfmSlug: "ash_prime_chassis",
+    };
+    const unslugged: TradeItem = { ...plain, wfmSlug: "" };
+    expect(tradeItemPriceCacheKey(plain, {})).toBe("ash_prime_chassis");
+    expect(tradeItemPriceCacheKey(unslugged, {})).toBeNull();
+    expect(
+      tradeItemPriceCacheKey(unslugged, {
+        "ash prime chassis": { url_name: "ash_prime_chassis" },
+      }),
+    ).toBe("ash_prime_chassis");
+  });
+
+  it("leaves a rank the cache has no entry for unpriced", () => {
+    const cache: Record<string, number> = {
+      "arcane_energize:rank-v3:r5": 180,
+      arcane_energize: 12,
+    };
+    const worth = worthToday(events, (item) => {
+      const key = tradeItemPriceCacheKey(item, {});
+      return key == null ? null : (cache[key] ?? null);
+    });
+    expect(worth.rows.map((r) => ({ rank: r.rank, median: r.median }))).toEqual([
+      { rank: 5, median: 180 },
+      { rank: 0, median: null },
+    ]);
+    expect(worth.totalWorth).toBe(180);
+    expect(worth.unpricedRows).toBe(1);
   });
 
   it("lists each rank as its own category row", () => {

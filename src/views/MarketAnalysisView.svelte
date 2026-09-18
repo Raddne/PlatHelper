@@ -111,8 +111,6 @@
   import { persistedBoolean } from "../lib/persistence.js";
   import { priceCacheRevision } from "../stores/pricing.js";
   import { getCachedMedian } from "../stores/hydration/hydrationCacheHelpers.js";
-  import { normalizeWfmSlug } from "../../config/shared/wfm.js";
-  import { rendererPriceCacheKey } from "../../config/shared/wfmCacheKeys.js";
   import {
     type LedgerErrorCode,
     type LedgerEventPatch,
@@ -139,6 +137,7 @@
     todayFlow,
     topItems,
     TRADE_ITEM_KINDS,
+    tradeItemPriceCacheKey,
     typeRollup,
     withCategoryOverrides,
     worthToday,
@@ -526,10 +525,8 @@
     // Re-derive when the snapshot lands; the price cache itself is not a store.
     void $priceCacheRevision;
     return (item: TradeItem): number | null => {
-      const name = (item.displayName ?? "").trim().toLowerCase();
-      const slug = normalizeWfmSlug(item.wfmSlug) ?? normalizeWfmSlug(lookup[name]?.url_name);
-      if (!slug) return null;
-      return getCachedMedian(rendererPriceCacheKey(slug, null));
+      const key = tradeItemPriceCacheKey(item, lookup);
+      return key == null ? null : getCachedMedian(key);
     };
   });
 
