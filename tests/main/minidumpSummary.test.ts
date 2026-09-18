@@ -19,6 +19,7 @@ interface DumpSpec {
   threads: ThreadSpec[];
   module?: { base: bigint; size: number; name: string };
   addons?: string[];
+  declaredModules?: number;
 }
 
 /** Minimal MDMP: header, directory, exception, thread list, thread names and an
@@ -74,7 +75,7 @@ function buildDump(spec: DumpSpec): Buffer {
   if (spec.module || addonNameRvas.length) {
     const rows = (spec.module ? 1 : 0) + addonNameRvas.length;
     const modules = Buffer.alloc(4 + rows * 108);
-    modules.writeUInt32LE(rows, 0);
+    modules.writeUInt32LE(spec.declaredModules ?? rows, 0);
     let row = 0;
     if (spec.module) {
       const at = 4 + row * 108;
@@ -130,8 +131,16 @@ afterEach(() => {
   fs.rmSync(dir, { recursive: true, force: true });
 });
 
+function patchNameLength(file: string, name: string, bytes: number): void {
+  const buf = fs.readFileSync(file);
+  const at = buf.indexOf(Buffer.from(name, "utf16le"));
+  expect(at).toBeGreaterThan(0);
+  buf.writeUInt32LE(bytes, at - 4);
+  fs.writeFileSync(file, buf);
+}
+
 describe("crash dump summary", () => {
-  it("names the exception, the faulting thread and the busiest pool", () => {
+  it("names the exception, the faulting thread and the busiest pool", async () => {
     const file = write("crash.dmp", {
       code: 0x80000003,
       faultingThread: 5736,
@@ -146,7 +155,7 @@ describe("crash dump summary", () => {
       ],
     });
 
-    const summary = summarizeCrashDump(file);
+    const summary = await summarizeCrashDump(file);
 
     expect(summary).toContain("0x80000003");
     expect(summary).toContain("EXCEPTION_BREAKPOINT");
@@ -156,7 +165,7 @@ describe("crash dump summary", () => {
     expect(summary).toContain("libvips worker=3");
   });
 
-  it("falls back to the thread id when the dump carries no names", () => {
+  it("falls back to the thread id when the dump carries no names", async () => {
     const file = write("noname.dmp", {
       code: 0xc0000005,
       faultingThread: 42,
@@ -164,13 +173,13 @@ describe("crash dump summary", () => {
       threads: [{ id: 42 }],
     });
 
-    const summary = summarizeCrashDump(file);
+    const summary = await summarizeCrashDump(file);
 
     expect(summary).toContain("EXCEPTION_ACCESS_VIOLATION");
     expect(summary).toContain("thread=42");
   });
 
-  it("reports an unknown exception code rather than guessing", () => {
+  it("reports an unknown exception code rather than guessing", async () => {
     const file = write("odd.dmp", {
       code: 0x12345678,
       faultingThread: 1,
@@ -178,21 +187,21 @@ describe("crash dump summary", () => {
       threads: [{ id: 1, name: "CrBrowserMain" }],
     });
 
-    expect(summarizeCrashDump(file)).toContain("0x12345678");
+    expect(await summarizeCrashDump(file)).toContain("0x12345678");
   });
 
-  it("returns null for a file that is not a minidump", () => {
+  it("returns null for a file that is not a minidump", async () => {
     const file = path.join(dir, "junk.dmp");
     fs.writeFileSync(file, Buffer.from("not a dump at all"));
 
-    expect(summarizeCrashDump(file)).toBeNull();
+    expect(await summarizeCrashDump(file)).toBeNull();
   });
 
-  it("returns null for a missing file", () => {
-    expect(summarizeCrashDump(path.join(dir, "absent.dmp"))).toBeNull();
+  it("returns null for a missing file", async () => {
+    expect(await summarizeCrashDump(path.join(dir, "absent.dmp"))).toBeNull();
   });
 
-  it("survives a truncated dump", () => {
+  it("survives a truncated dump", async () => {
     const file = write("cut.dmp", {
       code: 0x80000003,
       faultingThread: 1,
@@ -202,10 +211,10 @@ describe("crash dump summary", () => {
     const full = fs.readFileSync(file);
     fs.writeFileSync(file, full.subarray(0, Math.floor(full.length / 2)));
 
-    expect(() => summarizeCrashDump(file)).not.toThrow();
+    await expect(summarizeCrashDump(file)).resolves.toBeNull();
   });
 
-  it("names the native addons loaded at the time of death", () => {
+  it("names the native addons loaded at the time of death", async () => {
     const file = write("addons.dmp", {
       code: 0xc0000374,
       faultingThread: 1,
@@ -215,13 +224,13 @@ describe("crash dump summary", () => {
       threads: [{ id: 1, name: "CrBrowserMain" }],
     });
 
-    const summary = summarizeCrashDump(file);
+    const summary = await summarizeCrashDump(file);
 
     expect(summary).toContain("STATUS_HEAP_CORRUPTION");
     expect(summary).toContain("addons=system-ocr.win32-x64-msvc.node,sharp-win32-x64.node");
   });
 
-  it("leaves the addon list out when no native module is loaded", () => {
+  it("leaves the addon list out when no native module is loaded", async () => {
     const file = write("plain.dmp", {
       code: 0x80000003,
       faultingThread: 1,
@@ -229,6 +238,55 @@ describe("crash dump summary", () => {
       threads: [{ id: 1, name: "CrBrowserMain" }],
     });
 
-    expect(summarizeCrashDump(file)).not.toContain("addons=");
+    expect(await summarizeCrashDump(file)).not.toContain("addons=");
+  });
+
+  it("drops a thread name whose length runs past the dump", async () => {
+    const file = write("badname.dmp", {
+      code: 0x80000003,
+      faultingThread: 1,
+      address: 0n,
+      threads: [{ id: 1, name: "CrBrowserMain" }],
+    });
+    patchNameLength(file, "CrBrowserMain", 0xfffffff0);
+
+    const summary = await summarizeCrashDump(file);
+
+    expect(summary).toBe("0x80000003 EXCEPTION_BREAKPOINT thread=1 threads=1");
+  });
+
+  it("drops a module name whose length runs past the dump", async () => {
+    const file = write("badmodule.dmp", {
+      code: 0xc0000374,
+      faultingThread: 1,
+      address: 0x7ff6d4710010n,
+      module: { base: 0x7ff6d4710000n, size: 0x1000, name: "C:\\app\\WFHelper.exe" },
+      addons: ["C:\\app\\system-ocr.win32-x64-msvc.node"],
+      threads: [{ id: 1, name: "CrBrowserMain" }],
+    });
+    patchNameLength(file, "C:\\app\\WFHelper.exe", 0x10000);
+
+    const summary = await summarizeCrashDump(file);
+
+    expect(summary).not.toContain("at=");
+    expect(summary).toContain("addons=system-ocr.win32-x64-msvc.node");
+    expect(summary!.length).toBeLessThan(120);
+  });
+
+  it("keeps the modules already read when the module list runs past the dump", async () => {
+    const file = write("longlist.dmp", {
+      code: 0xc0000374,
+      faultingThread: 1,
+      address: 0x7ff6d4710010n,
+      module: { base: 0x7ff6d4710000n, size: 0x1000, name: "C:\\app\\WFHelper.exe" },
+      addons: ["C:\\app\\system-ocr.win32-x64-msvc.node"],
+      declaredModules: 4096,
+      threads: [{ id: 1, name: "CrBrowserMain" }],
+    });
+
+    const summary = await summarizeCrashDump(file);
+
+    expect(summary).toContain("WFHelper.exe+0x10");
+    expect(summary).toContain("addons=system-ocr.win32-x64-msvc.node");
   });
 });

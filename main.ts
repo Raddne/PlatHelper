@@ -433,8 +433,11 @@ function reportSessionHealth(profileStage: ProfileStage): void {
       (dumps.length > 0 ? `; crash dump: ${dumps[0]}` : " (no crash dump)"),
   );
   if (dumps.length > 0) {
-    const summary = summarizeCrashDump(path.join(app.getPath("crashDumps"), "reports", dumps[0]));
-    if (summary) log.warn(`[Startup] crash dump says: ${summary}`);
+    void summarizeCrashDump(path.join(app.getPath("crashDumps"), "reports", dumps[0])).then(
+      (summary) => {
+        if (summary) log.warn(`[Startup] crash dump says: ${summary}`);
+      },
+    );
   }
   if (foreign.length > 0) log.warn(`[Startup] foreign module paths: ${foreign.join(", ")}`);
 

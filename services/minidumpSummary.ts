@@ -14,6 +14,7 @@ const MODULE_ENTRY_BYTES = 108;
 const THREAD_ENTRY_BYTES = 48;
 const THREAD_NAME_ENTRY_BYTES = 12;
 const MAX_THREAD_NAMES = 4096;
+const MAX_NAME_BYTES = 1024;
 
 const EXCEPTION_NAMES = new Map<number, string>([
   [0x80000003, "EXCEPTION_BREAKPOINT"],
@@ -46,6 +47,13 @@ function readStreams(buf: Buffer): Streams | null {
   return streams;
 }
 
+function nameAt(buf: Buffer, nameRva: number): string | null {
+  if (nameRva + 4 > buf.length) return null;
+  const bytes = buf.readUInt32LE(nameRva);
+  if (bytes === 0 || bytes > MAX_NAME_BYTES || nameRva + 4 + bytes > buf.length) return null;
+  return buf.subarray(nameRva + 4, nameRva + 4 + bytes).toString("utf16le");
+}
+
 function threadNameFor(buf: Buffer, streams: Streams, threadId: number): string | null {
   const stream = streams[STREAM_THREAD_NAMES];
   if (!stream) return null;
@@ -54,48 +62,37 @@ function threadNameFor(buf: Buffer, streams: Streams, threadId: number): string 
     const at = stream.rva + 4 + i * THREAD_NAME_ENTRY_BYTES;
     if (at + THREAD_NAME_ENTRY_BYTES > buf.length) return null;
     if (buf.readUInt32LE(at) !== threadId) continue;
-    const nameRva = Number(buf.readBigUInt64LE(at + 4));
-    if (nameRva + 4 > buf.length) return null;
-    const bytes = buf.readUInt32LE(nameRva);
-    return buf.subarray(nameRva + 4, nameRva + 4 + bytes).toString("utf16le");
+    return nameAt(buf, Number(buf.readBigUInt64LE(at + 4)));
   }
   return null;
 }
 
-function faultingModule(buf: Buffer, streams: Streams, address: bigint): string | null {
-  const stream = streams[STREAM_MODULE_LIST];
-  if (!stream) return null;
-  const count = buf.readUInt32LE(stream.rva);
-  for (let i = 0; i < count; i++) {
-    const at = stream.rva + 4 + i * MODULE_ENTRY_BYTES;
-    if (at + MODULE_ENTRY_BYTES > buf.length) return null;
-    const base = buf.readBigUInt64LE(at);
-    const size = BigInt(buf.readUInt32LE(at + 8));
-    if (address < base || address >= base + size) continue;
-    const nameRva = buf.readUInt32LE(at + 20);
-    if (nameRva + 4 > buf.length) return null;
-    const bytes = buf.readUInt32LE(nameRva);
-    const full = buf.subarray(nameRva + 4, nameRva + 4 + bytes).toString("utf16le");
-    return `${full.split("\\").pop()}+0x${(address - base).toString(16)}`;
-  }
-  return null;
+interface Modules {
+  faulting: string | null;
+  addons: string[];
 }
 
-function loadedAddons(buf: Buffer, streams: Streams): string[] {
+function walkModules(buf: Buffer, streams: Streams, address: bigint): Modules {
+  const found: Modules = { faulting: null, addons: [] };
   const stream = streams[STREAM_MODULE_LIST];
-  if (!stream) return [];
+  if (!stream || stream.rva + 4 > buf.length) return found;
   const count = buf.readUInt32LE(stream.rva);
-  const out: string[] = [];
   for (let i = 0; i < count; i++) {
     const at = stream.rva + 4 + i * MODULE_ENTRY_BYTES;
     if (at + MODULE_ENTRY_BYTES > buf.length) break;
-    const nameRva = buf.readUInt32LE(at + 20);
-    if (nameRva + 4 > buf.length) break;
-    const bytes = buf.readUInt32LE(nameRva);
-    const full = buf.subarray(nameRva + 4, nameRva + 4 + bytes).toString("utf16le");
-    if (full.toLowerCase().endsWith(".node")) out.push(full.split("\\").pop() as string);
+    const full = nameAt(buf, buf.readUInt32LE(at + 20));
+    if (!full) continue;
+    const file = full.split("\\").pop() ?? full;
+    if (!found.faulting) {
+      const base = buf.readBigUInt64LE(at);
+      const size = BigInt(buf.readUInt32LE(at + 8));
+      if (address >= base && address < base + size) {
+        found.faulting = `${file}+0x${(address - base).toString(16)}`;
+      }
+    }
+    if (full.toLowerCase().endsWith(".node")) found.addons.push(file);
   }
-  return out;
+  return found;
 }
 
 function threadCounts(
@@ -118,11 +115,11 @@ function threadCounts(
 
 /** One line naming why a native death happened, from the dump Crashpad already
  *  writes. A Chromium abort leaves no log line and no reason on stderr, so the
- *  dump is the only record, and asking a reporter for a 35 MB file is not one. */
-export function summarizeCrashDump(file: string): string | null {
+ *  dump is the only record. */
+export async function summarizeCrashDump(file: string): Promise<string | null> {
   let buf: Buffer;
   try {
-    buf = fs.readFileSync(file);
+    buf = await fs.promises.readFile(file);
   } catch (err) {
     log.warn("[MinidumpSummary] unreadable dump:", normalizeErrorMessage(err));
     return null;
@@ -145,8 +142,8 @@ export function summarizeCrashDump(file: string): string | null {
     const name = threadNameFor(buf, streams, threadId);
     parts.push(`thread=${name || threadId}`);
 
-    const where = faultingModule(buf, streams, address);
-    if (where) parts.push(`at=${where}`);
+    const modules = walkModules(buf, streams, address);
+    if (modules.faulting) parts.push(`at=${modules.faulting}`);
 
     const { total, named } = threadCounts(buf, streams);
     if (total) parts.push(`threads=${total}`);
@@ -155,8 +152,7 @@ export function summarizeCrashDump(file: string): string | null {
 
     // The faulting module names the victim of a heap corruption, never its
     // source; the addon list is what points at the culprit.
-    const addons = loadedAddons(buf, streams);
-    if (addons.length) parts.push(`addons=${addons.join(",")}`);
+    if (modules.addons.length) parts.push(`addons=${modules.addons.join(",")}`);
 
     return parts.join(" ");
   } catch (err) {
