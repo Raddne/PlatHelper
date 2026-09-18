@@ -3,6 +3,8 @@ import { expect, test, type Page } from "@playwright/test";
 import {
   closeElectronTestHarness,
   launchElectronTestHarness,
+  LAYOUT_SCALES,
+  LAYOUT_SIZES,
   openView,
   setFontScale,
   setWindowSize,
@@ -14,12 +16,6 @@ interface Layout {
   height: number;
   scale: number;
 }
-
-const SIZES = [
-  { width: 1366, height: 728 },
-  { width: 1280, height: 680 },
-];
-const SCALES = [1, 1.25, 1.5];
 
 const PART_PREFIX = "/Lotus/Types/Recipes/Weapons/WeaponParts/";
 const PARTS = [
@@ -66,9 +62,9 @@ async function forEachLayout(
   harness: ElectronTestHarness,
   run: (layout: Layout) => Promise<void>,
 ): Promise<void> {
-  for (const scale of SCALES) {
+  for (const scale of [1, ...LAYOUT_SCALES]) {
     await setFontScale(harness.page, scale);
-    for (const size of SIZES) {
+    for (const size of LAYOUT_SIZES) {
       await setWindowSize(harness, size.width, size.height);
       await run({ ...size, scale });
     }

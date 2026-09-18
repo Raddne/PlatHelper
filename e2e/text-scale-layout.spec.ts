@@ -2,8 +2,10 @@ import { expect, test, type Page } from "@playwright/test";
 
 import {
   closeElectronTestHarness,
+  dragRange,
   launchElectronTestHarness,
   openView,
+  releaseRange,
   setFontScale,
   setWindowSize,
   type ElectronTestHarness,
@@ -49,7 +51,6 @@ function measureNavIcons(page: Page) {
 
 function measureAppearanceCards(page: Page) {
   return page.evaluate(() => {
-    // Style cards are divs whose first child is the label + control row.
     const sections = [
       { selector: "[data-app-scale]", cards: "label", rowInside: false },
       { selector: "[data-font-sizes]", cards: "label", rowInside: false },
@@ -198,16 +199,10 @@ test.describe("Layout holds at a raised text scale", () => {
 
     await setFontScale(page, 1.25);
     await openAppearance(page);
-    await slider.evaluate((element) => {
-      const input = element as HTMLInputElement;
-      input.value = "1.5";
-      input.dispatchEvent(new Event("input", { bubbles: true }));
-    });
+    await dragRange(slider, 1.5);
     expect(await rootSize(), "dragging the slider re-scaled the page").toBe(scaled);
     await expect(percentBox, "the slider did not update its live label").toHaveValue("150");
-    await slider.evaluate((element) =>
-      element.dispatchEvent(new Event("change", { bubbles: true })),
-    );
+    await releaseRange(slider);
     expect(await rootSize(), "releasing the slider did not apply the scale").not.toBe(scaled);
   });
 

@@ -147,8 +147,10 @@ export async function restartElectronTestHarness(
   return startHarness(harness.sandboxDir, { ...state.options, ...options }, false);
 }
 
-/** Viewport in CSS pixels. setViewportSize takes device pixels and the app
- * divides by the uiScale zoom, so the request is re-applied scaled. */
+/** Sizes the renderer's CSS viewport: window.innerWidth lands on `width` at any
+ *  uiScale zoom. Playwright's setViewportSize takes device pixels and the app
+ *  divides by the zoom, so the request is re-applied scaled. Use setWindowSize
+ *  instead to size the Electron window a user would drag. */
 export async function setLayoutViewport(page: Page, width: number, height: number): Promise<void> {
   await page.setViewportSize({ width, height });
   // After a reload the zoom can land a frame late, so a single probe would read
@@ -176,14 +178,10 @@ export async function setLayoutViewport(page: Page, width: number, height: numbe
   }
 }
 
-export function selectOptionValues(select: Locator): Promise<string[]> {
-  return select.evaluate((element) =>
-    Array.from((element as HTMLSelectElement).options, (option) => option.value),
-  );
-}
-
-/** Content size on the BrowserWindow itself: a Playwright viewport does not
- *  resize an Electron window. Throws when the window did not land there. */
+/** Sizes the Electron window a user would drag: `width`/`height` are its
+ *  device-independent content size, so the CSS viewport is that divided by the
+ *  display-derived UI zoom (config/runtime/uiScale.ts). A Playwright viewport
+ *  does not resize the window. Throws when the window did not land there. */
 export async function setWindowSize(
   harness: ElectronTestHarness,
   width: number,
@@ -206,8 +204,6 @@ export async function setWindowSize(
     width: window.innerWidth,
     height: window.innerHeight,
   }));
-  // setContentSize takes device-independent px, the renderer reports CSS px, and
-  // the display-derived UI zoom (config/runtime/uiScale.ts) divides the two.
   const zoom = zoomFactor > 0 ? zoomFactor : 1;
   const expected = { width: width / zoom, height: height / zoom };
   if (
@@ -220,6 +216,30 @@ export async function setWindowSize(
         `(${width}x${height} at zoom ${zoom})`,
     );
   }
+}
+
+export const LAYOUT_SIZES: ReadonlyArray<{ width: number; height: number }> = [
+  { width: 1366, height: 728 },
+  { width: 1280, height: 680 },
+];
+export const LAYOUT_SCALES: readonly number[] = [1.25, 1.5];
+
+export async function dragRange(slider: Locator, value: number | string): Promise<void> {
+  await slider.evaluate((element, next) => {
+    const input = element as HTMLInputElement;
+    input.value = String(next);
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+  }, value);
+}
+
+export async function releaseRange(slider: Locator): Promise<void> {
+  await slider.evaluate((element) => element.dispatchEvent(new Event("change", { bubbles: true })));
+}
+
+export function selectOptionValues(select: Locator): Promise<string[]> {
+  return select.evaluate((element) =>
+    Array.from((element as HTMLSelectElement).options, (option) => option.value),
+  );
 }
 
 /** Settings > Appearance > Font Sizes > Global Scale, applied through a reload;

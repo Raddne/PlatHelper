@@ -10,17 +10,13 @@ import type { TopTradedDoc } from "../config/shared/topTraded";
 import {
   closeElectronTestHarness,
   launchElectronTestHarness,
+  LAYOUT_SCALES,
+  LAYOUT_SIZES,
   openView,
   setFontScale,
-  setLayoutViewport,
+  setWindowSize,
   type ElectronTestHarness,
 } from "./electronTestHarness";
-
-const SIZES = [
-  { width: 1280, height: 680 },
-  { width: 1366, height: 728 },
-] as const;
-const SCALES = [1.25, 1.5] as const;
 
 // Scrollbars here are painted over the content (::-webkit-scrollbar is 6px wide
 // and takes no layout width), so a gutter has to beat the bar, not clientWidth.
@@ -140,10 +136,10 @@ test.describe("Panels hold their layout on a small window at a raised text scale
   });
 
   test("top traded keeps the scrollbar off its right-aligned columns", async () => {
-    for (const scale of SCALES) {
+    for (const scale of LAYOUT_SCALES) {
       await setFontScale(page, scale);
-      for (const size of SIZES) {
-        await setLayoutViewport(page, size.width, size.height);
+      for (const size of LAYOUT_SIZES) {
+        await setWindowSize(harness, size.width, size.height);
         await openView(page, "analytics");
         const box = page.locator("[data-analysis-top-traded-scroll]");
         await expect(box).toBeVisible({ timeout: 30_000 });
@@ -175,10 +171,10 @@ test.describe("Panels hold their layout on a small window at a raised text scale
   });
 
   test("a sell order's stepper stays clear of the row actions", async () => {
-    for (const scale of SCALES) {
+    for (const scale of LAYOUT_SCALES) {
       await setFontScale(page, scale);
-      for (const size of SIZES) {
-        await setLayoutViewport(page, size.width, size.height);
+      for (const size of LAYOUT_SIZES) {
+        await setWindowSize(harness, size.width, size.height);
         await openView(page, "market");
         await expect(page.locator("[data-order-actions]").first()).toBeVisible({ timeout: 30_000 });
 
@@ -210,8 +206,8 @@ test.describe("Panels hold their layout on a small window at a raised text scale
     }
 
     await setFontScale(page, 1);
-    for (const size of SIZES) {
-      await setLayoutViewport(page, size.width, size.height);
+    for (const size of LAYOUT_SIZES) {
+      await setWindowSize(harness, size.width, size.height);
       await openView(page, "market");
       await expect(page.locator("[data-order-price-stepper]").first()).toBeVisible({
         timeout: 30_000,
@@ -239,10 +235,10 @@ test.describe("Panels hold their layout on a small window at a raised text scale
   });
 
   test("the runs table fits inside its card", async () => {
-    for (const scale of SCALES) {
+    for (const scale of LAYOUT_SCALES) {
       await setFontScale(page, scale);
-      for (const size of SIZES) {
-        await setLayoutViewport(page, size.width, size.height);
+      for (const size of LAYOUT_SIZES) {
+        await setWindowSize(harness, size.width, size.height);
         await openView(page, "arbi");
         const list = page.locator("[data-arbi-run-table]");
         await expect(list).toBeVisible({ timeout: 30_000 });
@@ -273,10 +269,10 @@ test.describe("Panels hold their layout on a small window at a raised text scale
   });
 
   test("a trade row shows its partner name at a raised scale", async () => {
-    for (const scale of SCALES) {
+    for (const scale of LAYOUT_SCALES) {
       await setFontScale(page, scale);
-      for (const size of SIZES) {
-        await setLayoutViewport(page, size.width, size.height);
+      for (const size of LAYOUT_SIZES) {
+        await setWindowSize(harness, size.width, size.height);
         await openView(page, "stats");
         await page.locator('[data-tour-tab="tracking"]').click();
         await expect(page.locator("[data-stats-trade-panel]")).toBeVisible({ timeout: 30_000 });
@@ -298,10 +294,10 @@ test.describe("Panels hold their layout on a small window at a raised text scale
   });
 
   test("the collapsed rail shows most of its destinations", async () => {
-    for (const scale of SCALES) {
+    for (const scale of LAYOUT_SCALES) {
       await setFontScale(page, scale);
-      for (const size of SIZES) {
-        await setLayoutViewport(page, size.width, size.height);
+      for (const size of LAYOUT_SIZES) {
+        await setWindowSize(harness, size.width, size.height);
         await page.locator("#sidebar [data-sidebar-collapse]").click();
         await expect(page.locator("#sidebar")).toHaveClass(/sidebar-collapsed/);
         await page.waitForTimeout(200);

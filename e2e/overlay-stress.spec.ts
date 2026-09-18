@@ -297,7 +297,6 @@ test("overlay show/hide churn keeps the main process alive", async () => {
         ) as {
           scanInitialCard: () => Promise<unknown>;
         };
-        // This tests window lifecycles, so capture stays at a deterministic fixture boundary.
         scan.scanInitialCard = async () => ({
           stats: [],
           rawText: "",

@@ -37,7 +37,6 @@ test("inventory resolves missing Nightwave metadata and keeps catalog entries un
         Upgrades: [{ ItemType: ITEM_REF, ItemCount: 1, Rank: 0 }],
       },
     });
-    // A loaded database needs one entry; the item being tested has no metadata.
     const database: Record<string, ItemDbEntry> = {
       "/Lotus/Weapons/Test/UnownedSentinel": { name: "Unowned Fixture", category: "Weapon" },
     };

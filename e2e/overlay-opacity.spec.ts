@@ -4,9 +4,11 @@ import type { OverlayLayoutKind } from "../config/shared/overlayLayout";
 import { DEFAULT_THEME } from "../src/config/themeDefaults";
 import {
   closeElectronTestHarness,
+  dragRange,
   evaluateInMain,
   launchElectronTestHarness,
   overlayWindow,
+  releaseRange,
   type ElectronTestHarness,
 } from "./electronTestHarness";
 
@@ -70,10 +72,8 @@ async function openAppearance(page: Page): Promise<void> {
 async function setOpacity(page: Page, percent: number): Promise<void> {
   await openAppearance(page);
   const slider = page.locator('[data-overlay-opacity-control] input[type="range"]');
-  await slider.evaluate((element, next) => {
-    (element as HTMLInputElement).value = String(next);
-    element.dispatchEvent(new Event("input", { bubbles: true }));
-  }, percent);
+  await dragRange(slider, percent);
+  await releaseRange(slider);
   await expect(slider).toHaveValue(String(percent));
   await expect
     .poll(() =>
@@ -304,10 +304,8 @@ test("each overlay keeps its own opacity and can return to the shared default", 
       const row = page.locator(`[data-overlay-opacity-kind="${surface.kind}"]`);
       const slider = row.locator('input[type="range"]');
       await expect(slider).toHaveValue("90");
-      await slider.evaluate((element, percent) => {
-        (element as HTMLInputElement).value = String(percent);
-        element.dispatchEvent(new Event("input", { bubbles: true }));
-      }, percentages[index]);
+      await dragRange(slider, percentages[index]);
+      await releaseRange(slider);
       await expect(slider).toHaveValue(String(percentages[index]));
     }
     const expectedOverrides = Object.fromEntries(

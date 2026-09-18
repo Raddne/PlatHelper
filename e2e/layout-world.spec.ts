@@ -7,17 +7,17 @@ import {
   closeElectronTestHarness,
   evaluateInMain,
   launchElectronTestHarness,
+  LAYOUT_SCALES,
+  LAYOUT_SIZES,
   openView,
   setFontScale,
   setWindowSize,
   type ElectronTestHarness,
 } from "./electronTestHarness";
 
-const SIZES = [
-  { width: 1366, height: 728 },
-  { width: 1280, height: 680 },
-];
-const SCALES = [1.25, 1.5];
+const LONGEST_FACTION = "Corrupted";
+// Grid order in ArbiSchedule.svelte: time, node, mission, faction, starts in.
+const FACTION_COLUMN = 3;
 
 const ARBI_NODES = [
   { id: "SolNode001", node: "Kala-azar (Eris)", mission: "Defense", faction: "Infested" },
@@ -154,6 +154,33 @@ function measureArbiTable(page: Page) {
   });
 }
 
+function measureFactionCells(page: Page, column: number) {
+  return page.evaluate((index) => {
+    const scroller = document.querySelector<HTMLElement>("[data-arbi-table]");
+    const rows = Array.from(document.querySelectorAll<HTMLElement>("[data-arbi-row]"));
+    if (!scroller || rows.length === 0) throw new Error("arbitration rows are missing");
+    const cells = rows.map((row) => {
+      const cell = row.children[index];
+      if (!(cell instanceof HTMLElement)) throw new Error("faction cell is missing");
+      const range = document.createRange();
+      range.selectNodeContents(cell);
+      const text = range.getBoundingClientRect();
+      const box = cell.getBoundingClientRect();
+      return {
+        faction: cell.textContent?.trim() ?? "",
+        spill: Math.max(text.right - box.right, box.left - text.left),
+        hidden: cell.scrollWidth - cell.clientWidth,
+      };
+    });
+    return {
+      factions: Array.from(new Set(cells.map((cell) => cell.faction))),
+      spill: Math.max(...cells.map((cell) => cell.spill)),
+      hidden: Math.max(...cells.map((cell) => cell.hidden)),
+      overflow: scroller.scrollWidth - scroller.clientWidth,
+    };
+  }, column);
+}
+
 function countNodeRows(page: Page) {
   return page.evaluate(() => {
     const list = document.querySelector<HTMLElement>("[data-arbi-node-list]");
@@ -231,7 +258,9 @@ test.describe("World layout holds at a raised text scale", () => {
 
   test("the arbitration table keeps every column readable", async () => {
     const cases = [
-      ...SIZES.flatMap((size) => SCALES.map((scale) => ({ ...size, scale, columns: 1 }))),
+      ...LAYOUT_SIZES.flatMap((size) =>
+        LAYOUT_SCALES.map((scale) => ({ ...size, scale, columns: 1 })),
+      ),
       { width: 1920, height: 1040, scale: 1, columns: 2 },
       { width: 1920, height: 1040, scale: 1.25, columns: 2 },
     ];
@@ -262,9 +291,34 @@ test.describe("World layout holds at a raised text scale", () => {
     }
   });
 
+  test("the faction column holds its longest name at 1.5x", async () => {
+    await setFontScale(page, 1.5);
+    for (const size of LAYOUT_SIZES) {
+      await setWindowSize(harness, size.width, size.height);
+      await openWorldTab(page, "arbis");
+      await expect(page.locator("[data-arbi-table]")).toBeVisible({ timeout: 30_000 });
+
+      const faction = await measureFactionCells(page, FACTION_COLUMN);
+      const where = `${size.width}x${size.height}, 1.5x`;
+      await page
+        .locator("[data-arbi-table]")
+        .screenshot({ path: test.info().outputPath(`arbi-faction-${size.width}-1.5.png`) });
+
+      expect(
+        faction.factions,
+        `the fixture seeded no ${LONGEST_FACTION} row at ${where}`,
+      ).toContain(LONGEST_FACTION);
+      expect(faction.spill, `a faction paints past its cell at ${where}`).toBeLessThanOrEqual(0.5);
+      expect(faction.hidden, `a faction cell clips its own text at ${where}`).toBeLessThanOrEqual(
+        1,
+      );
+      expect(faction.overflow, `the table scrolls sideways at ${where}`).toBeLessThanOrEqual(0.5);
+    }
+  });
+
   test("the node list keeps at least four rows in view", async () => {
-    for (const size of SIZES) {
-      for (const scale of SCALES) {
+    for (const size of LAYOUT_SIZES) {
+      for (const scale of LAYOUT_SCALES) {
         await setFontScale(page, scale);
         await setWindowSize(harness, size.width, size.height);
         await openWorldTab(page, "arbis");
@@ -297,8 +351,8 @@ test.describe("World layout holds at a raised text scale", () => {
   });
 
   test("the week cards start their content at the same height", async () => {
-    for (const size of SIZES) {
-      for (const scale of [1, ...SCALES]) {
+    for (const size of LAYOUT_SIZES) {
+      for (const scale of [1, ...LAYOUT_SCALES]) {
         await setFontScale(page, scale);
         await setWindowSize(harness, size.width, size.height);
         await openWorldTab(page, "world");
