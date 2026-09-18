@@ -1,3 +1,5 @@
+import { toFinitePositiveInt } from "./numeric";
+
 export const WFM_ORDER_SUBTYPES = ["intact", "exceptional", "flawless", "radiant"] as const;
 export const WFM_MOD_VARIANTS = ["regular", "atragraph"] as const;
 export type WfmOrderSubtype = (typeof WFM_ORDER_SUBTYPES)[number];
@@ -17,12 +19,16 @@ export function normalizeSubtype(value: string | null | undefined): string | nul
   return !trimmed || trimmed === "regular" ? null : trimmed;
 }
 
-export interface WfmOrderBookEntry {
-  userName: string;
-  status: string | null;
+export interface UnitPricedListing {
   /** Price of ONE trade, exactly as WFM lists it. A bulk order hands over
    *  `perTrade` items for it, so only `unitPlatinum` compares across orders. */
   platinum: number;
+  unitPlatinum?: number;
+}
+
+export interface WfmOrderBookEntry extends UnitPricedListing {
+  userName: string;
+  status: string | null;
   quantity: number;
   perTrade: number;
   unitPlatinum: number;
@@ -32,9 +38,7 @@ export interface WfmOrderBookEntry {
 
 type WfmOrderType = "sell" | "buy";
 
-interface WfmOrderPriceEntry {
-  platinum: number;
-  unitPlatinum?: number;
+interface WfmOrderPriceEntry extends UnitPricedListing {
   status: string | null;
 }
 
@@ -89,14 +93,24 @@ function unitPlatinumOf(platinum: number, perTrade: number): number {
   return Math.round((platinum / perTrade) * 100) / 100;
 }
 
+/** Items a bulk order hands over per trade: v2 spells it `perTrade`, v1
+ *  `per_trade`. warframe.market clamps it into [1, quantity], so pass the
+ *  listing's own quantity wherever that clamp is part of the contract. */
+export function normalizePerTrade(value: unknown, quantity?: number): number {
+  const parsed = Number(value ?? 1);
+  if (!Number.isInteger(parsed) || parsed <= 0) return 1;
+  const cap = toFinitePositiveInt(quantity);
+  return cap == null ? parsed : Math.min(parsed, cap);
+}
+
 export function formatUnitPlatinum(value: number): string {
   const rounded = Math.round(value * 100) / 100;
   return Number.isInteger(rounded) ? String(rounded) : rounded.toFixed(2).replace(/0+$/, "");
 }
 
-function comparablePlatinum(entry: WfmOrderPriceEntry): number {
-  const unit = entry.unitPlatinum;
-  return typeof unit === "number" && Number.isFinite(unit) && unit > 0 ? unit : entry.platinum;
+export function listingUnitPrice(listing: UnitPricedListing): number {
+  const unit = listing.unitPlatinum;
+  return typeof unit === "number" && Number.isFinite(unit) && unit > 0 ? unit : listing.platinum;
 }
 
 export function bestOrderPrice(
@@ -106,8 +120,9 @@ export function bestOrderPrice(
 ): number | null {
   const list = activeOnly ? entries.filter((entry) => isActiveOrderStatus(entry.status)) : entries;
   if (list.length === 0) return null;
-  const prices = list.map(comparablePlatinum);
-  return Math.round(orderType === "sell" ? Math.min(...prices) : Math.max(...prices));
+  const prices = list.map(listingUnitPrice);
+  const best = orderType === "sell" ? Math.min(...prices) : Math.max(...prices);
+  return Math.max(1, Math.round(best));
 }
 
 function parseOrderRank(order: Record<string, unknown>): number | null {
@@ -187,11 +202,7 @@ export function normalizeWfmOrderBookSide(
       const quantity =
         Number.isFinite(quantityRaw) && quantityRaw > 0 ? Math.floor(quantityRaw) : 1;
 
-      // Bulk orders: v2 spells it perTrade, v1 per_trade. Anything WFM cannot
-      // deliver in one trade is not a bulk order, hence the clamp to quantity.
-      const perTradeRaw = Number(order.perTrade ?? order.per_trade ?? 1);
-      const perTrade =
-        Number.isInteger(perTradeRaw) && perTradeRaw > 0 ? Math.min(perTradeRaw, quantity) : 1;
+      const perTrade = normalizePerTrade(order.perTrade ?? order.per_trade, quantity);
 
       const platinum = Math.round(platinumRaw);
       return {

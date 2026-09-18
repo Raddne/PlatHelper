@@ -16,7 +16,6 @@ import {
   type PlatRange,
 } from "../market/platRange.js";
 import {
-  listingUnitPrice,
   suggestPrice,
   type DampingRule,
   type PriceSuggestion,
@@ -31,7 +30,12 @@ import {
   type WorkbenchSafetySnapshot,
 } from "../../../config/shared/tradeWorkbenchTypes.js";
 import { isWfmExcludedSlug } from "../../../config/shared/wfmExclusions.js";
-import { isActiveOrderStatus, normalizeSubtype } from "../../../config/shared/wfmOrders.js";
+import {
+  isActiveOrderStatus,
+  listingUnitPrice,
+  normalizePerTrade,
+  normalizeSubtype,
+} from "../../../config/shared/wfmOrders.js";
 import type { ItemDbEntry, MasteryData, ParsedItem } from "../../types/inventory.js";
 import type { WfmItemsLookup } from "../../types/ipc.js";
 import type { WfmOrder } from "../../types/market.js";
@@ -309,12 +313,11 @@ function existingOrderOf(
 ): WorkbenchQueueRow["existingOrder"] {
   const existing = matchExistingOrder(row, myOrders);
   if (!existing) return null;
-  const perTrade = existing.perTrade ?? 1;
   return {
     id: existing.id,
     platinum: existing.platinum,
     quantity: existing.quantity,
-    perTrade: Number.isInteger(perTrade) && perTrade > 0 ? perTrade : 1,
+    perTrade: normalizePerTrade(existing.perTrade),
   };
 }
 

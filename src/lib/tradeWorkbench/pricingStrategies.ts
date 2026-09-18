@@ -1,9 +1,11 @@
-import { isActiveOrderStatus } from "../../../config/shared/wfmOrders.js";
+import {
+  isActiveOrderStatus,
+  listingUnitPrice,
+  normalizePerTrade,
+  type UnitPricedListing,
+} from "../../../config/shared/wfmOrders.js";
 
-export interface PricingListing {
-  /** Price of one trade as WFM lists it; a bulk order hands over several items. */
-  platinum: number;
-  unitPlatinum?: number;
+export interface PricingListing extends UnitPricedListing {
   quantity: number;
   status: string | null;
   userName: string;
@@ -73,16 +75,6 @@ export interface PriceSuggestion {
   damping?: { applied: true; reason: WorkbenchDampingReason; undampedPrice: number };
 }
 
-export function listingUnitPrice(listing: PricingListing): number {
-  const unit = listing.unitPlatinum;
-  return typeof unit === "number" && Number.isFinite(unit) && unit > 0 ? unit : listing.platinum;
-}
-
-function ownPerTradeOf(ctx: PricingContext): number {
-  const perTrade = ctx.ownPerTrade;
-  return typeof perTrade === "number" && Number.isInteger(perTrade) && perTrade > 0 ? perTrade : 1;
-}
-
 function competition(ctx: PricingContext): PricingListing[] {
   const activeOnly = ctx.activeOnly !== false;
   const own = ctx.ownUserName ? ctx.ownUserName.toLowerCase() : null;
@@ -127,7 +119,6 @@ function applyDamping(
   if (current == null || suggestion.price == null || suggestion.price >= current) {
     return suggestion;
   }
-  // Both sides in our own listing units, so the plat bounds keep their meaning.
   const listingsBelow = book.filter(
     (listing) => listingUnitPrice(listing) * perTrade < current,
   ).length;
@@ -167,7 +158,7 @@ export function suggestPrice(
   rule: DampingRule = DEFAULT_DAMPING_RULE,
 ): PriceSuggestion {
   const book = competition(ctx);
-  const perTrade = ownPerTradeOf(ctx);
+  const perTrade = normalizePerTrade(ctx.ownPerTrade);
   const listPrice = (unitValue: number): number | null => clampPrice(unitValue * perTrade);
   const cheapest = book.length > 0 ? listingUnitPrice(book[0]) : null;
 

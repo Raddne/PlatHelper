@@ -3,6 +3,7 @@ import { describe, it, expect } from "vitest";
 import {
   bestOrderPrice,
   formatUnitPlatinum,
+  normalizePerTrade,
   normalizeWfmOrderBookSide,
 } from "../../config/shared/wfmOrders";
 
@@ -104,6 +105,27 @@ describe("bestOrderPrice", () => {
     const offline = { platinum: 5, unitPlatinum: 5, status: "offline" };
     expect(bestOrderPrice([offline, entry(30)], "sell", true)).toBe(30);
     expect(bestOrderPrice([offline, entry(30)], "sell", false)).toBe(5);
+  });
+
+  it("never reports a live listing as free", () => {
+    // 1p for three items: 0.33 per item, which rounds to nothing.
+    expect(bestOrderPrice([entry(1, 0.33)], "sell", true)).toBe(1);
+    expect(bestOrderPrice([entry(1, 0.33)], "buy", true)).toBe(1);
+    expect(bestOrderPrice([entry(1, 0.33), entry(20)], "sell", true)).toBe(1);
+  });
+});
+
+describe("normalizePerTrade", () => {
+  it("clamps to the listed quantity only when one is given", () => {
+    expect(normalizePerTrade(6, 24)).toBe(6);
+    expect(normalizePerTrade(40, 24)).toBe(24);
+    expect(normalizePerTrade(40)).toBe(40);
+  });
+
+  it("falls back to one for anything that is not a positive integer", () => {
+    for (const value of [undefined, null, 0, -3, 2.5, "nope", {}]) {
+      expect(normalizePerTrade(value, 24)).toBe(1);
+    }
   });
 });
 
