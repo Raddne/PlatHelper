@@ -10,6 +10,7 @@ vi.mock("../../services/logger", () => ({
 }));
 
 import {
+  ensureRivenGoodRollsLoaded,
   getGoodRolls,
   rivenGoodRollsAreCurrent,
   setRivenGoodRollsForTest,
@@ -34,6 +35,8 @@ const SHEET: Record<string, GoodRollData> = {
   braton: row("WeaponClipMaxMod"),
   "telos akbolto": row("WeaponProcTimeMod"),
   akbolto: row("WeaponAmmoMaxMod"),
+  bramma: row("WeaponImpactDamageMod"),
+  gotva: row("WeaponSlashDamageMod"),
 };
 
 beforeEach(() => {
@@ -57,6 +60,18 @@ describe("riven good-roll freshness", () => {
   it("reports an empty sheet as not current", () => {
     setRivenGoodRollsForTest({}, new Date().toISOString());
     expect(rivenGoodRollsAreCurrent()).toBe(false);
+  });
+
+  it("asks for nothing while the sheet is current", async () => {
+    setRivenGoodRollsForTest(SHEET, new Date().toISOString());
+    const fetchSpy = vi.spyOn(globalThis, "fetch");
+    try {
+      expect(rivenGoodRollsAreCurrent()).toBe(true);
+      await ensureRivenGoodRollsLoaded();
+      expect(fetchSpy).not.toHaveBeenCalled();
+    } finally {
+      fetchSpy.mockRestore();
+    }
   });
 });
 
@@ -84,6 +99,11 @@ describe("riven good-roll lookup", () => {
     expect(getGoodRolls("Kuva Karak")).toBe(SHEET.karak);
     expect(getGoodRolls("MK1-Braton")).toBe(SHEET.braton);
     expect(getGoodRolls("Braton Vandal")).toBe(SHEET.braton);
+  });
+
+  it("keeps a variant off the row of a base weapon that was never made", () => {
+    expect(getGoodRolls("Kuva Bramma")).toBeNull();
+    expect(getGoodRolls("Gotva Prime")).toBeNull();
   });
 
   it("prefers the weapon's own row over its family's", () => {

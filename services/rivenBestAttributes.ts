@@ -8,10 +8,12 @@ import {
 } from "../config/shared/rivenGoodRolls";
 import { withAbortTimeout } from "../config/shared/fetchWithTimeout";
 import { statTagToDisplayName } from "../config/shared/rivenStatDisplayNames";
-import { VARIANT_PREFIXES, VARIANT_SUFFIXES } from "../config/shared/weaponVariants";
+import { normalizeForSearch } from "../config/shared/textNormalize";
+import { normalizeWfmSlugKey } from "../config/shared/wfm";
 import { tagToWfmUrlName } from "../config/shared/wfmRivenVocabulary";
 import { createJsonCache } from "./jsonCache";
 import { withScope } from "./logger";
+import { getRivenFamilySlug } from "./rivenData";
 
 const log = withScope("rivenBestAttributes");
 
@@ -34,10 +36,12 @@ let goodRolls: GoodRollMap | null = null;
 let goodRollsUpdatedAt: string | null = null;
 let loadPromise: Promise<void> | null = null;
 let lastFetchStartedAt = 0;
+let familyKeys: Map<string, string> | null = null;
 
 function setGoodRolls(data: GoodRollMap, updatedAt: string | null): void {
   goodRolls = data;
   goodRollsUpdatedAt = updatedAt;
+  familyKeys = null;
 }
 
 interface BestAttributes {
@@ -69,32 +73,39 @@ function loadCacheIfNeeded(): void {
   if (cached) setGoodRolls(cached.data, cached.updatedAt);
 }
 
-function stripVariantAffix(nameLc: string): string {
-  let name = nameLc;
-  for (const suffix of VARIANT_SUFFIXES) {
-    const affix = suffix.toLowerCase();
-    if (!name.endsWith(affix)) continue;
-    name = name.slice(0, -affix.length);
-    break;
-  }
-  for (const prefix of [...VARIANT_PREFIXES, ...SHEET_ONLY_PREFIXES]) {
+function stripSheetOnlyPrefix(nameLc: string): string {
+  for (const prefix of SHEET_ONLY_PREFIXES) {
     const affix = prefix.toLowerCase();
-    if (!name.startsWith(affix)) continue;
-    name = name.slice(affix.length);
-    break;
+    if (nameLc.startsWith(affix)) return nameLc.slice(affix.length).trim();
   }
-  return name.replace(/\s+/g, " ").trim();
+  return nameLc;
 }
 
-// The sheet rates one row per weapon family, so a variant only matches with its affix removed.
+function familyKeyIndex(): Map<string, string> {
+  if (familyKeys) return familyKeys;
+  const index = new Map<string, string>();
+  for (const key of Object.keys(goodRolls ?? {})) {
+    const slug = normalizeWfmSlugKey(key.replace(/&/g, " and "));
+    if (slug && !index.has(slug)) index.set(slug, key);
+  }
+  familyKeys = index;
+  return index;
+}
+
+// The sheet rates one row per weapon family, so a variant only matches under the
+// family name rivenData resolves for it.
 function lookupName(weaponName: string): string | null {
   if (!weaponName) return null;
   loadCacheIfNeeded();
   if (!goodRolls) return null;
-  const lc = weaponName.toLowerCase().replace(/\s+/g, " ").trim();
+  const lc = normalizeForSearch(weaponName);
   if (goodRolls[lc]) return lc;
-  const stripped = stripVariantAffix(lc);
-  return stripped !== lc && goodRolls[stripped] ? stripped : null;
+  const folded = stripSheetOnlyPrefix(lc);
+  if (!folded) return null;
+  if (folded !== lc && goodRolls[folded]) return folded;
+  const slug = getRivenFamilySlug(folded);
+  if (!slug) return null;
+  return familyKeyIndex().get(slug) ?? null;
 }
 
 async function fetchSheet(): Promise<GoodRollMap> {
@@ -122,7 +133,6 @@ function hasSheet(): boolean {
   return goodRolls != null && Object.keys(goodRolls).length > 0;
 }
 
-// Test-injected data carries no timestamp and never expires.
 function sheetIsStale(): boolean {
   if (!goodRollsUpdatedAt) return false;
   const ageMs = Date.now() - Date.parse(goodRollsUpdatedAt);
@@ -159,7 +169,6 @@ export function rivenGoodRollsAreCurrent(): boolean {
   return hasSheet() && !sheetIsStale();
 }
 
-/** Only a missing sheet (or `force`) makes the caller wait for the fetch. */
 export async function ensureRivenGoodRollsLoaded(force = false): Promise<void> {
   loadCacheIfNeeded();
   const loaded = hasSheet();
