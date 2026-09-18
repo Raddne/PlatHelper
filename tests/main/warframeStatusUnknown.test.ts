@@ -48,8 +48,6 @@ describe("warframe status keeps an unknown process sample from reading as an exi
     expect(running.isOpen).toBe(true);
     expect(running.processRunning).toBe(true);
 
-    // enumProcessNames() returning null is the "unknown" sample getWarframeProcessState
-    // is documented to never turn into an exit.
     probe.processes = null;
     const unknown = await status.getStatus({ force: true });
     expect(unknown.isOpen).toBe(true);

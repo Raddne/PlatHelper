@@ -1,4 +1,4 @@
-import { spawn, spawnSync } from "node:child_process";
+import { execFile, spawn } from "node:child_process";
 import { createHash } from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
@@ -22,22 +22,25 @@ function systemRoot(): string {
   return process.env.SystemRoot || "C:\\Windows";
 }
 
-function runSchtasks(args: string[]): { ok: boolean; output: string } {
-  const result = spawnSync(path.join(systemRoot(), "System32", "schtasks.exe"), args, {
-    windowsHide: true,
-    encoding: "utf8",
+function runSchtasks(args: string[]): Promise<{ ok: boolean; output: string }> {
+  return new Promise((resolve) => {
+    execFile(
+      path.join(systemRoot(), "System32", "schtasks.exe"),
+      args,
+      { windowsHide: true, encoding: "utf8" },
+      (error, stdout, stderr) => {
+        const output = `${stdout ?? ""} ${stderr ?? ""}`.trim();
+        if (error) resolve({ ok: false, output: output || normalizeErrorMessage(error) });
+        else resolve({ ok: true, output });
+      },
+    );
   });
-  if (result.error) return { ok: false, output: normalizeErrorMessage(result.error) };
-  return {
-    ok: result.status === 0,
-    output: `${result.stdout ?? ""} ${result.stderr ?? ""}`.trim(),
-  };
 }
 
 /** schtasks error text is localized, so absence is probed instead of matched. */
-function removeTask(name: string): void {
-  if (!runSchtasks(["/Query", "/TN", name]).ok) return;
-  const removed = runSchtasks(["/Delete", "/TN", name, "/F"]);
+async function removeTask(name: string): Promise<void> {
+  if (!(await runSchtasks(["/Query", "/TN", name])).ok) return;
+  const removed = await runSchtasks(["/Delete", "/TN", name, "/F"]);
   if (!removed.ok) {
     log.warn(`Could not remove the sign-in task ${name}:`, removed.output || "unknown error");
   }
@@ -152,10 +155,17 @@ async function apply(nextEnabled: boolean): Promise<void> {
   const scriptFile = userDataPath("warframe-watcher.ps1");
   if (!enabled && !nextEnabled && !fs.existsSync(configFile) && !fs.existsSync(scriptFile)) {
     configured = true;
+    if (!process.env.WFHELPER_USER_DATA) {
+      try {
+        await removeTask(watcherTaskName());
+      } catch (error) {
+        log.warn("Could not check the sign-in task:", normalizeErrorMessage(error));
+      }
+    }
     return;
   }
   const powershell = path.join(
-    process.env.SystemRoot || "C:\\Windows",
+    systemRoot(),
     "System32",
     "WindowsPowerShell",
     "v1.0",
@@ -176,18 +186,18 @@ async function apply(nextEnabled: boolean): Promise<void> {
     process.execPath,
   ];
   const taskFile = userDataPath("warframe-watcher-task.xml");
-  const register = (value: boolean) => {
+  const register = async (value: boolean): Promise<void> => {
     if (process.env.WFHELPER_USER_DATA) return;
     app.setLoginItemSettings({ name: LOGIN_ITEM_NAME, openAtLogin: false });
-    removeTask(LEGACY_TASK_NAME);
+    await removeTask(LEGACY_TASK_NAME);
     const name = watcherTaskName();
     if (!value) {
-      removeTask(name);
+      await removeTask(name);
       fs.rmSync(taskFile, { force: true });
       return;
     }
     writeFileAtomicSync(taskFile, encodeTaskXml(watcherTaskXml(powershell, args)));
-    const created = runSchtasks(["/Create", "/TN", name, "/XML", taskFile, "/F"]);
+    const created = await runSchtasks(["/Create", "/TN", name, "/XML", taskFile, "/F"]);
     if (!created.ok) {
       throw new Error(`Windows refused the sign-in task: ${created.output || "unknown error"}`);
     }
@@ -219,7 +229,7 @@ async function apply(nextEnabled: boolean): Promise<void> {
     } else {
       writeFileAtomicSync(configFile, JSON.stringify({ enabled: false }));
     }
-    register(nextEnabled);
+    await register(nextEnabled);
     if (nextEnabled) {
       await new Promise<void>((resolve, reject) => {
         const child = spawn(powershell, args, {
@@ -247,7 +257,11 @@ async function apply(nextEnabled: boolean): Promise<void> {
     else writeFileAtomicSync(configFile, JSON.stringify({ enabled: false }));
     if (previousScript !== null) writeFileAtomicSync(scriptFile, previousScript);
     else fs.rmSync(scriptFile, { force: true });
-    register(enabled);
+    try {
+      await register(enabled);
+    } catch (rollbackError) {
+      log.warn("Could not restore the sign-in task:", normalizeErrorMessage(rollbackError));
+    }
     log.warn("Could not configure automatic launch:", normalizeErrorMessage(error));
     throw error;
   }

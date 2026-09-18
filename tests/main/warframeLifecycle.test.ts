@@ -8,7 +8,7 @@ const h = vi.hoisted(() => ({
   write: vi.fn(),
   login: vi.fn(),
   spawn: vi.fn(),
-  spawnSync: vi.fn(),
+  execFile: vi.fn(),
   schtasksFails: false,
   deleteFails: false,
   taskMissing: false,
@@ -22,7 +22,7 @@ const h = vi.hoisted(() => ({
   failWrite: false,
 }));
 
-vi.mock("node:child_process", () => ({ spawn: h.spawn, spawnSync: h.spawnSync }));
+vi.mock("node:child_process", () => ({ spawn: h.spawn, execFile: h.execFile }));
 vi.mock("node:fs", () => ({
   default: {
     existsSync: (file: string) => h.files.has(file),
@@ -65,6 +65,10 @@ const LEGACY_TASK = "WFHelperWarframeWatcher";
 const USER_TASK = "WFHelper\\WarframeWatcher-Tester";
 const quit = vi.fn();
 
+function schtasksCalls(): string[] {
+  return h.execFile.mock.calls.map((call) => (call[1] as string[]).join(" "));
+}
+
 function escapeForXml(value: string): string {
   return value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/"/g, "&quot;");
 }
@@ -96,18 +100,23 @@ beforeEach(async () => {
   h.schtasksFails = false;
   h.deleteFails = false;
   h.taskMissing = false;
-  h.spawnSync.mockImplementation((_exe: string, args: string[]) => {
-    if (h.schtasksFails && args.includes("/Create")) {
-      return { status: 1, stdout: "", stderr: "ERROR: Access is denied." };
-    }
-    if (h.taskMissing && args.includes("/Query")) {
-      return { status: 1, stdout: "", stderr: "FEHLER: Das System kann die Datei nicht finden." };
-    }
-    if (h.deleteFails && args.includes("/Delete")) {
-      return { status: 1, stdout: "", stderr: "ERROR: Access is denied." };
-    }
-    return { status: 0, stdout: "", stderr: "" };
-  });
+  h.execFile.mockImplementation(
+    (
+      _exe: string,
+      args: string[],
+      _options: unknown,
+      done: (error: Error | null, stdout: string, stderr: string) => void,
+    ) => {
+      let stderr = "";
+      if (h.schtasksFails && args.includes("/Create")) stderr = "ERROR: Access is denied.";
+      else if (h.taskMissing && args.includes("/Query")) {
+        stderr = "FEHLER: Das System kann die Datei nicht finden.";
+      } else if (h.deleteFails && args.includes("/Delete")) stderr = "ERROR: Access is denied.";
+      void Promise.resolve().then(() =>
+        done(stderr ? new Error("schtasks exited with 1") : null, "", stderr),
+      );
+    },
+  );
   h.write.mockImplementation((file: string, text: string) => {
     if (h.failWrite) {
       h.failWrite = false;
@@ -136,15 +145,40 @@ afterEach(() => {
 
 describe("Warframe lifecycle", () => {
   it("leaves startup registration and the watcher untouched by default", async () => {
+    h.taskMissing = true;
     lifecycle.startWarframeLifecycle(quit);
     await lifecycle.configureWarframeLifecycle(false);
     await vi.advanceTimersByTimeAsync(60_000);
     expect(h.write).not.toHaveBeenCalled();
     expect(h.spawn).not.toHaveBeenCalled();
-    expect(h.spawnSync).not.toHaveBeenCalled();
+    expect(schtasksCalls()).toEqual([`/Query /TN ${USER_TASK}`]);
     expect(h.login).not.toHaveBeenCalled();
     expect(h.pids).not.toHaveBeenCalled();
     expect(quit).not.toHaveBeenCalled();
+  });
+
+  it("removes a sign-in task stranded without its watcher files", async () => {
+    await lifecycle.configureWarframeLifecycle(false);
+    expect(schtasksCalls()).toEqual([`/Query /TN ${USER_TASK}`, `/Delete /TN ${USER_TASK} /F`]);
+    expect(h.write).not.toHaveBeenCalled();
+    expect(h.warn).not.toHaveBeenCalled();
+  });
+
+  it("never probes for a sandbox sign-in task", async () => {
+    vi.stubEnv("WFHELPER_USER_DATA", "C:\\sandbox");
+    await lifecycle.configureWarframeLifecycle(false);
+    expect(h.execFile).not.toHaveBeenCalled();
+  });
+
+  it("keeps startup going when the task probe cannot run", async () => {
+    h.execFile.mockImplementation(() => {
+      throw new Error("schtasks is not installed");
+    });
+    await expect(lifecycle.configureWarframeLifecycle(false)).resolves.toBeUndefined();
+    expect(h.warn).toHaveBeenCalledWith(
+      expect.stringContaining("Could not check the sign-in task"),
+      expect.stringContaining("schtasks is not installed"),
+    );
   });
 
   it("enables an app-owned hidden watcher and registers sign-in startup", async () => {
@@ -166,10 +200,11 @@ describe("Warframe lifecycle", () => {
       name: LEGACY_TASK,
       openAtLogin: false,
     });
-    expect(h.spawnSync).toHaveBeenCalledWith(
+    expect(h.execFile).toHaveBeenCalledWith(
       expect.stringContaining("schtasks.exe"),
       ["/Create", "/TN", USER_TASK, "/XML", taskPath, "/F"],
       { windowsHide: true, encoding: "utf8" },
+      expect.any(Function),
     );
     const xml = Buffer.from(h.files.get(taskPath)! as unknown as Uint8Array).toString("utf16le");
     expect(xml).toContain('encoding="UTF-16"');
@@ -187,18 +222,18 @@ describe("Warframe lifecycle", () => {
     vi.stubEnv("WFHELPER_USER_DATA", "C:\\sandbox");
     await lifecycle.configureWarframeLifecycle(true);
     expect(h.login).not.toHaveBeenCalled();
-    expect(h.spawnSync).not.toHaveBeenCalled();
+    expect(h.execFile).not.toHaveBeenCalled();
     expect(h.files.has(taskPath)).toBe(false);
   });
 
   it("registers a per-user task and clears the machine-wide legacy one", async () => {
     await lifecycle.configureWarframeLifecycle(true);
-    const enabling = h.spawnSync.mock.calls.map((call) => (call[1] as string[]).join(" "));
+    const enabling = schtasksCalls();
     expect(enabling).toContain(`/Query /TN ${LEGACY_TASK}`);
     expect(enabling).toContain(`/Delete /TN ${LEGACY_TASK} /F`);
     expect(enabling.some((args) => args.startsWith(`/Create /TN ${USER_TASK} `))).toBe(true);
     await lifecycle.configureWarframeLifecycle(false);
-    const disabling = h.spawnSync.mock.calls.map((call) => (call[1] as string[]).join(" "));
+    const disabling = schtasksCalls();
     expect(disabling).toContain(`/Delete /TN ${USER_TASK} /F`);
     expect(disabling.filter((args) => args === `/Delete /TN ${LEGACY_TASK} /F`)).toHaveLength(2);
   });
@@ -217,10 +252,7 @@ describe("Warframe lifecycle", () => {
     h.files.set(path.join("C:\\App Data\\WFHelper", "warframe-watcher.ps1"), "old script");
     h.taskMissing = true;
     await lifecycle.configureWarframeLifecycle(false);
-    expect(h.spawnSync.mock.calls.map((call) => (call[1] as string[])[0])).toEqual([
-      "/Query",
-      "/Query",
-    ]);
+    expect(schtasksCalls().map((args) => args.split(" ")[0])).toEqual(["/Query", "/Query"]);
     expect(h.warn).not.toHaveBeenCalled();
   });
 
@@ -316,10 +348,11 @@ describe("Warframe lifecycle", () => {
     expect(h.files.has(configPath)).toBe(false);
     expect(h.files.has(path.join("C:\\App Data\\WFHelper", "warframe-watcher.ps1"))).toBe(false);
     expect(h.login).toHaveBeenLastCalledWith(expect.objectContaining({ openAtLogin: false }));
-    expect(h.spawnSync).toHaveBeenLastCalledWith(
+    expect(h.execFile).toHaveBeenLastCalledWith(
       expect.stringContaining("schtasks.exe"),
       ["/Delete", "/TN", USER_TASK, "/F"],
       expect.anything(),
+      expect.any(Function),
     );
     expect(h.files.has(taskPath)).toBe(false);
     await vi.advanceTimersByTimeAsync(60_000);
@@ -430,6 +463,22 @@ describe("Warframe lifecycle", () => {
     h.schtasksFails = false;
     await lifecycle.configureWarframeLifecycle(true);
     expect(JSON.parse(h.files.get(configPath)!)).toMatchObject({ enabled: true });
+  });
+
+  it("reports the original failure when re-registering the task also fails", async () => {
+    await lifecycle.configureWarframeLifecycle(true);
+    h.failWrite = true;
+    h.schtasksFails = true;
+
+    await expect(lifecycle.configureWarframeLifecycle(false)).rejects.toThrow("disk full");
+    expect(h.warn).toHaveBeenCalledWith(
+      expect.stringContaining("Could not restore the sign-in task"),
+      expect.stringContaining("Access is denied"),
+    );
+    expect(h.warn).toHaveBeenCalledWith(
+      expect.stringContaining("Could not configure automatic launch"),
+      expect.stringContaining("disk full"),
+    );
   });
 
   it("ignores games running in another Windows session", async () => {
