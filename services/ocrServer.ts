@@ -1,4 +1,7 @@
 import { spawn } from "node:child_process";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
 import type { ChildProcessWithoutNullStreams } from "node:child_process";
 import { withScope } from "./logger";
 import { resolveRuntimeResourcePath } from "./runtimeResources";
@@ -484,6 +487,7 @@ try {
 export const nativeOcrAvailable = !!_nativeRecognize;
 
 const _nativeOcrInFlight = new Set<Promise<unknown>>();
+let _nativeOcrSeq = 0;
 
 /** The addon is pulled in with require(), which module mocking cannot reach. */
 export function setNativeRecognizeForTest(recognize: NativeRecognize | null): void {
@@ -544,9 +548,21 @@ export async function drainNativeOcr(timeoutMs = 5000): Promise<void> {
   if (timer) clearTimeout(timer);
 }
 
+// The addon takes a napi reference for a Uint8Array and drops it inside its
+// libuv-worker task, so `napi_delete_reference` runs off the JS thread and
+// corrupts the reference list. The path overload holds no reference.
 export async function nativeOcrBuffer(imageBuffer: Buffer, timeoutMs?: number): Promise<string> {
   if (!_nativeRecognize) throw new Error("Native OCR not available");
-  return await runNativeOcr(_nativeRecognize, imageBuffer, timeoutMs, "nativeOcrBuffer");
+  const scratch = path.join(
+    os.tmpdir(),
+    `wfhelper-ocr-${process.pid}-${_nativeOcrSeq++}-${Date.now()}.png`,
+  );
+  await fs.promises.writeFile(scratch, imageBuffer);
+  try {
+    return await runNativeOcr(_nativeRecognize, scratch, timeoutMs, "nativeOcrBuffer");
+  } finally {
+    void fs.promises.rm(scratch, { force: true }).catch(() => undefined);
+  }
 }
 
 export async function nativeOcrFile(imagePath: string, timeoutMs?: number): Promise<string> {

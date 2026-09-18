@@ -1,6 +1,9 @@
+import fs from "node:fs";
+
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 interface Call {
+  input: Buffer | string;
   signal: AbortSignal | null | undefined;
   settle: (text: string) => void;
   fail: (err: Error) => void;
@@ -10,7 +13,7 @@ interface Call {
 const probe = vi.hoisted(() => ({ calls: [] as Call[] }));
 
 const recognize = (
-  _input: Buffer | string,
+  input: Buffer | string,
   _accuracy?: number | null,
   _langs?: string[] | null,
   signal?: AbortSignal | null,
@@ -21,7 +24,7 @@ const recognize = (
     settle = (text) => resolve({ text, confidence: 1 });
     fail = reject;
   });
-  probe.calls.push({ signal, settle, fail, promise });
+  probe.calls.push({ input, signal, settle, fail, promise });
   return promise;
 };
 
@@ -34,7 +37,7 @@ async function load() {
 }
 
 beforeEach(() => {
-  vi.useFakeTimers();
+  vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
 });
 
 afterEach(() => {
@@ -45,7 +48,7 @@ describe("native OCR lifetime", () => {
   it("hands the addon a signal it can cancel on", async () => {
     const ocr = await load();
 
-    const run = ocr.nativeOcrBuffer(Buffer.from("x"), 1000);
+    const run = ocr.nativeOcrFile("scan.png", 1000);
     expect(probe.calls).toHaveLength(1);
     expect(probe.calls[0].signal).toBeInstanceOf(AbortSignal);
     expect(probe.calls[0].signal?.aborted).toBe(false);
@@ -57,7 +60,7 @@ describe("native OCR lifetime", () => {
   it("aborts the native task when the deadline passes instead of abandoning it", async () => {
     const ocr = await load();
 
-    const run = ocr.nativeOcrBuffer(Buffer.from("x"), 500);
+    const run = ocr.nativeOcrFile("scan.png", 500);
     const settled = expect(run).rejects.toThrow(/timeout after 500ms/);
 
     await vi.advanceTimersByTimeAsync(500);
@@ -70,7 +73,7 @@ describe("native OCR lifetime", () => {
   it("does not leave a rejected abandoned task unhandled", async () => {
     const ocr = await load();
 
-    const run = ocr.nativeOcrBuffer(Buffer.from("x"), 500);
+    const run = ocr.nativeOcrFile("scan.png", 500);
     const settled = expect(run).rejects.toThrow(/timeout/);
     await vi.advanceTimersByTimeAsync(500);
 
@@ -83,7 +86,7 @@ describe("native OCR lifetime", () => {
   it("waits for work that is still inside the addon before shutdown continues", async () => {
     const ocr = await load();
 
-    void ocr.nativeOcrBuffer(Buffer.from("x"), 0).catch(() => undefined);
+    void ocr.nativeOcrFile("scan.png", 0).catch(() => undefined);
     let drained = false;
     void ocr.drainNativeOcr(5000).then(() => {
       drained = true;
@@ -100,7 +103,7 @@ describe("native OCR lifetime", () => {
   it("gives up draining rather than blocking shutdown forever", async () => {
     const ocr = await load();
 
-    void ocr.nativeOcrBuffer(Buffer.from("x"), 0).catch(() => undefined);
+    void ocr.nativeOcrFile("scan.png", 0).catch(() => undefined);
     let drained = false;
     void ocr.drainNativeOcr(1000).then(() => {
       drained = true;
@@ -117,5 +120,47 @@ describe("native OCR lifetime", () => {
     const ocr = await load();
 
     await expect(ocr.drainNativeOcr(1000)).resolves.toBeUndefined();
+  });
+});
+
+describe("native OCR never hands the addon a buffer", () => {
+  // Real timers here: these assert real disk I/O, which a faked clock starves.
+  beforeEach(() => {
+    vi.useRealTimers();
+  });
+
+  async function settleIo(check: () => boolean) {
+    for (let i = 0; i < 600 && !check(); i++) {
+      await new Promise((resolve) => setTimeout(resolve, 5));
+    }
+  }
+
+  it("passes a file path so the addon takes no napi reference", async () => {
+    const ocr = await load();
+
+    const run = ocr.nativeOcrBuffer(Buffer.from("pixels"), 0);
+    await settleIo(() => probe.calls.length > 0);
+
+    expect(probe.calls).toHaveLength(1);
+    expect(typeof probe.calls[0].input).toBe("string");
+    expect(probe.calls[0].input).toMatch(/wfhelper-ocr-.*\.png$/);
+
+    probe.calls[0].settle("text");
+    await expect(run).resolves.toBe("text");
+  });
+
+  it("removes the scratch file once the read is done", async () => {
+    const ocr = await load();
+
+    const run = ocr.nativeOcrBuffer(Buffer.from("pixels"), 0);
+    await settleIo(() => probe.calls.length > 0);
+    const scratch = probe.calls[0].input as string;
+    expect(fs.existsSync(scratch)).toBe(true);
+
+    probe.calls[0].settle("text");
+    await run;
+    await settleIo(() => !fs.existsSync(scratch));
+
+    expect(fs.existsSync(scratch)).toBe(false);
   });
 });
