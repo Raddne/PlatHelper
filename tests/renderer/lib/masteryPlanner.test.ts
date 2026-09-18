@@ -8,6 +8,7 @@ import {
   groupPlannedItems,
   missingOnly,
   plannerModalTarget,
+  plannerPartState,
   sortPlannedItems,
   unfinishedParts,
   type PlannedItem,
@@ -228,7 +229,7 @@ describe("mastery planner ownership rules", () => {
     expect(plan.craftableCount).toBe(0);
   });
 
-  it("marks a part whose blueprint is held without changing its numbers", () => {
+  it("leaves a set whose parts are only blueprints short of ready", () => {
     const chassis = "/Lotus/Types/Recipes/WarframeRecipes/AlphaChassisComponent";
     const chassisBp = "/Lotus/Types/Recipes/WarframeRecipes/AlphaChassisBlueprint";
     const db: Record<string, ItemDbEntry> = {
@@ -238,32 +239,107 @@ describe("mastery planner ownership rules", () => {
         num: 1,
         ingredients: [{ uniqueName: chassis, count: 1 }],
       }),
-      [chassis]: entry("Alpha Chassis", {
-        blueprintUniqueName: chassisBp,
-        buildPrice: 0,
-        buildTime: 0,
-        num: 1,
-        ingredients: [{ uniqueName: FERRITE, count: 900 }],
-      }),
+      [chassis]: {
+        ...entry("Alpha Chassis", {
+          blueprintUniqueName: chassisBp,
+          buildPrice: 0,
+          buildTime: 0,
+          num: 1,
+          ingredients: [{ uniqueName: FERRITE, count: 900 }],
+        }),
+        isBuildComponent: true,
+      },
       [FERRITE]: entry("Ferrite"),
     };
     const planFor = (ownership: Map<string, number>) =>
       buildMasteryPlan([pin("/Lotus/Powersuits/Alpha", "Alpha")], db, ownership).items[0];
 
     const held = planFor(new Map([[chassisBp, 1]]));
-    expect(held.components[0]).toMatchObject({ owned: 1, missing: 0, state: "blueprint" });
-    expect(held.craftableNow).toBe(true);
-    expect(held.completeness).toBe(1);
-    expect([held.components[0].built, held.components[0].needed]).toEqual([0, 1]);
+    expect(held.components[0]).toMatchObject({
+      owned: 1,
+      missing: 0,
+      built: 0,
+      state: "blueprint",
+    });
+    expect(held.craftableNow).toBe(false);
+    expect(held.completeness).toBe(0);
 
-    const built = planFor(new Map([[chassis, 1]])).components[0];
-    expect(built).toMatchObject({ owned: 1, built: 1, state: "owned" });
+    const built = planFor(new Map([[chassis, 1]]));
+    expect(built.components[0]).toMatchObject({ owned: 1, built: 1, state: "owned" });
+    expect(built.craftableNow).toBe(true);
+    expect(built.completeness).toBe(1);
+
     expect(planFor(new Map()).components[0]).toMatchObject({
       owned: 0,
       built: 0,
       missing: 1,
       state: "missing",
     });
+  });
+
+  it("keeps a raw material with its own recipe out of the blueprint state", () => {
+    const reactor = "/Lotus/Types/Recipes/Components/OrokinReactor";
+    const reactorBp = `${reactor}Blueprint`;
+    const db: Record<string, ItemDbEntry> = {
+      "/Lotus/Weapons/Alpha": entry("Alpha", {
+        buildPrice: 0,
+        buildTime: 0,
+        num: 1,
+        ingredients: [{ uniqueName: reactor, count: 1 }],
+      }),
+      [reactor]: entry("Orokin Reactor", {
+        blueprintUniqueName: reactorBp,
+        buildPrice: 0,
+        buildTime: 0,
+        num: 1,
+        ingredients: [{ uniqueName: FERRITE, count: 900 }],
+      }),
+      [reactorBp]: entry("Orokin Reactor Blueprint"),
+      [FERRITE]: entry("Ferrite"),
+    };
+
+    const planned = buildMasteryPlan(
+      [pin("/Lotus/Weapons/Alpha", "Alpha")],
+      db,
+      new Map([[reactorBp, 1]]),
+    ).items[0];
+
+    expect(planned.components[0]).toMatchObject({
+      uniqueName: reactor,
+      missing: 0,
+      state: "owned",
+    });
+    expect(unfinishedParts(planned.components)).toEqual([]);
+  });
+
+  it("stays ready when the only held blueprint is the item's own", () => {
+    const frameBp = "/Lotus/Types/Recipes/WarframeRecipes/AlphaBlueprint";
+    const chassis = "/Lotus/Types/Recipes/WarframeRecipes/AlphaChassisComponent";
+    const db: Record<string, ItemDbEntry> = {
+      "/Lotus/Powersuits/Alpha": entry("Alpha", {
+        blueprintUniqueName: frameBp,
+        buildPrice: 0,
+        buildTime: 0,
+        num: 1,
+        ingredients: [{ uniqueName: chassis, count: 1 }],
+      }),
+      [frameBp]: entry("Alpha Blueprint"),
+      [chassis]: { ...entry("Alpha Chassis"), isBuildComponent: true },
+    };
+
+    const planned = buildMasteryPlan(
+      [pin("/Lotus/Powersuits/Alpha", "Alpha")],
+      db,
+      new Map([
+        [frameBp, 1],
+        [chassis, 1],
+      ]),
+    ).items[0];
+
+    expect(planned.components.map((comp) => comp.state)).toEqual(["blueprint", "owned"]);
+    expect(planned.components.map(plannerPartState)).toEqual(["owned", "owned"]);
+    expect(planned.craftableNow).toBe(true);
+    expect(planned.completeness).toBe(1);
   });
 
   it("marks a held main blueprint as blueprint, not as done", () => {

@@ -5,9 +5,9 @@ import {
 import { resolveComponentByName } from "./componentResolution.js";
 import {
   buildCraftingTree,
+  buildPartState,
   builtPartCount,
   isRecipePartPath,
-  partState,
   type CraftingTreeNode,
   type PartState,
 } from "./craftingTree.js";
@@ -145,6 +145,14 @@ function collectNode(
   }
 }
 
+// The item's own blueprint is an input the build consumes, not a part to craft first.
+export function plannerPartState(
+  part: Pick<PlannerComponent, "isBlueprint" | "missing" | "state">,
+): PartState {
+  if (part.state !== "blueprint" || !part.isBlueprint) return part.state;
+  return part.missing === 0 ? "owned" : "missing";
+}
+
 function planPin(
   pin: PlannerPin,
   itemDb: Record<string, ItemDbEntry>,
@@ -183,7 +191,7 @@ function planPin(
     missing: child.missing,
     craftable: child.isCraftable,
     isBlueprint: child.isBlueprintItem === true,
-    state: partState(child, budget, itemDb),
+    state: buildPartState(child, budget, itemDb),
     built: builtPartCount(child, budget, itemDb),
   }));
 
@@ -206,7 +214,9 @@ function planPin(
     (a, b) => b.missing - a.missing || b.needed - a.needed || a.name.localeCompare(b.name),
   );
 
-  const satisfied = topLevel.filter((child) => child.missing === 0).length;
+  const satisfied =
+    components.filter((comp) => comp.missing === 0 && plannerPartState(comp) !== "blueprint")
+      .length + topLevel.filter((child) => !isPartLike(child) && child.missing === 0).length;
   const completeness = topLevel.length > 0 ? satisfied / topLevel.length : 1;
 
   return {

@@ -305,8 +305,7 @@ function builtCopies(
   return built;
 }
 
-// Sets say ...Component or the bare part, the inventory holds ...Blueprint, so the
-// folded count reads a held blueprint as owned; this counts what is actually built.
+// Sets say ...Component or the bare part, the inventory holds ...Blueprint.
 export function builtPartCount(
   part: PartRef,
   ownership: ReadonlyMap<string, number>,
@@ -338,7 +337,7 @@ export function partState(
             ownership,
             blueprintKeysOf({ ...part, uniqueName: product }, itemDb),
           );
-    if (built > 0) return "owned";
+    if (built >= part.count) return "owned";
     return ownedComponentCount(part.uniqueName, ownership) > 0 ? "blueprint" : "missing";
   }
   if (builtPartCount(part, ownership, itemDb) >= part.count) return "owned";
@@ -346,6 +345,21 @@ export function partState(
     if ((ownership.get(blueprint) || 0) > 0) return "blueprint";
   }
   return "missing";
+}
+
+// Raw materials (Forma, Orokin Reactor) carry recipes of their own, so only a build
+// component can be held as a blueprint instead of as the part.
+export function buildPartState(
+  part: PartRef,
+  ownership: ReadonlyMap<string, number>,
+  itemDb: Record<string, ItemDbEntry>,
+): PartState {
+  const state = partState(part, ownership, itemDb);
+  if (state !== "blueprint") return state;
+  if (part.isBlueprintItem === true || itemDb[part.uniqueName]?.isBuildComponent === true) {
+    return state;
+  }
+  return ownedComponentCount(part.uniqueName, ownership) >= part.count ? "owned" : "missing";
 }
 
 export function expandedChildAncestors(

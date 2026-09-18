@@ -3,10 +3,13 @@ import { describe, expect, it } from "vitest";
 import {
   buildMasteryRoadmap,
   componentMarketSlug,
+  componentPartState,
   estimateMasteryPurchaseCost,
+  masteryBuildReadiness,
   masteryPartCounts,
   type MasteryRoadmapSourceItem,
 } from "../../../src/lib/masteryRoadmap.js";
+import type { ComponentInfo } from "../../../src/types/inventory.js";
 import type { OwnedCounts, RelicDatabase, RelicReward } from "../../../src/types/relics.js";
 
 function item(overrides: Partial<MasteryRoadmapSourceItem>): MasteryRoadmapSourceItem {
@@ -446,9 +449,12 @@ describe("buildMasteryRoadmap", () => {
 });
 
 describe("masteryPartCounts", () => {
+  const countOf = (components: ComponentInfo[]) =>
+    masteryPartCounts(components.map(componentPartState));
+
   it("counts every part as owned when the set is fully built", () => {
     expect(
-      masteryPartCounts([
+      countOf([
         { name: "Blueprint", itemCount: 1, ownedCount: 1, owned: true },
         { name: "Neuroptics", itemCount: 1, ownedCount: 1, owned: true },
         { name: "Chassis", itemCount: 1, ownedCount: 1, owned: true },
@@ -458,7 +464,7 @@ describe("masteryPartCounts", () => {
 
   it("splits parts held only as blueprints out of the owned count", () => {
     expect(
-      masteryPartCounts([
+      countOf([
         { name: "Blueprint", itemCount: 1, ownedCount: 1, owned: true },
         { name: "Neuroptics", itemCount: 1, ownedCount: 1, owned: true, blueprintHeld: true },
         { name: "Chassis", itemCount: 1, ownedCount: 1, owned: true, blueprintHeld: true },
@@ -470,12 +476,25 @@ describe("masteryPartCounts", () => {
 
   it("leaves missing parts out of both counts", () => {
     expect(
-      masteryPartCounts([
+      countOf([
         { name: "Blueprint", itemCount: 1, ownedCount: 1, owned: true },
         { name: "Barrel", itemCount: 2, ownedCount: 1 },
         { name: "Receiver", itemCount: 1, ownedCount: 0, building: true },
       ]),
     ).toEqual({ total: 3, built: 1, craftable: 0 });
+  });
+
+  it("reads a part covered by its count alone as held for the counts and the readiness", () => {
+    const components: ComponentInfo[] = [
+      { name: "Blueprint", itemCount: 1, ownedCount: 1 },
+      { name: "Systems", itemCount: 1, ownedCount: 1, blueprintHeld: true },
+    ];
+
+    expect(countOf(components)).toEqual({ total: 2, built: 1, craftable: 1 });
+    expect(masteryBuildReadiness(components)).toBe("craftParts");
+    expect(
+      masteryBuildReadiness([...components, { name: "Barrel", itemCount: 2, ownedCount: 1 }]),
+    ).toBe(null);
   });
 });
 

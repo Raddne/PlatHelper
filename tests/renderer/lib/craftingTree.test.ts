@@ -4,6 +4,7 @@ import {
   MAX_EXPAND_DEPTH,
   applyCraftingTreeFilters,
   buildCraftingTree,
+  buildPartState,
   builtPartCount,
   canExpandCraftingNode,
   computeCraftingSummary,
@@ -732,6 +733,32 @@ describe("part state", () => {
     ).toBe("owned");
   });
 
+  it("needs the built pile to cover a blueprint row's whole count", () => {
+    const db = partDb();
+    const row = { uniqueName: FRAME_BP, count: 3, isBlueprintItem: true };
+
+    expect(
+      partState(
+        row,
+        new Map([
+          [FRAME_BP, 3],
+          [FRAME, 1],
+        ]),
+        db,
+      ),
+    ).toBe("blueprint");
+    expect(
+      partState(
+        row,
+        new Map([
+          [FRAME_BP, 3],
+          [FRAME, 3],
+        ]),
+        db,
+      ),
+    ).toBe("owned");
+  });
+
   it("keeps a blueprint row whose product is its own alias out of the owned state", () => {
     const db = partDb();
     const row = { uniqueName: CHASSIS_BP, count: 1 };
@@ -790,5 +817,31 @@ describe("part state", () => {
     expect(partState(part(SET_PART), new Map([[SET_PART_HELD, 1]]), db)).toBe("owned");
     expect(partState(part(PRIME_PART), new Map([[`${PRIME_PART}Blueprint`, 1]]), db)).toBe("owned");
     expect(partState(part(PRIME_PART), new Map(), db)).toBe("missing");
+  });
+
+  it("gives the blueprint state to build components only", () => {
+    const REACTOR = "/Lotus/Types/Recipes/Components/OrokinReactor";
+    const REACTOR_BP = `${REACTOR}Blueprint`;
+    const db: Record<string, ItemDbEntry> = {
+      ...partDb(),
+      [REACTOR]: item("Orokin Reactor", {
+        blueprintUniqueName: REACTOR_BP,
+        buildPrice: 0,
+        buildTime: 0,
+        num: 1,
+        ingredients: [{ uniqueName: RUBEDO, count: 900 }],
+      }),
+      [REACTOR_BP]: { ...item("Orokin Reactor Blueprint"), buildsProduct: REACTOR },
+    };
+    db[CHASSIS] = { ...db[CHASSIS], isBuildComponent: true };
+    const heldReactor = new Map([[REACTOR_BP, 1]]);
+
+    expect(partState(part(REACTOR), heldReactor, db)).toBe("blueprint");
+    expect(buildPartState(part(REACTOR), heldReactor, db)).toBe("owned");
+    expect(buildPartState(part(REACTOR, 2), heldReactor, db)).toBe("missing");
+    expect(buildPartState(part(CHASSIS), new Map([[CHASSIS_BP, 1]]), db)).toBe("blueprint");
+    expect(
+      buildPartState({ ...part(FRAME_BP), isBlueprintItem: true }, new Map([[FRAME_BP, 1]]), db),
+    ).toBe("blueprint");
   });
 });

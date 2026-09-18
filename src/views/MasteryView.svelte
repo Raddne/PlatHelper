@@ -39,14 +39,17 @@
   } from "../stores/data.js";
   import { buildSubsumedFamilySet, isFrameSubsumed, isSubsumableFrame } from "../lib/helminth.js";
   import { componentUniqueNameAliases } from "../../config/shared/componentNames.js";
-  import { partState, type PartState } from "../lib/craftingTree.js";
+  import { buildPartState, type PartState } from "../lib/craftingTree.js";
   import { buildMasteryLookup, normalizeLookupKey } from "../lib/masteryLookup.js";
   import { masteryProjectionSubtext } from "../lib/masteryProjection.js";
   import {
     buildMasteryRoadmap,
+    componentPartState,
     estimateMasteryPurchaseCost,
     componentMarketSlug,
+    isComponentHeld,
     masteryBuildReadiness,
+    masteryPartCounts,
   } from "../lib/masteryRoadmap.js";
   import {
     buildMasteryPlan,
@@ -92,7 +95,7 @@
   import ArchonShardSummary from "../components/archon/ArchonShardSummary.svelte";
   import { parseArchonShards, summarizeArchonShards } from "../lib/inventory/archonShards.js";
   import { fallbackNameFromUniqueName } from "../../config/shared/displayName.js";
-  import type { ComponentInfo, MasteryCategoryStats, ProgressPair } from "../types/inventory.js";
+  import type { MasteryCategoryStats, ProgressPair } from "../types/inventory.js";
   import type { FoundryState } from "../types/filters.js";
 
   let withoutInventory = false;
@@ -366,10 +369,6 @@
     );
   }
 
-  function isComponentOwned(comp: ComponentInfo): boolean {
-    return comp.owned === true || (comp.ownedCount ?? 0) >= (comp.itemCount || 1);
-  }
-
   function componentStateLabelKey(state: "building" | PartState): MessageKey {
     if (state === "building") return "mastery.badgeCrafting";
     if (state === "blueprint") return "common.blueprintOwnedNotBuilt";
@@ -431,17 +430,16 @@
         building: comp.uniqueName
           ? componentUniqueNameAliases(comp.uniqueName).some((un) => foundry.byUnique.has(un))
           : false,
-        // Raw materials (Forma, Orokin Cell) also have recipes, so only build components qualify.
-        blueprintHeld:
-          comp.uniqueName && db[comp.uniqueName]?.isBuildComponent === true
-            ? partState(
-                { uniqueName: comp.uniqueName, count: comp.itemCount || 1 },
-                ownership,
-                db,
-              ) === "blueprint"
-            : false,
+        blueprintHeld: comp.uniqueName
+          ? buildPartState(
+              { uniqueName: comp.uniqueName, count: comp.itemCount || 1 },
+              ownership,
+              db,
+            ) === "blueprint"
+          : false,
       }));
-      const partsOwned = components.length > 0 ? components.filter(isComponentOwned).length : null;
+      const partsOwned =
+        components.length > 0 ? masteryPartCounts(components.map(componentPartState)).built : null;
       const owned = item.currentlyOwned === true;
       const buildable = !owned && masteryBuildReadiness(components) === "buildable";
       const rootPrice = wfm?.url_name ? (getCachedPriceState(wfm.url_name)?.median ?? null) : null;
@@ -1063,13 +1061,11 @@
                       {#if (item.components || []).length > 0}
                         <div class="mt-1.5 flex flex-wrap gap-1">
                           {#each (item.components || []).slice(0, 8) as comp, compIndex (`${comp.uniqueName || comp.name || "component"}-${compIndex}`)}
-                            {@const isOwned =
-                              comp.owned || (comp.ownedCount ?? 0) >= (comp.itemCount || 1)}
                             {@const compState = comp.building
                               ? "building"
                               : comp.blueprintHeld
                                 ? "blueprint"
-                                : isOwned
+                                : isComponentHeld(comp)
                                   ? "owned"
                                   : "missing"}
                             <button

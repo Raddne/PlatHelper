@@ -29,7 +29,7 @@
   import { activeItem } from "../stores/modals.js";
   import { formatBuildTime, formatTimeRemaining, formatNumber } from "../lib/format.js";
   import { compareSharedFilterSort, matchesSharedFilters } from "../lib/filters.js";
-  import { collectRecipeMaterialNames, partState } from "../lib/craftingTree.js";
+  import { buildPartState, collectRecipeMaterialNames } from "../lib/craftingTree.js";
   import { buildMasteryLookup, inheritedMasteryStatus } from "../lib/masteryLookup.js";
   import { buildParsedItemFromDb } from "../lib/parsedItemFromDb.js";
   import { CREDITS_ICON_URL } from "../lib/assetUrls.js";
@@ -517,11 +517,8 @@
                 {#each item.ingredients as ing, ingIdx (`${ing.uniqueName}:${ingIdx}`)}
                   {@const owned = ownedMap.get(ing.uniqueName) ?? 0}
                   {@const ok = owned >= ing.count}
-                  <!-- Raw materials also have recipes, so only build components get the mark. -->
                   {@const blueprintHeld =
-                    !ok &&
-                    $itemDb[ing.uniqueName]?.isBuildComponent === true &&
-                    partState(ing, ownedMap, $itemDb) === "blueprint"}
+                    !ok && buildPartState(ing, ownedMap, $itemDb) === "blueprint"}
                   <div
                     class="flex items-center gap-2 min-w-0 {fewIng ? 'text-lg' : 'text-base'}"
                     title={blueprintHeld

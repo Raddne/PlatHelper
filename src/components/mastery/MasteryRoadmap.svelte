@@ -7,7 +7,7 @@
   import { easyMasteryPotentialRank } from "../../lib/masteryProjection.js";
   import { readStorage, writeStorage } from "../../lib/persistence.js";
   import { locale, tr } from "../../lib/i18n.js";
-  import { masteryPartCounts } from "../../lib/masteryRoadmap.js";
+  import { componentPartState, masteryPartCounts } from "../../lib/masteryRoadmap.js";
   import type { MasteryRoadmap, MasteryRoadmapRecommendation } from "../../lib/masteryRoadmap.js";
 
   type RoadmapMode = "easy" | "relics" | "platinum";
@@ -201,7 +201,7 @@
                 credits: item.marketCredits.toLocaleString($locale),
               })
             : ACCESS_LABELS[item.access]}
-        {@const parts = masteryPartCounts(item.components)}
+        {@const parts = masteryPartCounts(item.components.map(componentPartState))}
         <button
           type="button"
           class="grid min-w-0 grid-cols-[4rem_minmax(0,1fr)_auto] items-center gap-3 rounded-[var(--radius-lg)] border border-[var(--ui-panel-border)] bg-[var(--ui-panel-bg)] p-2.5 text-left text-inherit transition-[border-color,background-color] hover:border-accent-dim hover:bg-bg-hover"
