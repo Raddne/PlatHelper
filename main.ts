@@ -152,6 +152,7 @@ import {
   endSessionCleanly,
   markStartupSurvived,
 } from "./services/sessionHealth";
+import { summarizeCrashDump } from "./services/minidumpSummary";
 
 // Keep native crash dumps local under userData\Crashes.
 crashReporter.start({ uploadToServer: false });
@@ -421,7 +422,8 @@ function reportSessionHealth(profileStage: ProfileStage): void {
     );
   }
 
-  const previous = beginSession(app.getPath("userData"));
+  const userData = app.getPath("userData");
+  const previous = beginSession(userData);
   if (previous !== "unclean") return;
 
   const dumps = crashDumpsFromPreviousSession(app.getPath("crashDumps"));
@@ -429,6 +431,10 @@ function reportSessionHealth(profileStage: ProfileStage): void {
     `[Startup] previous session ended without shutting down` +
       (dumps.length > 0 ? `; crash dump: ${dumps[0]}` : " (no crash dump)"),
   );
+  if (dumps.length > 0) {
+    const summary = summarizeCrashDump(path.join(app.getPath("crashDumps"), "reports", dumps[0]));
+    if (summary) log.warn(`[Startup] crash dump says: ${summary}`);
+  }
   if (foreign.length > 0) log.warn(`[Startup] foreign module paths: ${foreign.join(", ")}`);
 
   const injectors = describeKnownInjectors(foreign);
