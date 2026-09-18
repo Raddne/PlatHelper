@@ -50,7 +50,6 @@
 
   const narrowRail = typeof window === "undefined" ? null : window.matchMedia("(max-width: 800px)");
 
-  // At a fixed 60px the icon is wider than the button and preflight's img max-width shrinks it.
   function railScaledWidth(px: number, fontScale: number): number {
     return px <= SIDEBAR_RAIL_WIDTH ? Math.round(px * fontScale) : px;
   }

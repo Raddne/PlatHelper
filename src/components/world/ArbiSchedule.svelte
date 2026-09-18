@@ -98,7 +98,13 @@
   onMount(() => {
     void refresh();
     syncSplit();
-    const splitResize = new ResizeObserver(() => syncSplit());
+    let observedWidth = -1;
+    const splitResize = new ResizeObserver((records) => {
+      const width = records[0]?.contentRect.width ?? -1;
+      if (width === observedWidth) return;
+      observedWidth = width;
+      syncSplit();
+    });
     if (splitEl) splitResize.observe(splitEl);
     window.addEventListener("resize", syncSplit);
     window.addEventListener("scroll", updateAsideHeight, true);
@@ -558,7 +564,7 @@
         <div class="overflow-x-auto" data-arbi-table>
           <div class="flex flex-col">
             <div
-              class="grid grid-cols-[90px_minmax(4.5rem,1.3fr)_minmax(3.75rem,1fr)_110px_130px_36px_28px] gap-x-3 border-b border-border px-2 py-1.5 text-left text-xs font-semibold uppercase tracking-wide text-text-muted"
+              class="grid grid-cols-[6rem_minmax(4.5rem,1.3fr)_minmax(3.75rem,1fr)_7.3333rem_8.6667rem_2.4rem_1.8667rem] gap-x-3 border-b border-border px-2 py-1.5 text-left text-xs font-semibold uppercase tracking-wide text-text-muted"
               data-arbi-head
             >
               <span class="truncate">{$tr("foundry.sort.time")}</span>
@@ -580,7 +586,7 @@
                 {@const key = scheduleEntryKey(entry)}
                 {@const belled = occurrenceSet.has(key)}
                 <div
-                  class="grid grid-cols-[90px_minmax(4.5rem,1.3fr)_minmax(3.75rem,1fr)_110px_130px_36px_28px] items-center gap-x-3 border-b border-border/40 px-2 py-1.5 text-sm hover:bg-surface-hover {copySelection.has(
+                  class="grid grid-cols-[6rem_minmax(4.5rem,1.3fr)_minmax(3.75rem,1fr)_7.3333rem_8.6667rem_2.4rem_1.8667rem] items-center gap-x-3 border-b border-border/40 px-2 py-1.5 text-sm hover:bg-surface-hover {copySelection.has(
                     key,
                   )
                     ? 'bg-accent/5'
