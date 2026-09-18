@@ -173,11 +173,8 @@ function inventoryCouldHoldOrder(
 }
 
 interface OrderBacking {
-  /** Inventory rows that can fulfil the listing as written. */
   rows: ParsedItem[];
-  /** Set only when the listing pins a rank no owned copy sits at. */
   rankMismatch: number | null;
-  /** Set when the listing names a variant the inventory cannot tell apart. */
   unprovable?: true;
 }
 
@@ -191,21 +188,15 @@ function orderBacking(
   let owned = matchingParsedItems(order, parsedItems, wfmItems).filter(
     (item) => ownedCountForOrder(item) > 0,
   );
-  // DE keeps the crafted ...Component beside the ...Blueprint warframe.market
-  // trades and both join one order; prefer the listed one. Dropping untradable
-  // rows outright would empty a listing the catalog files under another
-  // uniqueName, so they only lose to a tradable row for the same order.
+  // DE keeps the crafted ...Component beside the ...Blueprint WFM trades, so both join one order.
   const tradableRows = owned.filter((item) => item.tradable !== false);
   if (tradableRows.length > 0) owned = tradableRows;
   const orderSubtype = normalizeSubtype(order.subtype);
   if (orderSubtype) {
-    // A refinement-specific listing is only backed by that refinement; an intact
-    // stack cannot fulfil a radiant order.
     if (RELIC_REFINEMENT_RE.exec(`${order.itemName} (${orderSubtype})`)) {
       owned = owned.filter((item) => relicQualityForItem(item) === orderSubtype);
     } else {
-      // A mod variant (Atragraph) is a separate card the inventory does not
-      // model, so ordinary copies never prove one either way.
+      // A mod variant (Atragraph) is a separate card the inventory does not model.
       return { rows: [], rankMismatch: null, unprovable: true };
     }
   }
@@ -222,8 +213,6 @@ function orderBacking(
   return { rows: [], rankMismatch: Math.floor(ranked[0].rank) };
 }
 
-/** A stack split across rows still backs one listing, so the rows that survive
- *  the rank and refinement checks are summed rather than read one at a time. */
 function backedOwnedCount(backing: OrderBacking): number {
   return backing.rows.reduce((sum, item) => sum + ownedCountForOrder(item), 0);
 }
@@ -256,30 +245,47 @@ export function orderInventoryMatch(
 
 interface QuantitySyncPlan {
   updates: Array<{ order: WfmOrder; quantity: number }>;
-  /** Sell listings already at the owned count. */
   unchanged: number;
-  /** Sell listings the inventory cannot back, left alone. */
   unbacked: number;
+  belowPerTrade: number;
 }
 
-/** Splits sell listings into the ones whose quantity should follow the owned
- *  count and the ones that must not be touched. Buy orders need no stock. */
+// warframe.market clamps perTrade into [1, quantity] and the PATCH carries no
+// perTrade, so a quantity under it would contradict the listing WFM still holds.
+function perTradeOf(order: WfmOrder): number {
+  const perTrade = toFinitePositiveInt(order.perTrade) ?? 1;
+  const quantity = toFinitePositiveInt(order.quantity) ?? 1;
+  return Math.min(perTrade, quantity);
+}
+
 export function planQuantitySync(
   orders: readonly WfmOrder[],
   parsedItems: ParsedItem[],
   wfmItems: WfmItemsLookup = {},
 ): QuantitySyncPlan {
-  const plan: QuantitySyncPlan = { updates: [], unchanged: 0, unbacked: 0 };
+  const plan: QuantitySyncPlan = { updates: [], unchanged: 0, unbacked: 0, belowPerTrade: 0 };
   for (const order of orders) {
     if (order.orderType !== "sell") continue;
     const owned = backedOwnedCount(orderBacking(order, parsedItems, wfmItems));
-    // Zero is never sent: warframe.market reads it as a delete, and an item the
-    // inventory cannot prove is not evidence the user sold out.
+    // Zero is never sent: warframe.market reads it as a delete.
     if (owned <= 0) plan.unbacked += 1;
     else if (owned === order.quantity) plan.unchanged += 1;
+    else if (owned < perTradeOf(order)) plan.belowPerTrade += 1;
     else plan.updates.push({ order, quantity: owned });
   }
   return plan;
+}
+
+export async function runQuantitySync(
+  updates: QuantitySyncPlan["updates"],
+  send: (order: WfmOrder, quantity: number) => Promise<boolean>,
+): Promise<{ sent: number; remaining: number }> {
+  let sent = 0;
+  for (const update of updates) {
+    if (!(await send(update.order, update.quantity))) break;
+    sent += 1;
+  }
+  return { sent, remaining: updates.length - sent };
 }
 
 export function buildMarketOrderInventoryItem(

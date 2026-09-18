@@ -97,6 +97,7 @@
     orderInventoryMatch,
     ownedCountForMarketOrder,
     planQuantitySync,
+    runQuantitySync,
   } from "../lib/marketOrderInventory.js";
   import {
     beginContractsWrite,
@@ -135,11 +136,7 @@
   const CONTRACTS_STALE_MS = 60_000;
   const CONTRACTS_PAGE_SIZE = 40;
   const CONTRACTS_APPEND_ATTEMPTS = 3;
-  // Under the grader's 100-entry cap, with room for a whole-list load.
   const CONTRACT_GRADE_BATCH = 50;
-  // How long a grade computed without the community sheet stands before the
-  // view asks again; the sheet load that answer kicked off usually beats it.
-  // Each round waits a multiple of it, and there are only three of them.
   const CONTRACT_GRADE_RETRY_MS = 30_000;
   const CONTRACT_GRADE_RETRY_LIMIT = 3;
   const MARKET_METRIC_PREFETCH_LIMIT = 64;
@@ -209,8 +206,6 @@
     return contract.itemName || $tr("rivens.type.riven");
   }
 
-  // A listing WFM gave no value for stays null: read as 0 the grader would score
-  // it as the worst possible roll instead of leaving that stat ungraded.
   function contractAttributeValue(attribute: WfmContractAttribute): number | null {
     if (attribute.value == null) return null;
     const numericValue =
@@ -227,8 +222,7 @@
       tag: attribute.urlName || attribute.label,
       name: attributeKeyword(attribute) || $tr("common.unknown"),
       displayValue: Math.abs(safeValue),
-      // WFM lists the values at the listing's own rank, which is often 0, and
-      // the roll floats needed to scale them live in main - so both stay as listed.
+      // WFM lists the values at the listing's own rank, so there is nothing to scale here.
       maxRankValue: Math.abs(safeValue),
       rollFloat: grade?.rollFloat ?? 0.5,
       grade: grade?.grade ?? "",
@@ -237,9 +231,6 @@
     };
   }
 
-  // Undefined while the grader has not answered; null once it said the weapon
-  // is unknown, which the card shows as the same "unrated" state as a weapon
-  // missing from the community sheet.
   function rivenFromContract(
     contract: WfmContract,
     grade: RivenContractGrade | null | undefined,
@@ -248,8 +239,6 @@
     const stats = contract.stats.map((attribute, index) =>
       toRivenStat(attribute, grade?.stats[index]),
     );
-    // Same mean the fingerprint decoder takes, and only over graded rolls; an
-    // ungraded contract would otherwise read as a flat 50% perfect.
     const scored = grade
       ? stats.map((stat) => (stat.positive ? stat.rollFloat : 1 - stat.rollFloat))
       : [];
@@ -276,14 +265,11 @@
   function contractGradeRequest(contract: WfmContract): RivenContractGradeRequest {
     return {
       weaponName: contractWeaponName(contract),
-      // Every listed value scales with the rank, so the grader has to be told
-      // which rank it is reading; a listing without one is graded by search.
       modRank: contract.modRank ?? null,
       stats: contract.stats.map((attribute) => {
         const value = contractAttributeValue(attribute);
         return {
-          // The url_name is WFM's own vocabulary; the label is whatever the
-          // seller's client sent, so it is only the fallback.
+          // The url_name is WFM's own vocabulary; the label is whatever the seller's client sent.
           name:
             attribute.urlName && attribute.urlName !== "unknown"
               ? attribute.urlName
@@ -295,8 +281,6 @@
     };
   }
 
-  // Grades whatever the store holds that has not been graded yet, whichever
-  // loader put it there (this tab's pager or the Rivens tab's whole-list read).
   async function gradeContracts(contracts: WfmContract[]): Promise<void> {
     const wanted = new Set(
       contractIdsToGrade(
@@ -336,10 +320,6 @@
     }
   }
 
-  // One timer, armed only while a listed contract still waits for the sheet and
-  // the view is mounted: a batch can land after teardown. The rounds are capped
-  // because a failed sheet fetch keeps its own 10-minute cooldown, so polling
-  // past them learns nothing and any contracts change asks again anyway.
   function scheduleContractGradeRetry(contracts: WfmContract[]): void {
     if (viewDestroyed || contractGradeRetryTimer !== null) return;
     if (contractGradeRetries >= CONTRACT_GRADE_RETRY_LIMIT) return;
@@ -758,8 +738,6 @@
     }));
   }
 
-  /** Sets each sell listing to the number of copies the inventory proves, so a
-   *  condensed arcane stack does not have to be re-typed listing by listing. */
   async function syncQuantitiesToInventory(): Promise<void> {
     if (syncingQuantities || !isSellOrdersTab) return;
     const targets =
@@ -767,28 +745,37 @@
         ? repriceTargets
         : activeOrders.filter((order) => visibleOrderIds.has(order.id));
     const plan = planQuantitySync(targets, $parsedItems, $wfmItems);
+    const belowPerTradeNote =
+      plan.belowPerTrade > 0
+        ? $tr("market.syncQuantitiesBelowPerTrade", { count: plan.belowPerTrade })
+        : "";
     if (plan.updates.length === 0) {
-      addToast({ level: "info", message: $tr("market.syncQuantitiesNothing") });
+      addToast({
+        level: "info",
+        message: belowPerTradeNote || $tr("market.syncQuantitiesNothing"),
+      });
       return;
     }
+    const confirmMessage = $tr("market.syncQuantitiesConfirm", {
+      count: plan.updates.length,
+      unbacked: plan.unbacked,
+    });
     const confirmed = await confirmWithDialog(
-      $tr("market.syncQuantitiesConfirm", {
-        count: plan.updates.length,
-        unbacked: plan.unbacked,
-      }),
+      belowPerTradeNote ? `${confirmMessage}\n${belowPerTradeNote}` : confirmMessage,
       $tr,
     );
     if (!confirmed) return;
 
     syncingQuantities = true;
     try {
-      // One PATCH at a time, same as the reprice run; inlineUpdateOrder has
-      // already shown the error by the time it reports a failure.
-      // Quantity only: the price captured when the plan was built would undo a
-      // reprice or an edit the user makes while the run is still going.
-      for (const update of plan.updates) {
-        const sent = await inlineUpdateOrder(update.order, { quantity: update.quantity });
-        if (!sent) return;
+      const outcome = await runQuantitySync(plan.updates, (order, quantity) =>
+        inlineUpdateOrder(order, { quantity }),
+      );
+      if (outcome.remaining > 0) {
+        addToast({
+          level: "warning",
+          message: $tr("market.syncQuantitiesStopped", { count: outcome.remaining }),
+        });
       }
     } finally {
       syncingQuantities = false;
@@ -857,8 +844,6 @@
   }
 
   $: void gradeContracts($marketContracts.contracts);
-  // Rebuilt from the grade map so a verdict that lands after the modal opened
-  // still reaches it.
   $: selectedContractRiven = selectedContract
     ? rivenFromContract(selectedContract, contractGradeById.get(selectedContract.id))
     : null;
