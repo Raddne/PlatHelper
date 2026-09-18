@@ -7,6 +7,7 @@
   import { easyMasteryPotentialRank } from "../../lib/masteryProjection.js";
   import { readStorage, writeStorage } from "../../lib/persistence.js";
   import { locale, tr } from "../../lib/i18n.js";
+  import { masteryPartCounts } from "../../lib/masteryRoadmap.js";
   import type { MasteryRoadmap, MasteryRoadmapRecommendation } from "../../lib/masteryRoadmap.js";
 
   type RoadmapMode = "easy" | "relics" | "platinum";
@@ -32,6 +33,7 @@
     building: $tr("mastery.roadmap.accessBuilding"),
     buildable: $tr("common.canBuild"),
     foundryParts: $tr("mastery.roadmap.accessFoundryParts"),
+    craftParts: $tr("mastery.roadmap.accessCraftParts"),
     marketBlueprint: $tr("mastery.roadmap.accessMarket"),
     relics: $tr("mastery.roadmap.accessRelics"),
     platinum: $tr("mastery.roadmap.accessPlatinum"),
@@ -93,13 +95,6 @@
 
   function isRankLocked(item: MasteryRoadmapRecommendation, rank: number | null): boolean {
     return rank !== null && item.masteryReq > rank;
-  }
-
-  function ownedPartTypes(item: MasteryRoadmapRecommendation): number {
-    return item.components.filter(
-      (component) =>
-        component.owned || (component.ownedCount ?? 0) >= Math.max(1, component.itemCount ?? 1),
-    ).length;
   }
 </script>
 
@@ -206,6 +201,7 @@
                 credits: item.marketCredits.toLocaleString($locale),
               })
             : ACCESS_LABELS[item.access]}
+        {@const parts = masteryPartCounts(item.components)}
         <button
           type="button"
           class="grid min-w-0 grid-cols-[4rem_minmax(0,1fr)_auto] items-center gap-3 rounded-[var(--radius-lg)] border border-[var(--ui-panel-border)] bg-[var(--ui-panel-bg)] p-2.5 text-left text-inherit transition-[border-color,background-color] hover:border-accent-dim hover:bg-bg-hover"
@@ -267,11 +263,16 @@
                     })}
               </span>
               <span class="mt-1 block text-xs text-text-muted">
-                {$tr("mastery.roadmap.partsOwnedLine", {
-                  category: item.category,
-                  owned: ownedPartTypes(item),
-                  total: item.components.length,
-                })}
+                {#if parts.craftable > 0}{$tr("mastery.roadmap.partsOwnedCraftableLine", {
+                    category: item.category,
+                    owned: parts.built,
+                    craftable: parts.craftable,
+                    total: parts.total,
+                  })}{:else}{$tr("mastery.roadmap.partsOwnedLine", {
+                    category: item.category,
+                    owned: parts.built,
+                    total: parts.total,
+                  })}{/if}
               </span>
             {:else}
               <span class="block text-xs text-text-secondary">
@@ -284,9 +285,16 @@
                 {#if item.access === "owned"}{$tr("mastery.roadmap.levelLine", {
                     rank: item.rank,
                     maxRank: item.maxRank,
-                  })}{:else if item.components.length > 0}{$tr("mastery.roadmap.partsOwnedShort", {
-                    owned: ownedPartTypes(item),
-                    total: item.components.length,
+                  })}{:else if parts.craftable > 0}{$tr(
+                    "mastery.roadmap.partsOwnedCraftableShort",
+                    {
+                      owned: parts.built,
+                      craftable: parts.craftable,
+                      total: parts.total,
+                    },
+                  )}{:else if item.components.length > 0}{$tr("mastery.roadmap.partsOwnedShort", {
+                    owned: parts.built,
+                    total: parts.total,
                   })}{:else}{$tr("mastery.notOwned")}{/if}
               </span>
             {/if}

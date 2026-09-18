@@ -46,6 +46,7 @@
     buildMasteryRoadmap,
     estimateMasteryPurchaseCost,
     componentMarketSlug,
+    masteryBuildReadiness,
   } from "../lib/masteryRoadmap.js";
   import {
     buildMasteryPlan,
@@ -442,8 +443,7 @@
       }));
       const partsOwned = components.length > 0 ? components.filter(isComponentOwned).length : null;
       const owned = item.currentlyOwned === true;
-      const buildable =
-        !owned && components.length > 0 && components.every((comp) => comp.owned === true);
+      const buildable = !owned && masteryBuildReadiness(components) === "buildable";
       const rootPrice = wfm?.url_name ? (getCachedPriceState(wfm.url_name)?.median ?? null) : null;
       const estimatedCost = estimateMasteryPurchaseCost(rootPrice, components, (component) => {
         const slug = componentMarketSlug(item.name, component, wfmLookup);

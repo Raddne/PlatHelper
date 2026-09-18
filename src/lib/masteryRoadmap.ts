@@ -12,6 +12,7 @@ type MasteryRoadmapAccess =
   | "building"
   | "buildable"
   | "foundryParts"
+  | "craftParts"
   | "marketBlueprint";
 
 interface MissingMasteryComponent {
@@ -117,10 +118,41 @@ const ACCESS_PRIORITY: Record<MasteryRoadmapAccess, number> = {
   building: 3,
   buildable: 4,
   foundryParts: 5,
+  craftParts: 6,
   // A Market blueprint is one credit purchase away, but the parts it needs are
   // still missing, so it ranks below everything the foundry can already finish.
-  marketBlueprint: 6,
+  marketBlueprint: 7,
 };
+
+// A set counts a held part blueprint as the part (one pile, two spellings), so
+// "every part owned" does not mean every part is built.
+export function masteryBuildReadiness(
+  components: ComponentInfo[],
+): "buildable" | "craftParts" | null {
+  if (components.length === 0) return null;
+  if (!components.every((component) => component.owned === true)) return null;
+  return components.some((component) => component.blueprintHeld === true)
+    ? "craftParts"
+    : "buildable";
+}
+
+export function masteryPartCounts(components: ComponentInfo[]): {
+  total: number;
+  built: number;
+  craftable: number;
+} {
+  let built = 0;
+  let craftable = 0;
+  for (const component of components) {
+    const held =
+      component.owned === true ||
+      (component.ownedCount ?? 0) >= Math.max(1, component.itemCount ?? 1);
+    if (!held) continue;
+    if (component.blueprintHeld === true) craftable += 1;
+    else built += 1;
+  }
+  return { total: components.length, built, craftable };
+}
 
 // Parts in the foundry are neither owned nor missing, so relics and platinum
 // read the set as complete. A foundry copy covers only one required unit.
@@ -145,8 +177,10 @@ function easyAccess(item: MasteryRoadmapSourceItem): MasteryRoadmapAccess | null
   if (item.owned || item.currentlyOwned) return "owned";
   if (item.foundryState === "claimable") return "claimable";
   if (item.foundryState === "building") return "building";
-  if (item.foundryState === "buildable") return "buildable";
+  const readiness = masteryBuildReadiness(item.components);
+  if (item.foundryState === "buildable" && readiness !== "craftParts") return "buildable";
   if (partsWaitingInFoundry(item)) return "foundryParts";
+  if (readiness === "craftParts") return "craftParts";
   if (marketBlueprintFinishesIt(item)) return "marketBlueprint";
   return null;
 }

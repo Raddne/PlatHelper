@@ -33,6 +33,8 @@ export interface ComponentInfo {
   ownedCount?: number;
   owned?: boolean;
   building?: boolean;
+  /** Its blueprint is in the inventory but the part itself has not been crafted. */
+  blueprintHeld?: boolean;
   drops?: DropInfo[];
   [key: string]: unknown;
 }

@@ -4,6 +4,7 @@ import {
   buildMasteryRoadmap,
   componentMarketSlug,
   estimateMasteryPurchaseCost,
+  masteryPartCounts,
   type MasteryRoadmapSourceItem,
 } from "../../../src/lib/masteryRoadmap.js";
 import type { OwnedCounts, RelicDatabase, RelicReward } from "../../../src/types/relics.js";
@@ -107,6 +108,73 @@ describe("buildMasteryRoadmap", () => {
       ["Nekros", "foundryParts"],
     ]);
     expect(roadmap.platinum).toEqual([]);
+  });
+
+  it("does not call a set buildable while its parts are only held as blueprints", () => {
+    const roadmap = buildMasteryRoadmap([
+      item({
+        name: "Baruuk",
+        foundryState: "buildable",
+        components: [
+          { name: "Blueprint", itemCount: 1, ownedCount: 1, owned: true },
+          { name: "Neuroptics", itemCount: 1, ownedCount: 1, owned: true, blueprintHeld: true },
+          { name: "Chassis", itemCount: 1, ownedCount: 1, owned: true, blueprintHeld: true },
+          { name: "Systems", itemCount: 1, ownedCount: 1, owned: true, blueprintHeld: true },
+          { name: "Orokin Cell", itemCount: 3, ownedCount: 3, owned: true },
+        ],
+      }),
+    ]);
+
+    expect(roadmap.easy.map((entry) => [entry.name, entry.access])).toEqual([
+      ["Baruuk", "craftParts"],
+    ]);
+  });
+
+  it("still calls a set buildable once every part is built", () => {
+    const roadmap = buildMasteryRoadmap([
+      item({
+        name: "Baruuk",
+        foundryState: "buildable",
+        components: [
+          { name: "Blueprint", itemCount: 1, ownedCount: 1, owned: true },
+          { name: "Neuroptics", itemCount: 1, ownedCount: 1, owned: true },
+          { name: "Chassis", itemCount: 1, ownedCount: 1, owned: true },
+          { name: "Systems", itemCount: 1, ownedCount: 1, owned: true },
+        ],
+      }),
+    ]);
+
+    expect(roadmap.easy.map((entry) => [entry.name, entry.access])).toEqual([
+      ["Baruuk", "buildable"],
+    ]);
+  });
+
+  it("keeps a set waiting on crafted parts between the Foundry and Market states", () => {
+    const roadmap = buildMasteryRoadmap([
+      item({
+        name: "Mag",
+        marketBuyable: true,
+        marketCredits: 25_000,
+        components: [{ name: "Blueprint", itemCount: 1, ownedCount: 0 }],
+      }),
+      item({
+        name: "Baruuk",
+        components: [
+          { name: "Blueprint", itemCount: 1, ownedCount: 1, owned: true },
+          { name: "Systems", itemCount: 1, ownedCount: 1, owned: true, blueprintHeld: true },
+        ],
+      }),
+      item({
+        name: "Nekros",
+        components: [{ name: "Neuroptics", itemCount: 1, ownedCount: 0, building: true }],
+      }),
+    ]);
+
+    expect(roadmap.easy.map((entry) => [entry.name, entry.access])).toEqual([
+      ["Nekros", "foundryParts"],
+      ["Baruuk", "craftParts"],
+      ["Mag", "marketBlueprint"],
+    ]);
   });
 
   it("keeps an item with a short build resource out of the Foundry recommendation", () => {
@@ -374,6 +442,40 @@ describe("buildMasteryRoadmap", () => {
     );
 
     expect(roadmap.relics[0]?.relicProbability).toBe(1);
+  });
+});
+
+describe("masteryPartCounts", () => {
+  it("counts every part as owned when the set is fully built", () => {
+    expect(
+      masteryPartCounts([
+        { name: "Blueprint", itemCount: 1, ownedCount: 1, owned: true },
+        { name: "Neuroptics", itemCount: 1, ownedCount: 1, owned: true },
+        { name: "Chassis", itemCount: 1, ownedCount: 1, owned: true },
+      ]),
+    ).toEqual({ total: 3, built: 3, craftable: 0 });
+  });
+
+  it("splits parts held only as blueprints out of the owned count", () => {
+    expect(
+      masteryPartCounts([
+        { name: "Blueprint", itemCount: 1, ownedCount: 1, owned: true },
+        { name: "Neuroptics", itemCount: 1, ownedCount: 1, owned: true, blueprintHeld: true },
+        { name: "Chassis", itemCount: 1, ownedCount: 1, owned: true, blueprintHeld: true },
+        { name: "Systems", itemCount: 1, ownedCount: 1, owned: true, blueprintHeld: true },
+        { name: "Orokin Cell", itemCount: 3, ownedCount: 3 },
+      ]),
+    ).toEqual({ total: 5, built: 2, craftable: 3 });
+  });
+
+  it("leaves missing parts out of both counts", () => {
+    expect(
+      masteryPartCounts([
+        { name: "Blueprint", itemCount: 1, ownedCount: 1, owned: true },
+        { name: "Barrel", itemCount: 2, ownedCount: 1 },
+        { name: "Receiver", itemCount: 1, ownedCount: 0, building: true },
+      ]),
+    ).toEqual({ total: 3, built: 1, craftable: 0 });
   });
 });
 
