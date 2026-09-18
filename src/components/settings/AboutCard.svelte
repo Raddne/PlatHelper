@@ -83,11 +83,6 @@
     <div class="settings-credit-row">
       <span>{$tr("settings.creditSupport")}</span>
       <span class="flex flex-wrap items-center justify-end gap-x-2.5 gap-y-1">
-        <button
-          class="settings-link"
-          onclick={() => openLink("https://github.com/sponsors/MrZockerator")}
-          >&hearts; {$tr("settings.creditSponsors")}</button
-        >
         <button class="settings-link" onclick={() => openLink(PATREON_URL)}>Patreon</button>
       </span>
     </div>
