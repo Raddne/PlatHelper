@@ -710,6 +710,11 @@
     color: var(--info);
     border: 1px solid var(--info-dim);
   }
+  .item-mark--foundry {
+    background: var(--warning-bg);
+    color: var(--warning);
+    border: 1px solid var(--warning-dim);
+  }
 
   .listing-warning {
     width: fit-content;
@@ -991,7 +996,8 @@
     background: var(--info-bg);
     color: var(--info);
   }
-  .detail-tag.progress {
+  .detail-tag.progress,
+  .detail-tag.foundry {
     background: var(--warning-bg);
     color: var(--warning);
   }

@@ -38,6 +38,7 @@
   import {
     chainBuildableBlueprints,
     EQUIPMENT_CATEGORY_ORDER,
+    isFoundryBuildClaimable,
     isFoundryRecipeReady,
   } from "../lib/inventory/foundryResources.js";
   import { sharedFilters, updateSharedFilters } from "../stores/filters.js";
@@ -179,8 +180,7 @@
   // chainBuildable is passed in: a $: statement tracks only what it names textually.
   function statusOf(entry: FoundryEntry, now: number, chainSets: ReadonlySet<string>): ItemStatus {
     if (entry.source === "building") {
-      if (entry.endDate && entry.endDate.getTime() <= now) return "claimable";
-      return "in-progress";
+      return isFoundryBuildClaimable(entry, now) ? "claimable" : "in-progress";
     }
     return isFoundryRecipeReady(entry, ownedMap, chainSets) ? "ready-to-build" : "not-ready";
   }

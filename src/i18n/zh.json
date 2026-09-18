@@ -1,6 +1,7 @@
 {
   "common.parentItemOwned": "已拥有所属装备",
   "common.parentOwned": "已拥有主物品",
+  "common.parentReadyToClaim": "所属装备已在锻造厂制造完成，可以领取",
   "settings.showMasteredBadges": "精通标记（M）",
   "settings.showOwnedParentBadges": "所属装备拥有标记（C）",
   "settings.showVaultedBadges": "已绝版标记（V）",

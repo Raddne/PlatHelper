@@ -13,6 +13,9 @@ import {
 import { createOfflineScenario } from "./offlineScenario";
 
 const expect = baseExpect.configure({ timeout: 20_000 });
+const FRAME = "/Lotus/Powersuits/Mag/MagPrime";
+// Long past under the scenario's frozen clock as well as the renderer's real one.
+const CLAIMED_LONG_AGO = Date.UTC(2020, 0, 1);
 const ITEM_REF = "/Lotus/Upgrades/Mods/Pistol/Event/Nightwave/NightwaveLasGooPistolAugmentMod";
 const CATALOG_ITEM = {
   gameRef: ITEM_REF,
@@ -121,6 +124,64 @@ test("inventory resolves missing Nightwave metadata and keeps catalog entries un
       ),
     ).toBe(5);
     await page.screenshot({ path: test.info().outputPath("catalog-with-empty-inventory.png") });
+  } finally {
+    await closeElectronTestHarness(harness);
+    scenario.dispose();
+  }
+});
+
+test("a part whose parent waits in the foundry carries the claim mark", async () => {
+  test.setTimeout(180_000);
+  const scenario = createOfflineScenario("world-darvo");
+  let harness: ElectronTestHarness | undefined;
+  try {
+    harness = await launchElectronTestHarness("wfh-inventory-foundry-mark-", {
+      ...scenario,
+      inventory: { Suits: [] },
+    });
+    const { page } = harness;
+    await evaluateInMain(
+      harness.app,
+      () => {
+        // Filesystem write-stability polling needs time to advance after offline startup.
+        globalThis.Date = Date.prototype.constructor as DateConstructor;
+      },
+      null,
+    );
+
+    const parent = await page.evaluate(async (frame) => {
+      const db = (await window.api.getItemDatabase()) as unknown as Record<
+        string,
+        {
+          components?: Array<{ uniqueName?: string }>;
+          recipe?: { blueprintUniqueName?: string };
+        }
+      >;
+      const blueprint = db[frame]?.recipe?.blueprintUniqueName;
+      const part = db[frame]?.components?.find((entry) => entry.uniqueName)?.uniqueName;
+      return blueprint && part ? { blueprint, part } : null;
+    }, FRAME);
+    if (!parent) throw new Error("the item database has no Mag Prime recipe with a named part");
+    const { blueprint, part } = parent;
+
+    // The frame itself stays unowned, so C cannot answer for the part instead.
+    writeHarnessInventory(harness, {
+      Suits: [],
+      MiscItems: [{ ItemType: part, ItemCount: 2 }],
+      PendingRecipes: [
+        {
+          ItemType: blueprint,
+          CompletionDate: { $date: { $numberLong: String(CLAIMED_LONG_AGO) } },
+        },
+      ],
+    });
+    await page.locator('#sidebar [data-view="inventory"]').click();
+    await page.locator('[data-tour="inventory-tabs"] [data-tour-tab="all_parts"]').click();
+    const card = page.locator(`[data-inventory-card="${part}"]`);
+    await expect(card.locator('[data-item-mark="foundry"]')).toBeVisible({ timeout: 60_000 });
+    await expect(card.locator('[data-item-mark="foundry"]')).toHaveText("F");
+    await expect(card.locator('[data-item-mark="crafted"]')).toHaveCount(0);
+    await page.screenshot({ path: test.info().outputPath("foundry-claim-mark.png") });
   } finally {
     await closeElectronTestHarness(harness);
     scenario.dispose();

@@ -1010,6 +1010,7 @@
   "common.mastered": "Gemeistert",
   "common.parentItemOwned": "Übergeordneter Gegenstand im Besitz",
   "common.parentOwned": "Basis im Besitz",
+  "common.parentReadyToClaim": "Übergeordneter Gegenstand ist in der Schmiede fertig und kann abgeholt werden",
   "settings.showMasteredBadges": "Gemeistert-Markierungen (M)",
   "settings.showOwnedParentBadges": "Besitz-Markierungen (C)",
   "settings.showVaultedBadges": "Vault-Markierungen (V)",

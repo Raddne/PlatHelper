@@ -329,6 +329,11 @@
                     data-item-mark="crafted"
                     title={$t("common.parentItemOwned")}>{$t("common.parentOwned")}</span
                   >{/if}
+                {#if $showOwnedParentBadges && marks.foundry}<span
+                    class="detail-tag foundry"
+                    data-item-mark="foundry"
+                    title={$t("common.parentReadyToClaim")}>F</span
+                  >{/if}
                 {#each shardCopies as copy, copyIndex (copy.instanceId ?? copyIndex)}
                   <ArchonShardPips
                     slots={copy.slots}

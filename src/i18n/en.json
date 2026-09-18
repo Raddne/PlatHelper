@@ -727,6 +727,7 @@
   "common.mastered": "Mastered",
   "common.parentItemOwned": "Parent item owned",
   "common.parentOwned": "Parent owned",
+  "common.parentReadyToClaim": "Parent item finished in the foundry and ready to claim",
   "common.mastery": "Mastery",
   "common.moreCount": "+{count} more",
   "common.max": "Max",

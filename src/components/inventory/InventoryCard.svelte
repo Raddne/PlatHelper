@@ -159,7 +159,7 @@
       alt={itemLabel(item)}
       auditKey={item.name}
     />
-    {#if ($showVaultedBadges && item.vaulted) || ($showMasteredBadges && marks.mastered) || ($showOwnedParentBadges && marks.crafted)}
+    {#if ($showVaultedBadges && item.vaulted) || ($showMasteredBadges && marks.mastered) || ($showOwnedParentBadges && (marks.crafted || marks.foundry))}
       <span class="item-mark-row">
         {#if $showVaultedBadges && item.vaulted}<span class="vault-badge">V</span>{/if}
         {#if $showMasteredBadges && marks.mastered}<span
@@ -171,6 +171,11 @@
             class="item-mark item-mark--crafted"
             data-item-mark="crafted"
             title={$tr("common.parentItemOwned")}>C</span
+          >{/if}
+        {#if $showOwnedParentBadges && marks.foundry}<span
+            class="item-mark item-mark--foundry"
+            data-item-mark="foundry"
+            title={$tr("common.parentReadyToClaim")}>F</span
           >{/if}
       </span>
     {/if}
