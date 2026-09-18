@@ -137,8 +137,6 @@ let refreshPromise: Promise<{ changed: boolean }> | null = null;
 const cache = createJsonCache<CachePayload>("public-export-cache.json", (raw) => {
   const parsed = raw as Partial<CachePayload>;
   if (!parsed.updatedAt || !parsed.exports || typeof parsed.exports !== "object") return null;
-  // A cache written before the overlay covered every manifest keyed its index by
-  // package export, so only its hashes are unusable; the exports still match.
   const cachedIndex =
     parsed.index && typeof parsed.index === "object" && !Array.isArray(parsed.index)
       ? parsed.index

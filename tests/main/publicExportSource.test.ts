@@ -188,8 +188,6 @@ describe("publicExportSource", () => {
   });
 
   it("refetches when the cache predates the wider manifest coverage, keeping its exports", async () => {
-    // Up to 2.0.0 the index was keyed by package export, not by DE filename, so
-    // its hashes cannot be compared against the current ones.
     fs.writeFileSync(
       cachePath,
       JSON.stringify({
