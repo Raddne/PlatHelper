@@ -1046,6 +1046,39 @@ describe("keep-mapped presentation mode (Windows and native Wayland)", () => {
     expect(windows[0].setIgnoreMouseEvents).not.toHaveBeenCalledWith(true);
   });
 
+  it("cannot restore clicks when a never-click-through window reports ready after a hide", () => {
+    const { controller, windows } = createPresentationProbe({
+      platform: "win32",
+      nativeWayland: false,
+      neverClickThrough: true,
+    });
+
+    controller.createOverlayWindow();
+    controller.hideOverlayWindow();
+    windows[0].setIgnoreMouseEvents.mockClear();
+    windows[0].setFocusable.mockClear();
+
+    controller.markRendererReady(1);
+
+    expect(windows[0].setIgnoreMouseEvents).toHaveBeenLastCalledWith(true);
+    expect(windows[0].setFocusable).toHaveBeenLastCalledWith(false);
+  });
+
+  it("restores clicks when a visible never-click-through window reports ready", () => {
+    const { controller, windows } = createPresentationProbe({
+      platform: "win32",
+      nativeWayland: false,
+      neverClickThrough: true,
+    });
+
+    controller.createOverlayWindow();
+    windows[0].setIgnoreMouseEvents.mockClear();
+
+    controller.markRendererReady(1);
+
+    expect(windows[0].setIgnoreMouseEvents).toHaveBeenLastCalledWith(false);
+  });
+
   it("survives a long run of Windows shows and hides on one window", () => {
     const { controller, windows } = createPresentationProbe({
       platform: "win32",
@@ -1305,7 +1338,10 @@ describe("createOverlayWindowBoundsChangeHandler", () => {
   });
 });
 
-function createResizeProbe(windowHeight = 140) {
+function createResizeProbe(
+  windowHeight = 140,
+  grantTrim: { width: number; height: number } | null = null,
+) {
   const display = { id: 1, workArea: { x: 0, y: 0, width: 1920, height: 1080 } };
   const saves: OverlaySavedWindowBounds[] = [];
   let currentBounds = { x: 300, y: 400, width: 980, height: 140 };
@@ -1338,8 +1374,17 @@ function createResizeProbe(windowHeight = 140) {
     loadFile = vi.fn(() => Promise.resolve());
     setAspectRatio = vi.fn();
     setBounds = vi.fn((bounds: typeof currentBounds) => {
-      currentBounds = { ...bounds };
-      this.listeners.get("resize")?.();
+      if (!grantTrim) {
+        currentBounds = { ...bounds };
+        this.listeners.get("resize")?.();
+        return;
+      }
+      currentBounds = {
+        ...bounds,
+        width: bounds.width - grantTrim.width,
+        height: bounds.height - grantTrim.height,
+      };
+      setTimeout(() => this.listeners.get("resize")?.(), 1);
     });
     getBounds = vi.fn(() => currentBounds);
     isDestroyed = vi.fn(() => false);
@@ -1459,6 +1504,37 @@ describe("overlay resize", () => {
       width: 1100,
       height: 280,
     });
+  });
+
+  it("re-applies a content height reported while a resize save was pending", () => {
+    const probe = createResizeProbe(236);
+    probe.resizeTo(1100, 280);
+    probe.controller.fitOverlayContentHeight(330);
+    expect(probe.window().getBounds()).toMatchObject({ width: 1100, height: 280 });
+
+    probe.ctx.overlayInteractiveMode = false;
+    vi.advanceTimersByTime(300);
+
+    expect(probe.ctx.overlaySettings.overlayWindowBounds?.reward).not.toHaveProperty("height");
+    expect(probe.window().getBounds()).toMatchObject({ width: 980, height: 330 });
+  });
+
+  it("keeps a trimmed frame grant out of the saved size, however many moves it takes", () => {
+    const probe = createResizeProbe(236, { width: 16, height: 8 });
+    probe.controller.fitOverlayContentHeight(330);
+    vi.advanceTimersByTime(300);
+
+    expect(probe.window().getBounds()).toMatchObject({ width: 964, height: 322 });
+
+    for (let move = 0; move < 3; move += 1) {
+      probe.moveTo(350 + move, 450 + move);
+      vi.advanceTimersByTime(300);
+      probe.controller.positionOverlayWindow();
+      vi.advanceTimersByTime(300);
+    }
+
+    expect(probe.window().getBounds()).toMatchObject({ width: 964, height: 322 });
+    expect(probe.saves.every((bounds) => bounds.width == null && bounds.height == null)).toBe(true);
   });
 
   it("starts a replacement window at default height without persisting automatic size", () => {

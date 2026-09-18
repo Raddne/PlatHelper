@@ -1,7 +1,6 @@
 import { beforeAll, describe, expect, it, vi } from "vitest";
 
-// Real gaps in the bundled package on 2026-09-17: DE shipped these, the package
-// has not updated in months.
+// None of these uniqueNames are in the bundled export.
 const SHOCK_COILS = "/Lotus/Upgrades/Mods/Pistol/Event/Nightwave/NightwaveLasGooPistolAugmentMod";
 const LITH_B12 = "/Lotus/Types/Game/Projections/T1VoidProjectionProteaIvaraVaultAGold";
 const LITH_BASE = "/Lotus/Types/Game/Projections/T1VoidProjection";

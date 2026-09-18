@@ -1,13 +1,20 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ARBI_SUMMARY_CLOSE, ARBI_SUMMARY_READY } from "../../config/shared/ipcChannels";
 
-const state = vi.hoisted(() => ({
-  visible: true,
-  handlers: new Map<string, (event: { sender: { id: number } }) => void>(),
-  mouse: vi.fn(),
-  focusable: vi.fn(),
-  ready: vi.fn(() => true),
-}));
+const state = vi.hoisted(() => {
+  const value = {
+    visible: true,
+    handlers: new Map<string, (event: { sender: { id: number } }) => void>(),
+    mouse: vi.fn(),
+    focusable: vi.fn(),
+    ready: vi.fn(() => true),
+    clearAutoHide: vi.fn(),
+    hide: vi.fn(() => {
+      value.visible = false;
+    }),
+  };
+  return value;
+});
 
 vi.mock("electron", () => ({ app: { getAppPath: () => "D:/app" }, BrowserWindow: {}, screen: {} }));
 vi.mock("../../services/logger", () => ({ withScope: () => ({ info: vi.fn(), warn: vi.fn() }) }));
@@ -33,11 +40,8 @@ vi.mock("../../ipc/overlay/windows", () => ({
   createOverlayWindowBoundsChangeHandler: () => vi.fn(),
   createOverlayWindowsController: () => ({
     isOverlayWindowVisible: () => state.visible,
-    isKeepMappedActive: () => true,
-    clearOverlayAutoHideTimer: vi.fn(),
-    hideOverlayWindow: () => {
-      state.visible = false;
-    },
+    clearOverlayAutoHideTimer: state.clearAutoHide,
+    hideOverlayWindow: state.hide,
     markRendererReady: state.ready,
   }),
 }));
@@ -50,21 +54,33 @@ describe("arbitration overlay readiness", () => {
     state.mouse.mockClear();
     state.focusable.mockClear();
     state.ready.mockClear();
+    state.hide.mockClear();
+    state.clearAutoHide.mockClear();
     state.handlers.clear();
     register();
   });
 
-  it("cannot restore clicks when READY arrives after close", () => {
-    const event = { sender: { id: 1 } };
-    state.handlers.get(ARBI_SUMMARY_CLOSE)!(event);
-    state.handlers.get(ARBI_SUMMARY_READY)!(event);
-    expect(state.ready).toHaveBeenCalledWith(1);
-    expect(state.mouse).toHaveBeenCalledExactlyOnceWith(expect.anything(), true);
-    expect(state.focusable).toHaveBeenLastCalledWith(false);
+  it("leaves the window's input state to the controller when the renderer reports ready", () => {
+    state.handlers.get(ARBI_SUMMARY_READY)!({ sender: { id: 1 } });
+
+    expect(state.ready).toHaveBeenCalledExactlyOnceWith(1);
+    expect(state.mouse).not.toHaveBeenCalled();
+    expect(state.focusable).not.toHaveBeenCalled();
   });
 
-  it("restores clicks after a visible renderer reload", () => {
-    state.handlers.get(ARBI_SUMMARY_READY)!({ sender: { id: 1 } });
-    expect(state.mouse).toHaveBeenCalledWith(expect.anything(), false);
+  it("closes through the controller and leaves the window mapped", () => {
+    state.handlers.get(ARBI_SUMMARY_CLOSE)!({ sender: { id: 1 } });
+
+    expect(state.clearAutoHide).toHaveBeenCalledOnce();
+    expect(state.hide).toHaveBeenCalledOnce();
+    expect(state.visible).toBe(false);
+  });
+
+  it("does not hide a window that is already down", () => {
+    state.visible = false;
+    state.handlers.get(ARBI_SUMMARY_CLOSE)!({ sender: { id: 1 } });
+
+    expect(state.clearAutoHide).toHaveBeenCalledOnce();
+    expect(state.hide).not.toHaveBeenCalled();
   });
 });

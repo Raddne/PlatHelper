@@ -1,7 +1,6 @@
 import { getOverlayDescriptor } from "../config/shared/overlayLayout";
 import ctx from "./context";
 import { assertArbiSummarySender, onAuthorized } from "./ipcSecurity";
-import { setClickThrough } from "./overlay/clickThrough";
 import {
   createOverlayWindowBoundsChangeHandler,
   createOverlayWindowsController,
@@ -75,19 +74,6 @@ export function isArbiSummaryWindow(win: InstanceType<typeof BrowserWindow>): bo
   return !!ctx.arbiSummaryWindow && win === ctx.arbiSummaryWindow;
 }
 
-function makeClickable(): void {
-  const win = ctx.arbiSummaryWindow;
-  if (!win || win.isDestroyed()) return;
-  if (!arbiSummaryWindowsController.isOverlayWindowVisible()) {
-    if (arbiSummaryWindowsController.isKeepMappedActive()) {
-      setClickThrough(win, true);
-      win.setFocusable(false);
-    }
-    return;
-  }
-  setClickThrough(win, false);
-}
-
 function hideArbiSummary(): void {
   arbiSummaryWindowsController.clearOverlayAutoHideTimer();
   if (arbiSummaryWindowsController.isOverlayWindowVisible()) {
@@ -104,7 +90,6 @@ export function maybeShowArbiSummary(run: ArbiRunRecord): void {
     `[ArbiSummary] showing overlay for ${payload.id} (${payload.node}, ${payload.rotations} rotations)`,
   );
   arbiSummaryWindowsController.createOverlayWindow();
-  makeClickable();
   arbiSummaryWindowsController.sendOverlayEvent(ARBI_SUMMARY_DATA, payload);
   arbiSummaryWindowsController.scheduleOverlayAutoHide(AUTO_HIDE_MS);
 }
@@ -124,8 +109,6 @@ export function configureOverlaySettingsPersistence(persist: () => void): void {
 export function register(): void {
   onAuthorized(ARBI_SUMMARY_READY, assertArbiSummarySender, (event) => {
     arbiSummaryWindowsController.markRendererReady(event.sender.id);
-    // Window (re)load resets ignore-mouse-events; re-apply once it's alive.
-    makeClickable();
   });
 
   onAuthorized(ARBI_SUMMARY_CLOSE, assertArbiSummarySender, () => {

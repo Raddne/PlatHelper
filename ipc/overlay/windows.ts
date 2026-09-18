@@ -208,11 +208,12 @@ export function createOverlayWindowsController(options: OverlayWindowsController
   let suppressMoveSave = false;
   // Windows delivers resize events after setBounds returns, so a timer-based suppression
   // races them.
-  let selfRequestedSize: { width: number; height: number } | null = null;
+  let selfRequestedSizes: Array<{ width: number; height: number }> = [];
   let moveSaveTimer: ReturnType<typeof setTimeout> | null = null;
   let resizeSaveTimer: ReturnType<typeof setTimeout> | null = null;
   let nativeResizeInProgress = false;
   let contentHeight: number | null = null;
+  let pendingContentHeight: number | null = null;
   let rendererReady = false;
   let logicalVisible = false;
   let layer: ReturnType<typeof createLayerPresentation> | null = null;
@@ -426,6 +427,17 @@ export function createOverlayWindowsController(options: OverlayWindowsController
     layer?.applyGeometry();
   }
 
+  function setSelfRequestedBounds(
+    overlayWindow: import("electron").BrowserWindow,
+    rect: { x: number; y: number; width: number; height: number },
+  ): void {
+    selfRequestedSizes = [{ width: rect.width, height: rect.height }];
+    overlayWindow.setBounds(rect, false);
+    // Windows grants a frame up to 16x8 smaller than the one asked for.
+    const granted = overlayWindow.getBounds();
+    selfRequestedSizes.push({ width: granted.width, height: granted.height });
+  }
+
   function positionOverlayWindow(
     anchorMeta: OverlayAnchorMeta | null = lastOverlayAnchorMeta,
   ): void {
@@ -438,30 +450,50 @@ export function createOverlayWindowsController(options: OverlayWindowsController
       if (resizeSaveTimer) clearTimeout(resizeSaveTimer);
       moveSaveTimer = resizeSaveTimer = null;
     }
+    applyPendingContentHeight(false);
     if (isLayerMode()) {
       layer?.applyGeometry();
       return;
     }
     const { zoomFactor, ...rect } = getOverlayBoundsForActiveDisplay(anchorMeta);
     suppressMoveSave = true;
-    selfRequestedSize = { width: rect.width, height: rect.height };
-    overlayWindow.setBounds(rect, false);
+    setSelfRequestedBounds(overlayWindow, rect);
     overlayWindow.webContents.setZoomFactor(zoomFactor);
     setTimeout(() => {
       suppressMoveSave = false;
     }, 0);
   }
 
+  function storeContentHeight(next: number): boolean {
+    const window = readOverlayWindow();
+    if (!window || window.isDestroyed()) return false;
+    const saved = readSavedBounds();
+    if (saved?.width != null || saved?.height != null) {
+      pendingContentHeight = null;
+      return false;
+    }
+    if (nativeResizeInProgress || resizeSaveTimer) {
+      pendingContentHeight = next;
+      return false;
+    }
+    pendingContentHeight = null;
+    if (contentHeight === next) return false;
+    contentHeight = next;
+    return true;
+  }
+
+  function applyPendingContentHeight(reposition: boolean): void {
+    const pending = pendingContentHeight;
+    if (pending === null) return;
+    pendingContentHeight = null;
+    if (storeContentHeight(pending) && reposition) positionOverlayWindow();
+  }
+
   function fitOverlayContentHeight(logicalHeight: number): void {
     if (!Number.isFinite(logicalHeight) || logicalHeight <= 0 || logicalHeight > 10_000) return;
-    const window = readOverlayWindow();
-    if (!window || window.isDestroyed() || nativeResizeInProgress || resizeSaveTimer) return;
-    const saved = readSavedBounds();
-    if (saved?.width != null || saved?.height != null) return;
-    const next = Math.max(windowHeight, Math.ceil(logicalHeight));
-    if (contentHeight === next) return;
-    contentHeight = next;
-    positionOverlayWindow();
+    if (storeContentHeight(Math.max(windowHeight, Math.ceil(logicalHeight)))) {
+      positionOverlayWindow();
+    }
   }
 
   function displayMatchingBounds(bounds: {
@@ -505,6 +537,10 @@ export function createOverlayWindowsController(options: OverlayWindowsController
     return Math.abs(a.width - b.width) <= 2 && Math.abs(a.height - b.height) <= 2;
   }
 
+  function isSelfRequestedSize(bounds: { width: number; height: number }): boolean {
+    return selfRequestedSizes.some((size) => sizeMatches(bounds, size));
+  }
+
   function attachBoundsPersistence(overlayWindow: import("electron").BrowserWindow): void {
     if (!windowStateKey || !onWindowBoundsChanged) return;
     if (platform === "win32") {
@@ -519,6 +555,7 @@ export function createOverlayWindowsController(options: OverlayWindowsController
         if (!nativeResizeInProgress) return;
         nativeResizeInProgress = false;
         saveCurrentWindowBounds(overlayWindow, true);
+        applyPendingContentHeight(true);
       });
     }
     overlayWindow.on("move", () => {
@@ -532,12 +569,13 @@ export function createOverlayWindowsController(options: OverlayWindowsController
     overlayWindow.on("resize", () => {
       if (nativeResizeInProgress || suppressMoveSave || overlayWindow.isDestroyed()) return;
       if (!readInteractiveMode() && !persistBoundsWhenPassive) return;
-      if (sizeMatches(overlayWindow.getBounds(), selfRequestedSize)) return;
-      selfRequestedSize = null;
+      if (isSelfRequestedSize(overlayWindow.getBounds())) return;
+      selfRequestedSizes = [];
       if (resizeSaveTimer) clearTimeout(resizeSaveTimer);
       resizeSaveTimer = setTimeout(() => {
         resizeSaveTimer = null;
         saveCurrentWindowBounds(overlayWindow, true);
+        applyPendingContentHeight(true);
       }, 250);
     });
   }
@@ -619,7 +657,7 @@ export function createOverlayWindowsController(options: OverlayWindowsController
     const freshWindow = readOverlayWindow();
     if (!freshWindow || freshWindow.isDestroyed()) return;
     suppressMoveSave = true;
-    freshWindow.setBounds(bounds, false);
+    setSelfRequestedBounds(freshWindow, bounds);
     setTimeout(() => {
       suppressMoveSave = false;
     }, 0);
@@ -844,6 +882,8 @@ export function createOverlayWindowsController(options: OverlayWindowsController
       }
       nativeResizeInProgress = false;
       contentHeight = null;
+      pendingContentHeight = null;
+      selfRequestedSizes = [];
       writeOverlayWindow(null);
       rendererReady = false;
       logicalVisible = false;
