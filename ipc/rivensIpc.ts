@@ -14,8 +14,8 @@ import { normalizeWfmSlugKey } from "../config/shared/wfm";
 import { VARIANT_PREFIXES, VARIANT_SUFFIXES } from "../config/shared/weaponVariants";
 import {
   polarityToWfm,
-  TAG_TO_WFM_URL_NAME,
   tagToWfmUrlName,
+  wfmUrlNameToTag,
 } from "../config/shared/wfmRivenVocabulary";
 import {
   RIVENS_GET,
@@ -35,7 +35,6 @@ const MAX_AUCTION_STATS = 8;
 const MAX_DESCRIPTION_LENGTH = 1000;
 const MAX_MIN_REPUTATION = 1_000_000;
 const MAX_GRADED_CONTRACTS = 100;
-const MAX_RIVEN_MOD_RANK = 8;
 
 interface ContractGradeStat {
   name: string;
@@ -60,12 +59,6 @@ interface ContractGradesResult {
   sheetReady: boolean;
 }
 
-// WFM's "base_damage_/_melee_damage" url_name carries both damage tags.
-const WFM_URL_NAME_TO_TAGS = new Map<string, string[]>();
-for (const [tag, urlName] of Object.entries(TAG_TO_WFM_URL_NAME)) {
-  WFM_URL_NAME_TO_TAGS.set(urlName, [...(WFM_URL_NAME_TO_TAGS.get(urlName) ?? []), tag]);
-}
-
 function parseContractGradeStat(value: unknown): ContractGradeStat | null {
   if (!isObject(value)) return null;
   const name = toNonEmptyString(value.name, 100);
@@ -82,7 +75,12 @@ function parseContractGradeRequest(value: unknown): ContractGradeRequest | null 
   let modRank: number | null = null;
   if (value.modRank != null) {
     const rank = toFiniteNumber(value.modRank);
-    if (rank == null || !Number.isInteger(rank) || rank < 0 || rank > MAX_RIVEN_MOD_RANK) {
+    if (
+      rank == null ||
+      !Number.isInteger(rank) ||
+      rank < 0 ||
+      rank > rivenGrading.MAX_RIVEN_MOD_RANK
+    ) {
       return null;
     }
     modRank = rank;
@@ -108,9 +106,7 @@ function resolveContractWeapon(name: string): string | null {
 // WFM speaks url_names, but a seller's client may have sent a localized label.
 function contractStatTag(name: string, isMelee: boolean): string | null {
   const key = name.toLowerCase().trim();
-  const tags = WFM_URL_NAME_TO_TAGS.get(key);
-  if (tags) return tags.find((tag) => tag.includes("Melee") === isMelee) ?? tags[0];
-  return rivenData.statNameToTag(key.replace(/_/g, " "));
+  return wfmUrlNameToTag(key, isMelee) ?? rivenData.statNameToTag(key.replace(/_/g, " "));
 }
 
 function gradeContract(request: ContractGradeRequest): ContractGrade | null {
@@ -292,8 +288,7 @@ function register(): void {
       }
       const requests = payload.map(parseContractGradeRequest);
       if (requests.some((request) => request != null)) {
-        if (sheetReady) await rivenBestAttributes.ensureRivenGoodRollsLoaded();
-        else void rivenBestAttributes.ensureRivenGoodRollsLoaded();
+        void rivenBestAttributes.ensureRivenGoodRollsLoaded();
       }
       return {
         grades: requests.map((request) => (request ? gradeContract(request) : null)),

@@ -33,7 +33,7 @@ export interface RivenGradeResult {
 }
 
 /** Rivens are rank 8 (lvl 0..8). */
-const DEFAULT_LVL = 8;
+export const MAX_RIVEN_MOD_RANK = 8;
 
 /** RivenParser.js thresholds map lerp(-10, 10, rollFloat) to letter grades. */
 const GRADE_THRESHOLDS: { min: number; grade: string }[] = [
@@ -72,21 +72,7 @@ export function unparseBuff(
   numBuffs: number,
   numCurses: number,
   tag?: string,
-  lvl: number = DEFAULT_LVL,
-): number {
-  return clamp01(
-    unparseBuffRaw(displayedValue, baseValue, disposition, numBuffs, numCurses, tag, lvl),
-  );
-}
-
-function unparseBuffRaw(
-  displayedValue: number,
-  baseValue: number,
-  disposition: number,
-  numBuffs: number,
-  numCurses: number,
-  tag?: string,
-  lvl: number = DEFAULT_LVL,
+  lvl: number = MAX_RIVEN_MOD_RANK,
 ): number {
   const buffsAtten = NUM_BUFFS_ATTEN[Math.min(numBuffs, NUM_BUFFS_ATTEN.length - 1)];
   const curseAtten = Math.pow(1.25, numCurses);
@@ -121,21 +107,7 @@ export function unparseCurse(
   numBuffs: number,
   numCurses: number,
   tag?: string,
-  lvl: number = DEFAULT_LVL,
-): number {
-  return clamp01(
-    unparseCurseRaw(displayedValue, baseValue, disposition, numBuffs, numCurses, tag, lvl),
-  );
-}
-
-function unparseCurseRaw(
-  displayedValue: number,
-  baseValue: number,
-  disposition: number,
-  numBuffs: number,
-  numCurses: number,
-  tag?: string,
-  lvl: number = DEFAULT_LVL,
+  lvl: number = MAX_RIVEN_MOD_RANK,
 ): number {
   const attenuation = SPECIFIC_FIT_ATTEN * disposition * BASE_DRAIN;
   // Note the swapped indexing: buffs table by curse count, curse table by buff count
@@ -237,10 +209,10 @@ export function correctScannedStats(
     for (const disp of dispositions) {
       for (const [numBuffs, numCurses] of statCounts) {
         // A chat-linked card shows its values at the mod's own rank, not max.
-        for (let lvl = 0; lvl <= DEFAULT_LVL; lvl++) {
+        for (let lvl = 0; lvl <= MAX_RIVEN_MOD_RANK; lvl++) {
           const f = stat.positive
-            ? unparseBuffRaw(displayedValue, entry.baseValue, disp, numBuffs, numCurses, tag, lvl)
-            : unparseCurseRaw(displayedValue, entry.baseValue, disp, numBuffs, numCurses, tag, lvl);
+            ? unparseBuff(displayedValue, entry.baseValue, disp, numBuffs, numCurses, tag, lvl)
+            : unparseCurse(displayedValue, entry.baseValue, disp, numBuffs, numCurses, tag, lvl);
           best = Math.min(best, Math.max(0, f - 1) + Math.max(0, -f));
         }
       }
@@ -417,7 +389,7 @@ export function computeAttributeGrade(
 }
 
 /** `modRank` is the rank a warframe.market listing states, dropped again when the
- *  values contradict it: sellers do relist max-rank rolls as rank 0. */
+ *  values contradict it. */
 export function gradeRiven(
   weaponName: string,
   stats: {
@@ -446,10 +418,10 @@ export function gradeRiven(
   const numBuffs = stats.filter((s) => s.positive).length;
   const numCurses = stats.filter((s) => !s.positive).length;
   const statedRank =
-    modRank != null && Number.isInteger(modRank) && modRank >= 0 && modRank <= DEFAULT_LVL
+    modRank != null && Number.isInteger(modRank) && modRank >= 0 && modRank <= MAX_RIVEN_MOD_RANK
       ? modRank
       : null;
-  let assumedLevel = statedRank ?? DEFAULT_LVL;
+  let assumedLevel = statedRank ?? MAX_RIVEN_MOD_RANK;
   let assumedBuffs = numBuffs;
   let assumedCurses = numCurses;
 
@@ -491,8 +463,8 @@ export function gradeRiven(
     value: number = p.displayedValue!,
   ): number =>
     p.stat.positive
-      ? unparseBuffRaw(value, p.entry!.baseValue, disp, buffs, curses, p.tag!, lvl)
-      : unparseCurseRaw(value, p.entry!.baseValue, disp, buffs, curses, p.tag!, lvl);
+      ? unparseBuff(value, p.entry!.baseValue, disp, buffs, curses, p.tag!, lvl)
+      : unparseCurse(value, p.entry!.baseValue, disp, buffs, curses, p.tag!, lvl);
 
   // Wolf Sledge Range spans 0.2 to 0.3 metres at rank 0, so half a display step is
   // half the roll: ask whether the rounding interval can reach [0,1].
@@ -530,9 +502,8 @@ export function gradeRiven(
       // Two stats are needed to pin a rank; a lone value fits several.
       const searchLvls =
         gradeable.length >= 2
-          ? Array.from({ length: DEFAULT_LVL + 1 }, (_, index) => DEFAULT_LVL - index)
+          ? Array.from({ length: MAX_RIVEN_MOD_RANK + 1 }, (_, index) => MAX_RIVEN_MOD_RANK - index)
           : [];
-      // A stated rank is only tried first: sellers do relist max-rank rolls as rank 0.
       const refitLvls =
         statedRank != null
           ? [statedRank, ...searchLvls.filter((lvl) => lvl !== statedRank)]

@@ -158,9 +158,9 @@ describe("unparseBuff", () => {
     expect(unparseBuff(50, 0, 1.0, 1, 0)).toBe(0.5);
   });
 
-  it("clamps result to 0-1 range", () => {
-    expect(unparseBuff(9999, 0.016666, 0.7, 1, 0, "WeaponCritChanceMod")).toBe(1.0);
-    expect(unparseBuff(0, 0.016666, 0.7, 1, 0, "WeaponCritChanceMod")).toBe(0.0);
+  it("reports the raw roll for values no card can show", () => {
+    expect(unparseBuff(9999, 0.016666, 0.7, 1, 0, "WeaponCritChanceMod")).toBeCloseTo(312.94, 1);
+    expect(unparseBuff(0, 0.016666, 0.7, 1, 0, "WeaponCritChanceMod")).toBeCloseTo(-4.5, 10);
   });
 });
 
@@ -469,6 +469,15 @@ describe("gradeRiven", () => {
     expect(result!.stats[0].rollFloat).toBeGreaterThanOrEqual(0);
     expect(result!.stats[0].rollFloat).toBeLessThanOrEqual(1);
     expect(result!.overallGrade).toBeTruthy();
+  });
+
+  it("clamps a roll float no rank or disposition can fit", () => {
+    const result = gradeRiven("Rubico Prime", [
+      { name: "Critical Chance", positive: true, value: 9999 },
+    ]);
+    expect(result).not.toBeNull();
+    expect(result!.stats[0].rollFloat).toBe(1);
+    expect(result!.stats[0].grade).toBe("S");
   });
 
   it("grades multiple stats including a curse", () => {

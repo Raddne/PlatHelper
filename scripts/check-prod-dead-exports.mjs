@@ -26,8 +26,7 @@ const ALLOWLIST = new Set([
   "priceQueueFullError",
   // Test seam bag, parallel to wfmClient's `__test__`.
   "__schedulerTest__",
-  // Clamped parity wrappers for the prod-consumed unparse*Raw siblings; the
-  // clamping is what the RivenParser.js reference cases check.
+  // Production implementations exported for the RivenParser.js parity cases.
   "unparseBuff",
   "unparseCurse",
 ]);
