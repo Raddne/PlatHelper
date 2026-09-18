@@ -18,6 +18,7 @@ interface DumpSpec {
   address: bigint;
   threads: ThreadSpec[];
   module?: { base: bigint; size: number; name: string };
+  addons?: string[];
 }
 
 /** Minimal MDMP: header, directory, exception, thread list, thread names and an
@@ -47,6 +48,7 @@ function buildDump(spec: DumpSpec): Buffer {
     if (thread.name) nameRvas.set(thread.id, put(utf16(thread.name)));
   }
   const moduleNameRva = spec.module ? put(utf16(spec.module.name)) : 0;
+  const addonNameRvas = (spec.addons ?? []).map((name) => put(utf16(name)));
 
   const exception = Buffer.alloc(168);
   exception.writeUInt32LE(spec.faultingThread, 0);
@@ -69,12 +71,25 @@ function buildDump(spec: DumpSpec): Buffer {
   const namesRva = put(names);
 
   let moduleListRva = 0;
-  if (spec.module) {
-    const modules = Buffer.alloc(4 + 108);
-    modules.writeUInt32LE(1, 0);
-    modules.writeBigUInt64LE(spec.module.base, 4);
-    modules.writeUInt32LE(spec.module.size, 4 + 8);
-    modules.writeUInt32LE(moduleNameRva, 4 + 20);
+  if (spec.module || addonNameRvas.length) {
+    const rows = (spec.module ? 1 : 0) + addonNameRvas.length;
+    const modules = Buffer.alloc(4 + rows * 108);
+    modules.writeUInt32LE(rows, 0);
+    let row = 0;
+    if (spec.module) {
+      const at = 4 + row * 108;
+      modules.writeBigUInt64LE(spec.module.base, at);
+      modules.writeUInt32LE(spec.module.size, at + 8);
+      modules.writeUInt32LE(moduleNameRva, at + 20);
+      row++;
+    }
+    for (const rva of addonNameRvas) {
+      const at = 4 + row * 108;
+      modules.writeBigUInt64LE(0n, at);
+      modules.writeUInt32LE(0, at + 8);
+      modules.writeUInt32LE(rva, at + 20);
+      row++;
+    }
     moduleListRva = put(modules);
   }
 
@@ -188,5 +203,32 @@ describe("crash dump summary", () => {
     fs.writeFileSync(file, full.subarray(0, Math.floor(full.length / 2)));
 
     expect(() => summarizeCrashDump(file)).not.toThrow();
+  });
+
+  it("names the native addons loaded at the time of death", () => {
+    const file = write("addons.dmp", {
+      code: 0xc0000374,
+      faultingThread: 1,
+      address: 0x7ff6d4710010n,
+      module: { base: 0x7ff6d4710000n, size: 0x1000, name: "C:\\app\\WFHelper.exe" },
+      addons: ["C:\\app\\system-ocr.win32-x64-msvc.node", "C:\\app\\sharp-win32-x64.node"],
+      threads: [{ id: 1, name: "CrBrowserMain" }],
+    });
+
+    const summary = summarizeCrashDump(file);
+
+    expect(summary).toContain("STATUS_HEAP_CORRUPTION");
+    expect(summary).toContain("addons=system-ocr.win32-x64-msvc.node,sharp-win32-x64.node");
+  });
+
+  it("leaves the addon list out when no native module is loaded", () => {
+    const file = write("plain.dmp", {
+      code: 0x80000003,
+      faultingThread: 1,
+      address: 0n,
+      threads: [{ id: 1, name: "CrBrowserMain" }],
+    });
+
+    expect(summarizeCrashDump(file)).not.toContain("addons=");
   });
 });

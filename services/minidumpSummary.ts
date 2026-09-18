@@ -81,6 +81,23 @@ function faultingModule(buf: Buffer, streams: Streams, address: bigint): string 
   return null;
 }
 
+function loadedAddons(buf: Buffer, streams: Streams): string[] {
+  const stream = streams[STREAM_MODULE_LIST];
+  if (!stream) return [];
+  const count = buf.readUInt32LE(stream.rva);
+  const out: string[] = [];
+  for (let i = 0; i < count; i++) {
+    const at = stream.rva + 4 + i * MODULE_ENTRY_BYTES;
+    if (at + MODULE_ENTRY_BYTES > buf.length) break;
+    const nameRva = buf.readUInt32LE(at + 20);
+    if (nameRva + 4 > buf.length) break;
+    const bytes = buf.readUInt32LE(nameRva);
+    const full = buf.subarray(nameRva + 4, nameRva + 4 + bytes).toString("utf16le");
+    if (full.toLowerCase().endsWith(".node")) out.push(full.split("\\").pop() as string);
+  }
+  return out;
+}
+
 function threadCounts(
   buf: Buffer,
   streams: Streams,
@@ -135,6 +152,11 @@ export function summarizeCrashDump(file: string): string | null {
     if (total) parts.push(`threads=${total}`);
     const busiest = [...named.entries()].sort((a, b) => b[1] - a[1])[0];
     if (busiest && busiest[1] > 1) parts.push(`${busiest[0]}=${busiest[1]}`);
+
+    // The faulting module names the victim of a heap corruption, never its
+    // source; the addon list is what points at the culprit.
+    const addons = loadedAddons(buf, streams);
+    if (addons.length) parts.push(`addons=${addons.join(",")}`);
 
     return parts.join(" ");
   } catch (err) {

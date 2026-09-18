@@ -17,7 +17,7 @@ importers:
   .:
     dependencies:
       '@napi-rs/system-ocr':
-        specifier: ^1.0.2
+        specifier: 1.0.2
         version: 1.0.2
       '@wfcd/items':
         specifier: ^1.1275.19

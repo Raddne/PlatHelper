@@ -468,7 +468,7 @@ export const ocrServer = new OcrServerPool(OCR_SERVER_POOL_SIZE);
 // IPC); falls back to the pool when the native module fails to load.
 
 type NativeRecognize = (
-  input: Buffer | string,
+  input: string,
   accuracy?: number | null,
   preferredLangs?: string[] | null,
   signal?: AbortSignal | null,
@@ -499,10 +499,16 @@ export function setNativeRecognizeForTest(recognize: NativeRecognize | null): vo
 // and awaiting the settle is what keeps that from happening.
 async function runNativeOcr(
   recognize: NativeRecognize,
-  input: Buffer | string,
+  input: string,
   timeoutMs: number | undefined,
   label: string,
 ): Promise<string> {
+  // The addon builds against napi3, whose Rust ArrayBuffer Drop deletes its napi
+  // reference on the libuv worker thread and corrupts the heap. Only the path
+  // overload takes no reference.
+  if (typeof input !== "string") {
+    throw new TypeError(`${label}: native OCR takes a path, not a buffer`);
+  }
   const controller = new AbortController();
   const started = recognize(input, null, null, controller.signal);
   _nativeOcrInFlight.add(started);
