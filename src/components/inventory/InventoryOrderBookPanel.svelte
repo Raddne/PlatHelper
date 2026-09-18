@@ -136,7 +136,6 @@
   $: filteredBuyBase = filterStatus(orderBook?.buy ?? [], onlineIngameOnly);
   $: hiddenSell = (orderBook?.sell.length ?? 0) - filteredSellBase.length;
   $: hiddenBuy = (orderBook?.buy.length ?? 0) - filteredBuyBase.length;
-  // A bulk order's listed price buys perTrade items.
   $: bestSell =
     filteredSellBase.length > 0
       ? Math.min(...filteredSellBase.map((entry) => entry.unitPlatinum))

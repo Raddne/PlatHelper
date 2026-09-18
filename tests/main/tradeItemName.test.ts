@@ -4,7 +4,8 @@ vi.mock("../../services/wfmCatalog", () => ({
   lookupByName: vi.fn(),
 }));
 
-import { parseTradedItemName, lookupTradedCatalogItem } from "../../services/tradeItemName";
+import { parseTradedItemName } from "../../config/shared/tradeItemName";
+import { lookupTradedCatalogItem } from "../../services/tradeItemName";
 import * as wfmCatalog from "../../services/wfmCatalog";
 
 const mockLookupByName = vi.mocked(wfmCatalog.lookupByName);

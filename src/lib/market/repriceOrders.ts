@@ -62,8 +62,6 @@ export function priceRepriceRow(
     {
       sellListings: row.sellBook,
       currentPrice: row.currentPrice,
-      // Our own bulk listing prices per trade; without this the suggestion would
-      // come back per item and the next run would post it as a trade price.
       ownPerTrade: row.order.perTrade ?? 1,
       ownUserName,
     },

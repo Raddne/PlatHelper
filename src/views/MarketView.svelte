@@ -313,7 +313,7 @@
         for (const id of merged.settled) contractGradeProvisional.delete(id);
       }
     } catch {
-      // Left ungraded; the next contracts change asks again.
+      // ignore
     } finally {
       for (const contract of fresh) contractGradePending.delete(contract.id);
       scheduleContractGradeRetry(contracts);

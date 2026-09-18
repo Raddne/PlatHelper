@@ -1,9 +1,5 @@
-// Dialog rank suffixes are not part of WFM listing names.
-
 import { parseTradedItemName } from "../config/shared/tradeItemName";
 import * as wfmCatalog from "./wfmCatalog";
-
-export { parseTradedItemName };
 
 export function lookupTradedCatalogItem(
   displayName: string,
