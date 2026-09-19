@@ -21,9 +21,9 @@ WFHelper profile, so your login and settings carry over.
 Head over to [Releases](https://github.com/Raddne/PlatHelper/releases)
 
 Either:
-> Download and run and setup.exe, follow the guided installation
+- Download and run and setup.exe, follow the guided installation
 Or
-> Download the portable.zip and extract the files within to a directory of your choosing
+- Download the portable.zip and extract the files within to a directory of your choosing
 
 ## Live Scraper
 
