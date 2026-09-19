@@ -8,6 +8,8 @@ Keep every bullet on one line: GitHub shows a line break inside release notes as
 
 - The title bar now says PLATHELPER instead of WFHELPER.
 - "What's new" window: nested bullet points from the patch notes show as one tidy list.
+- **Live Scraper:** the Stock and Wishlist boxes are add forms only now - every tracked item is shown, edited and removed in the Listings panel below. Nothing you already track is lost.
+- Your Live Scraper lists survive updates; if a list file ever cannot be read, a backup copy is kept next to it instead of being overwritten.
 
 ## v0.1.1
 

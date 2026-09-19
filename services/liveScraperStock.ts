@@ -8,8 +8,10 @@ import {
   type WishlistItem,
 } from "../config/shared/liveScraperStock";
 
-const cache = createJsonCache<LiveScraperStockFile>("live-scraper-stock.json", (parsed) =>
-  normalizeLiveScraperStockFile(parsed),
+const cache = createJsonCache<LiveScraperStockFile>(
+  "live-scraper-stock.json",
+  (parsed) => normalizeLiveScraperStockFile(parsed),
+  { keepUnreadable: true },
 );
 
 let current: LiveScraperStockFile = cache.read() ?? { version: 1, stock: [], wishlist: [] };

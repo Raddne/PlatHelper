@@ -5,8 +5,10 @@ import {
   type LiveScraperSettings,
 } from "../config/shared/liveScraperSettings";
 
-const cache = createJsonCache<LiveScraperSettings>("live-scraper-settings.json", (parsed) =>
-  normalizeLiveScraperSettings(parsed),
+const cache = createJsonCache<LiveScraperSettings>(
+  "live-scraper-settings.json",
+  (parsed) => normalizeLiveScraperSettings(parsed),
+  { keepUnreadable: true },
 );
 
 let current: LiveScraperSettings = cache.read() ?? defaultLiveScraperSettings();

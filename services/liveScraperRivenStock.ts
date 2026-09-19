@@ -9,6 +9,7 @@ import {
 const cache = createJsonCache<LiveScraperRivenStockFile>(
   "live-scraper-riven-stock.json",
   (parsed) => normalizeLiveScraperRivenStockFile(parsed),
+  { keepUnreadable: true },
 );
 
 let current: LiveScraperRivenStockFile = cache.read() ?? { version: 1, stockRivens: [] };

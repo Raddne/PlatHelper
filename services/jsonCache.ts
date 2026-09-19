@@ -16,16 +16,34 @@ interface JsonCache<T> {
 export function createJsonCache<T>(
   filename: string,
   revive: (parsed: unknown) => T | null,
+  options: { keepUnreadable?: boolean } = {},
 ): JsonCache<T> {
   const cachePath = (): string => userDataPath(filename);
 
+  // For files that hold user-entered data rather than a rebuildable cache: a
+  // file this version cannot read (damaged, or written by a newer version) is
+  // copied aside before the caller's empty default can overwrite it.
+  const keepUnreadableCopy = (): void => {
+    if (!options.keepUnreadable) return;
+    try {
+      if (fs.statSync(cachePath()).size === 0) return;
+      fs.copyFileSync(cachePath(), `${cachePath()}.unreadable-${Date.now()}.bak`);
+      log.warn(`${filename} could not be read; a copy was kept next to it`);
+    } catch {
+      // No file yet: nothing to keep.
+    }
+  };
+
   return {
     read(): T | null {
+      let revived: T | null;
       try {
-        return revive(JSON.parse(fs.readFileSync(cachePath(), "utf8")));
+        revived = revive(JSON.parse(fs.readFileSync(cachePath(), "utf8")));
       } catch {
-        return null;
+        revived = null;
       }
+      if (revived === null) keepUnreadableCopy();
+      return revived;
     },
     write(payload: T): void {
       try {
