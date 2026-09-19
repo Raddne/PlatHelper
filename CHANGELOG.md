@@ -4,6 +4,11 @@ Patch notes for every PlatHelper release. The release workflow copies the sectio
 
 Keep every bullet on one line: GitHub shows a line break inside release notes as a line break.
 
+## v0.1.2
+
+- The title bar now says PLATHELPER instead of WFHELPER.
+- "What's new" window: nested bullet points from the patch notes show as one tidy list.
+
 ## v0.1.1
 
 - **Rivens tab:** right-click a riven card for two new actions.

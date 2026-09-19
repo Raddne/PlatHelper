@@ -96,8 +96,10 @@ export function parseReleaseNotes(raw: string): NotesBlock[] {
     const trimmed = rawLine.trim();
 
     if (!trimmed) {
+      // A blank line ends a paragraph but not a list: GitHub's HTML for nested
+      // bullets arrives with blank lines between items, and one list reads better
+      // than a run of one-item lists. The next non-list line still closes it.
       flushParagraph();
-      flushList();
       continue;
     }
 

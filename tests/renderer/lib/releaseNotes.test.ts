@@ -65,6 +65,41 @@ describe("parseReleaseNotes", () => {
     expect(allText).not.toContain("<");
   });
 
+  // The body electron-updater hands over for a PlatHelper release: GitHub renders
+  // CHANGELOG.md's nested bullets to HTML and appends its compare link.
+  it("shows a PlatHelper release body as bullets plus the changelog link", () => {
+    const body =
+      "<ul><li><strong>Rivens tab:</strong> two new actions.<ul>" +
+      "<li><em>Search this roll</em> opens the search.</li></ul></li>" +
+      "<li>Releases now come with patch notes.</li></ul>" +
+      '<p><strong>Full Changelog</strong>: <a class="commit-link" ' +
+      'href="https://github.com/Raddne/PlatHelper/compare/v0.1.0...v0.1.1"><tt>v0.1.0...v0.1.1</tt></a></p>';
+    const blocks = parseReleaseNotes(body);
+    const list = blocks.find((block) => block.kind === "list");
+    const texts =
+      list?.kind === "list"
+        ? list.items.map((item) =>
+            item
+              .map((segment) => segment.text)
+              .join("")
+              .trim(),
+          )
+        : [];
+    expect(texts).toEqual([
+      "Rivens tab: two new actions.",
+      "Search this roll opens the search.",
+      "Releases now come with patch notes.",
+    ]);
+    const link = blocks
+      .flatMap((block) => (block.kind === "list" ? [] : block.segments))
+      .find((segment) => segment.kind === "link");
+    expect(link).toMatchObject({
+      text: "v0.1.0...v0.1.1",
+      href: "https://github.com/Raddne/PlatHelper/compare/v0.1.0...v0.1.1",
+    });
+    expect(JSON.stringify(blocks)).not.toContain("<");
+  });
+
   it("leaves markdown bodies containing angle brackets untouched", () => {
     const blocks = parseReleaseNotes("Values below <threshold> are dropped");
     expect(blocks[0].kind === "paragraph" && blocks[0].segments[0].text).toContain("<threshold>");

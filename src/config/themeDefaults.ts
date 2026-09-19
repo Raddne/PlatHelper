@@ -86,4 +86,4 @@ export const VIEW_FONT_SIZE_MAX = 3;
 export const BASE_FONT_SIZE_PX = 15;
 
 /** Default app name shown in titlebar */
-export const DEFAULT_APP_NAME = "WFHELPER";
+export const DEFAULT_APP_NAME = "PLATHELPER";
