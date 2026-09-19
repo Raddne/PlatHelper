@@ -4,6 +4,15 @@ Patch notes for every PlatHelper release. The release workflow copies the sectio
 
 Keep every bullet on one line: GitHub shows a line break inside release notes as a line break.
 
+## v0.1.3
+
+- **Important fix - Live Scraper no longer deletes buy orders you placed yourself.** With "Auto-delete" on (the default), starting the scraper used to remove every buy order on the account during "Cleaning up orders". It now only ever deletes orders it created itself; orders you placed by hand are never deleted, re-priced or taken down by the automatic passes.
+- Buy orders the scraper created before this update count as yours from now on: they are left alone until you remove them yourself.
+- **Live Scraper:** an existing sell listing that gets picked up keeps the price you listed it at as its minimum price, so the scraper never undercuts what you asked for. You can change or clear the minimum per row in the Listings panel.
+- **Listings panel:** select several rows with `Ctrl` + click, a whole range with `Shift` + click. Right-click the selection to set a price for all of them, pause, resume or remove them in one go. `Esc` clears the selection.
+- **Listings panel:** new search box to filter the list by item name.
+- **New sell setting "Min above lowest listing":** lists your items a fixed amount of platinum above the cheapest other seller instead of matching their price.
+
 ## v0.1.2
 
 - "What's new" window: nested bullet points from the patch notes show as one tidy list.
