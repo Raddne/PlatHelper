@@ -67,7 +67,7 @@ test.describe("Electron Smoke", () => {
     if ((await sidebar.count()) > 0) {
       await expect(sidebar).toBeVisible();
     } else {
-      await expect(page.getByRole("heading", { name: "Welcome to WFHelper" })).toBeVisible();
+      await expect(page.getByRole("heading", { name: "Welcome to PlatHelper" })).toBeVisible();
     }
   });
 

@@ -12,7 +12,7 @@ import { getWarframeProcessState } from "./warframeStatus";
 import { normalizeErrorMessage } from "../config/shared/errors";
 
 const log = withScope("WarframeLifecycle");
-const LOGIN_ITEM_NAME = "WFHelperWarframeWatcher";
+const LOGIN_ITEM_NAME = "PlatHelperWarframeWatcher";
 const EXIT_GRACE_MS = 10_000;
 let enabled = false;
 let configured = false;
@@ -34,7 +34,7 @@ function tick(): void {
     absentSince ??= Date.now();
     if (Date.now() - absentSince >= EXIT_GRACE_MS) {
       seenGame = false;
-      log.info("Warframe exited; closing WFHelper");
+      log.info("Warframe exited; closing PlatHelper");
       quitApp();
     }
   }

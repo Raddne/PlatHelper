@@ -4,7 +4,12 @@ import { requestV2 } from "../../services/wfmClient";
 import { WfmApiError } from "../../services/wfmTypes";
 import * as wfmCatalog from "../../services/wfmCatalog";
 import * as wfmOrders from "../../services/wfmOrders";
-import { normalizeSubtype, subtypeChoicesOf } from "../../config/shared/wfmOrders";
+import {
+  normalizeSubtype,
+  subtypeChoicesOf,
+  isOrderLimitError,
+  looksLikeOrderLimitMessage,
+} from "../../config/shared/wfmOrders";
 import * as wfmSession from "../../services/wfmSession";
 
 vi.mock("../../services/wfmClient", async (importOriginal) => {
@@ -304,6 +309,62 @@ describe("createOrder subtype adaptivity", () => {
     await expect(
       wfmOrders.createOrder({ itemId: "i1", orderType: "sell", platinum: 5, quantity: 1 }),
     ).rejects.toThrow(/subtype/);
+  });
+});
+
+describe("createOrder order-limit handling", () => {
+  beforeEach(() => {
+    requestV2Mock.mockReset();
+    wfmOrders.__resetWfmOrdersForTest();
+  });
+
+  it("surfaces a structurally-identifiable error when WFM refuses for the account order cap", async () => {
+    requestV2Mock.mockRejectedValueOnce(
+      new WfmApiError("WFMClient v2 API error: app.order.limitReached", "WFM_API_ERROR", 400),
+    );
+
+    const err = await wfmOrders
+      .createOrder({ itemId: "i1", orderType: "buy", platinum: 10, quantity: 1 })
+      .catch((e: unknown) => e);
+
+    expect(isOrderLimitError(err)).toBe(true);
+    expect(requestV2Mock).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not misfire on unrelated field errors", async () => {
+    requestV2Mock.mockRejectedValueOnce(
+      new WfmApiError("WFMClient v2 API error: platinum: app.field.invalid", "WFM_API_ERROR", 400),
+    );
+
+    const err = await wfmOrders
+      .createOrder({ itemId: "i1", orderType: "buy", platinum: -1, quantity: 1 })
+      .catch((e: unknown) => e);
+
+    expect(isOrderLimitError(err)).toBe(false);
+  });
+});
+
+describe("looksLikeOrderLimitMessage", () => {
+  it("matches plausible order-limit phrasings", () => {
+    expect(looksLikeOrderLimitMessage("app.order.limitReached")).toBe(true);
+    expect(looksLikeOrderLimitMessage("You have reached the order limit")).toBe(true);
+    expect(looksLikeOrderLimitMessage("Maximum number of orders reached")).toBe(true);
+    expect(looksLikeOrderLimitMessage("Too many orders")).toBe(true);
+  });
+
+  it("does not match unrelated field errors", () => {
+    expect(looksLikeOrderLimitMessage("perTrade: app.field.required")).toBe(false);
+    expect(looksLikeOrderLimitMessage("rank: app.field.required")).toBe(false);
+    expect(looksLikeOrderLimitMessage("subtype: app.field.required")).toBe(false);
+    expect(looksLikeOrderLimitMessage("platinum: app.field.invalid")).toBe(false);
+  });
+});
+
+describe("isOrderLimitError", () => {
+  it("is structural, not instanceof", () => {
+    expect(isOrderLimitError({ code: "order_limit_reached" })).toBe(true);
+    expect(isOrderLimitError(new Error("nope"))).toBe(false);
+    expect(isOrderLimitError(null)).toBe(false);
   });
 });
 

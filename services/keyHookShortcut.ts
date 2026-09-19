@@ -44,7 +44,7 @@ export function createKeyHookShortcut(options: {
     ((modulePath: string) => {
       const { utilityProcess } = require("electron") as typeof import("electron");
       return utilityProcess.fork(modulePath, [], {
-        serviceName: "WFHelper Key Hook",
+        serviceName: "PlatHelper Key Hook",
         stdio: "ignore",
       }) as unknown as HookProcess;
     });

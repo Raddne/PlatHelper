@@ -4,7 +4,9 @@ import path from "node:path";
 import { APP_PRODUCT_NAME } from "../shared/appMeta";
 
 const APP_USER_DATA_DIR_NAME = APP_PRODUCT_NAME;
-const LEGACY_USER_DATA_DIR_NAMES = ["warframe-companion"];
+// "WFHelper" first: PlatHelper is a renamed WFHelper fork, so an existing WFHelper
+// profile (session, stock, settings) is copied over on the first start.
+const LEGACY_USER_DATA_DIR_NAMES = ["WFHelper", "warframe-companion"];
 
 function directoryHasEntries(dir: string): boolean {
   try {

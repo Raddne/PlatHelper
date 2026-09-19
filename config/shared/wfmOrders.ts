@@ -203,3 +203,33 @@ export function subtypeChoicesOf(err: unknown): readonly string[] | null {
   const choices = candidate.subtypes.filter((s): s is string => typeof s === "string");
   return choices.length > 0 ? choices : null;
 }
+
+/** WFM rejected a create because the account is already at its total-order
+ *  cap (mirrors Quantframe's can_create_order/OrderLimitExceeded handling,
+ *  docs §B.5a) - reachable especially from the WTB catalog scan, which can
+ *  surface far more candidates in one tick than a hand-curated stock/wishlist
+ *  ever would. */
+export const ORDER_LIMIT_CODE = "order_limit_reached";
+
+/** Structural, not instanceof - see subtypeChoicesOf's note above. */
+export function isOrderLimitError(err: unknown): boolean {
+  if (!err || typeof err !== "object") return false;
+  return (err as { code?: unknown }).code === ORDER_LIMIT_CODE;
+}
+
+/** Best-effort net over WFM's error wording for "no more orders allowed" -
+ *  the exact machine code isn't independently confirmed (WFM v2 error bodies
+ *  use dotted app.<domain>.<reason> codes per tests/main/wfmErrorDetail.test.ts,
+ *  but this specific one hasn't been observed live), so this matches several
+ *  plausible phrasings rather than a single verified string. Deliberately
+ *  permissive: a false negative here just falls back to today's behavior (a
+ *  generic logged error), so casting a wide net costs nothing extra. */
+export function looksLikeOrderLimitMessage(message: string): boolean {
+  const text = message.toLowerCase();
+  return (
+    /order.{0,20}limit/.test(text) ||
+    /limit.{0,20}order/.test(text) ||
+    /max(imum)?.{0,12}(open |active |live )?orders?/.test(text) ||
+    /too many orders?/.test(text)
+  );
+}

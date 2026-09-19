@@ -111,6 +111,10 @@ const eventApiMap: Record<
     ),
   "market-alerts:changed": (cb) =>
     window.api.onMarketAlertsChanged(cb as (data: IpcEventMap["market-alerts:changed"]) => void),
+  "live-scraper:changed": (cb) =>
+    window.api.onLiveScraperChanged(cb as (data: IpcEventMap["live-scraper:changed"]) => void),
+  "wfm-chat:event": (cb) =>
+    window.api.onWfmChatEvent(cb as (data: IpcEventMap["wfm-chat:event"]) => void),
   "notification-sound-play": (cb) =>
     window.api.onNotificationSoundPlay(
       cb as (payload: IpcEventMap["notification-sound-play"]) => void,

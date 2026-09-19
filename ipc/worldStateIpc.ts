@@ -172,7 +172,7 @@ function ensureStartMenuShortcut(): void {
       "Start Menu",
       "Programs",
     );
-    const lnkPath = path.join(startMenuDir, "WFHelper.lnk");
+    const lnkPath = path.join(startMenuDir, "PlatHelper.lnk");
 
     // Read existing shortcut to check if it already has the correct target + AUMID.
     let needWrite = true;
@@ -191,7 +191,7 @@ function ensureStartMenuShortcut(): void {
       shell.writeShortcutLink(lnkPath, "create", {
         target: process.execPath,
         appUserModelId: APP_USER_MODEL_ID,
-        description: "WFHelper",
+        description: "PlatHelper",
       });
       log.info("[WorldState] created/updated Start Menu shortcut for notifications");
     }
@@ -273,7 +273,8 @@ function toastAudio(): string {
   return notificationSoundUsesSystem() ? TOAST_SYSTEM_AUDIO : TOAST_SILENT_AUDIO;
 }
 
-function playNotificationSound(): void {
+/** Rings the user's notification sound (Settings) for an event that shows no toast. */
+export function playNotificationSound(): void {
   if (!notificationSoundEnabled() || notificationSoundUsesSystem()) return;
   const window = ctx.mainWindow;
   if (!window || window.isDestroyed()) return;
@@ -745,7 +746,7 @@ function register(
   if (!electronModule.app?.isPackaged) {
     ipc.handle(NOTIFICATION_TEST, async (event: unknown) => {
       assertAuthorizedSender(assertMainRendererSender, event as never, NOTIFICATION_TEST);
-      sendDesktopNotificationRaw("WFHelper", "Test notification", "app");
+      sendDesktopNotificationRaw("PlatHelper", "Test notification", "app");
       return true;
     });
   }

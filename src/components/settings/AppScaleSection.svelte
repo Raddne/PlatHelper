@@ -3,6 +3,7 @@
   import { tr } from "../../lib/i18n.js";
   import { UI_SCALE_MAX, UI_SCALE_MIN, UI_SCALE_STEP } from "../../../config/runtime/uiScale.js";
   import { loadUiScale, saveUiScale } from "../../lib/uiScaleSetting.js";
+  import { overlaySettings } from "../../stores/overlaySettings.js";
   import ThemedControlCard from "../ThemedControlCard.svelte";
 
   let uiScale = 1;
@@ -16,6 +17,10 @@
     }
     ready = true;
   });
+
+  // Ctrl+wheel / Ctrl +/- (ZoomShortcuts.svelte) change the same setting while
+  // this section is open.
+  $: if (ready) uiScale = $overlaySettings.uiScale;
 
   // On release, not on input: each save re-zooms the window under the cursor.
   function commit(): void {

@@ -44,6 +44,12 @@ function pruneCache(): void {
   }
 }
 
+/** Our own create/update/close changes what a search returns, and callers rely
+ *  on finding (or not finding) their auction in it, so cached pages are dropped. */
+function invalidateSearchCache(): void {
+  _cache.clear();
+}
+
 let _loggedWfmName = false;
 
 function parseAuctions(auctions: WfmRawAuction[]): WfmRivenListing[] {
@@ -248,6 +254,7 @@ export async function createRivenAuction(
     const payload = unwrapWfmResponse<WfmAuctionCreatePayload>(data);
     const auctionId = payload?.auction?.id;
     log.info(`[WfmRivenSearch] Created auction ${auctionId || "(no id)"} for "${opts.weaponSlug}"`);
+    invalidateSearchCache();
     return { ok: true, auctionId: auctionId || undefined };
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);
@@ -269,6 +276,7 @@ export async function deleteRivenAuction(
   try {
     await wfmClient.request("PUT", path);
     log.info(`[WfmRivenSearch] Closed auction ${auctionId}`);
+    invalidateSearchCache();
     return { ok: true };
   } catch (err: unknown) {
     const error = err instanceof Error ? err.message : String(err);
@@ -310,6 +318,7 @@ export async function updateRivenAuction(
     const payload = unwrapWfmResponse<WfmAuctionUpdatePayload>(data);
     const auctionId = payload?.auction?.id || opts.auctionId;
     log.info(`[WfmRivenSearch] Updated auction ${auctionId}`);
+    invalidateSearchCache();
     return { ok: true, auctionId };
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);

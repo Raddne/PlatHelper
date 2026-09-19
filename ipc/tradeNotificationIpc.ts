@@ -285,7 +285,7 @@ function _getOrCreateWindow(): InstanceType<typeof BrowserWindow> {
     ...(process.platform === "linux" ? { type: "notification" } : {}),
     // Untranslated on purpose: compositor window rules match on the title, so it
     // must not move when the UI language does.
-    title: "WFHelper Trade Notification",
+    title: "PlatHelper Trade Notification",
     width: WIN_W,
     height: WIN_H,
     // The compositor places a layer surface, so screen coordinates say nothing.

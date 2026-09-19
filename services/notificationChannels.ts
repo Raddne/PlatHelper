@@ -585,7 +585,7 @@ export async function testWebhook(channel: WebhookChannel): Promise<WebhookTestR
   if (!load().webhooks[channel]) return { ok: false, error: "not-configured" };
   const payload: NotificationDispatch = {
     source: "test",
-    title: "WFHelper test notification",
+    title: "PlatHelper test notification",
     body: "Notification channels are wired up.",
   };
   const outcome = await sendWebhook(channel, buildBody(channel, payload, new Date().toISOString()));

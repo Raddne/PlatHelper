@@ -135,7 +135,7 @@ describe("Warframe lifecycle", () => {
     );
     expect(h.login).toHaveBeenCalledWith(
       expect.objectContaining({
-        name: "WFHelperWarframeWatcher",
+        name: "PlatHelperWarframeWatcher",
         openAtLogin: true,
         args: expect.arrayContaining([`"${configPath}"`]),
       }),

@@ -25,6 +25,7 @@ import * as marketStatsHistory from "../services/marketStatsHistory";
 import * as wfmPresence from "../services/wfmPresence";
 import { startListening, stopListening } from "../services/wfmWebSocketListener";
 import ctx from "./context";
+import { startChat, stopChat } from "./wfmChatIpc";
 import {
   WFM_SIGNIN,
   WFM_SIGNOUT,
@@ -67,6 +68,7 @@ function _startSessionServices(): void {
   const token = wfmSession.getToken();
   if (!token) return;
   startListening(token, _handleWfmEvent, _handleWfmAuthGiveUp);
+  startChat();
   void wfmPresence.refreshFromServer().then(() => wfmPresence.resync());
 }
 
@@ -119,6 +121,7 @@ function _handleWfmAuthGiveUp(): void {
   const win = ctx.mainWindow;
   if (!win || win.isDestroyed()) return;
   log.warn("[WFMIpc] WS listener gave up on auth - notifying renderer");
+  stopChat();
   win.webContents.send(WFM_NOTIFICATION, { type: "listener-auth-failed" });
 }
 
@@ -143,6 +146,7 @@ function register(): void {
 
   handleAuthorized(WFM_SIGNOUT, assertMainRendererSender, async () => {
     stopListening();
+    stopChat();
     wfmPresence.reset();
     return wfmSession.signOut();
   });

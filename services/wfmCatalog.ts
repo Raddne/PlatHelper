@@ -19,7 +19,7 @@ const NAME_PAREN_SUFFIX_RE = /^(.+?)\s*\([^()]*\)\s*$/;
 const SEARCH_MIN_QUERY_LENGTH = 2;
 const SEARCH_SCAN_MULTIPLIER = 2;
 
-interface CatalogItem {
+export interface CatalogItem {
   id: string | null;
   url_name: string;
   item_name: string;
@@ -28,6 +28,11 @@ interface CatalogItem {
   maxRank: number | null;
   gameRef: string | null;
   subtypes?: string[];
+  /** Only populated by lookupItemDetails (the bulk /items listing omits it) -
+   *  confirmed live on GET /v2/item/{slug} as `tradingTax` (v1: `trading_tax`
+   *  inside items_in_set), same field src/components/market/MarketBrowseView.svelte
+   *  already reads from the renderer. Null until fetched, not "no tax". */
+  tradingTax?: number | null;
 }
 
 let _items: CatalogItem[] = [];
@@ -217,6 +222,13 @@ export function isLoaded(): boolean {
   return _loaded;
 }
 
+/** Full cached catalog, for callers that need to walk every item (e.g. the
+ *  Live Scraper's WTB catalog scan) rather than search/look one up. */
+export async function listAllItems(): Promise<CatalogItem[]> {
+  await _load();
+  return _items;
+}
+
 export async function ensureLoaded(): Promise<number> {
   await _load();
   return _items.length;
@@ -376,6 +388,8 @@ export function lookupItemDetails(slug: string): Promise<CatalogItem | null> {
           ),
         ]
       : [];
+    const tax = Number(raw.tradingTax ?? raw.trading_tax);
+    item.tradingTax = Number.isFinite(tax) && tax >= 0 ? tax : null;
     itemDetailsCache.set(slug, { item, at: Date.now() });
     return item;
   })().finally(() => itemDetailsPending.delete(slug));

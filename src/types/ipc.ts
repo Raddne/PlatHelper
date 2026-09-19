@@ -1,3 +1,9 @@
+import type {
+  WfmChatEvent,
+  WfmChatMessage,
+  WfmChatResult,
+  WfmChatState,
+} from "../../config/shared/wfmChat.js";
 import type { MasteryData, RawInventoryData, ItemDbEntry } from "./inventory.js";
 import type { MarketStatPoint, MarketStatsMergeMode } from "../../config/shared/marketStats.js";
 import type {
@@ -67,6 +73,10 @@ import type {
   MarketAlertSaveResult,
   MarketAlertTestFireResult,
 } from "../../config/shared/marketAlertTypes.js";
+import type { LiveScraperSettings, SubTypeLike } from "../../config/shared/liveScraperSettings.js";
+import type { StockItem, WishlistItem } from "../../config/shared/liveScraperStock.js";
+import type { StockRiven, StockRivenStat } from "../../config/shared/liveScraperRivenStock.js";
+import type { LiveScraperEngineStatus } from "../../config/shared/liveScraperEngine.js";
 import type { OverlaySettings, OverlayWindowKey } from "../../config/runtime/overlaySettings.js";
 
 export type { HelperStatus } from "../../config/shared/apiHelperTypes.js";
@@ -505,6 +515,132 @@ export interface IpcInvokeMap {
     args: [text: string];
     return: MarketAlertImportOutcome;
   };
+  liveScraperGetSettings: {
+    args: [];
+    return: LiveScraperSettings;
+  };
+  liveScraperUpdateSettings: {
+    args: [next: LiveScraperSettings];
+    return: LiveScraperSettings;
+  };
+  liveScraperResetSettings: {
+    args: [];
+    return: LiveScraperSettings;
+  };
+  liveScraperStockList: {
+    args: [];
+    return: StockItem[];
+  };
+  liveScraperStockCreate: {
+    args: [
+      payload: {
+        wfmId: string;
+        wfmUrl?: string;
+        itemName?: string;
+        subType?: SubTypeLike | undefined;
+        owned?: number;
+        bought?: number;
+      },
+    ];
+    return: { ok: true; item: StockItem } | { ok: false; error: string };
+  };
+  liveScraperStockUpdate: {
+    args: [id: string, patch: Partial<StockItem>];
+    return: { ok: true; item: StockItem } | { ok: false; error: string };
+  };
+  liveScraperStockDelete: {
+    args: [id: string];
+    return: { ok: true } | { ok: false; error: string };
+  };
+  liveScraperWishlistList: {
+    args: [];
+    return: WishlistItem[];
+  };
+  liveScraperWishlistCreate: {
+    args: [
+      payload: {
+        wfmId: string;
+        wfmUrl?: string;
+        itemName?: string;
+        subType?: SubTypeLike | undefined;
+        quantity?: number;
+        maxPrice?: number | undefined;
+      },
+    ];
+    return: { ok: true; item: WishlistItem } | { ok: false; error: string };
+  };
+  liveScraperWishlistUpdate: {
+    args: [id: string, patch: Partial<WishlistItem>];
+    return: { ok: true; item: WishlistItem } | { ok: false; error: string };
+  };
+  liveScraperWishlistDelete: {
+    args: [id: string];
+    return: { ok: true } | { ok: false; error: string };
+  };
+  liveScraperRivenStockList: {
+    args: [];
+    return: StockRiven[];
+  };
+  liveScraperRivenStockCreate: {
+    args: [
+      payload: {
+        sourceItemId?: string;
+        weaponName: string;
+        rivenName?: string;
+        masteryReq?: number;
+        rerolls?: number;
+        polarity?: string;
+        modRank?: number;
+        stats: StockRivenStat[];
+        bought?: number;
+      },
+    ];
+    return: { ok: true; item: StockRiven } | { ok: false; error: string };
+  };
+  liveScraperRivenStockUpdate: {
+    args: [id: string, patch: Partial<StockRiven>];
+    return: { ok: true; item: StockRiven } | { ok: false; error: string };
+  };
+  liveScraperRivenStockDelete: {
+    args: [id: string];
+    return: { ok: true } | { ok: false; error: string };
+  };
+  liveScraperStart: {
+    args: [];
+    return: LiveScraperEngineStatus;
+  };
+  liveScraperStop: {
+    args: [];
+    return: LiveScraperEngineStatus;
+  };
+  liveScraperStatus: {
+    args: [];
+    return: LiveScraperEngineStatus;
+  };
+  wfmChatState: {
+    args: [];
+    return: WfmChatState;
+  };
+  wfmChatRefresh: {
+    args: [];
+    return: WfmChatResult<{ state: WfmChatState }>;
+  };
+  wfmChatMessages: {
+    args: [chatId: string];
+    return: WfmChatResult<{ messages: WfmChatMessage[] }>;
+  };
+  wfmChatSend: {
+    args: [payload: { chatId: string; text: string }];
+    return: WfmChatResult<object>;
+  };
+  wfmChatDelete: {
+    args: [chatId: string];
+    return: WfmChatResult<object>;
+  };
+  wfmChatSetActive: {
+    args: [chatId: string | null];
+    return: void;
+  };
   ledgerQuery: {
     args: [query: LedgerQuery];
     return: LedgerPage;
@@ -874,6 +1010,8 @@ export interface IpcEventMap {
   "notification-history-added": NotificationEntry;
   "notification-sound-play": import("../../config/shared/notificationSound.js").NotificationSoundPlayback;
   "market-alerts:changed": undefined;
+  "live-scraper:changed": undefined;
+  "wfm-chat:event": WfmChatEvent;
   "workbench-state": WorkbenchState;
   "popout-state-changed": PopoutWindowInfo[];
 }

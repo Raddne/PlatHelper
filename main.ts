@@ -107,6 +107,9 @@ import * as tradeNotificationIpc from "./ipc/tradeNotificationIpc";
 import * as notificationLogIpc from "./ipc/notificationLogIpc";
 import * as notificationChannelsIpc from "./ipc/notificationChannelsIpc";
 import * as marketAlertsIpc from "./ipc/marketAlertsIpc";
+import * as liveScraperIpc from "./ipc/liveScraperIpc";
+import * as wfmChatIpc from "./ipc/wfmChatIpc";
+import * as liveScraperEngine from "./services/liveScraperEngine";
 import * as inventorySelectionIpc from "./ipc/inventorySelectionIpc";
 import * as tradeWorkflow from "./ipc/tradeWorkflow";
 import * as tradeWorkbenchIpc from "./ipc/tradeWorkbenchIpc";
@@ -435,7 +438,7 @@ function reportSessionHealth(profileStage: ProfileStage): void {
   if (injectors.length > 0) {
     log.warn(
       `[Startup] software known to crash its host is injected here: ${injectors.join(", ")}. ` +
-        "Disabling its overlay, or excluding WFHelper from it, is the fix.",
+        "Disabling its overlay, or excluding PlatHelper from it, is the fix.",
     );
   }
 }
@@ -493,6 +496,8 @@ function registerIpcHandlers(profileStage: ProfileStage): void {
   notificationLogIpc.register();
   notificationChannelsIpc.register();
   marketAlertsIpc.register();
+  liveScraperIpc.register();
+  wfmChatIpc.register();
   tradeWorkbenchIpc.register();
   tradeLedgerIpc.register();
   popoutIpc.register();
@@ -836,6 +841,7 @@ app.on("before-quit", (event) => {
   apiHelperRunner.stopPolling();
   eeLogMonitor.stopWatching();
   marketAlerts.stopMarketAlerts();
+  liveScraperEngine.stopLiveScraperEngine();
   stopOverlayHotkeyGate();
   stopWarframeLifecycle();
   overlayIpc.unregisterOverlayHotkey();

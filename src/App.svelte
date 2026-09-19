@@ -16,6 +16,7 @@
 
   import SetupView from "./views/SetupView.svelte";
   import InventoryView from "./views/InventoryView.svelte";
+  import ZoomShortcuts from "./components/ZoomShortcuts.svelte";
   import FoundryView from "./views/FoundryView.svelte";
   import MasteryView from "./views/MasteryView.svelte";
   import StatsView from "./views/StatsView.svelte";
@@ -26,6 +27,7 @@
   import BulkSellModal from "./components/workbench/BulkSellModal.svelte";
 
   import { currentView, SETUP_COMPLETED_KEY, statusText } from "./stores/app.js";
+  import { goBack, goForward } from "./stores/navigationHistory.js";
   import { parsedItems } from "./stores/data.js";
   import {
     isPopoutWindow,
@@ -104,14 +106,29 @@
     }
 
     window.addEventListener("keydown", onKeyDown);
+    window.addEventListener("mouseup", onMouseNavButton);
 
     return () => {
       startup.dispose();
       disposeEvents();
       unsubscribeViewChange();
       window.removeEventListener("keydown", onKeyDown);
+      window.removeEventListener("mouseup", onMouseNavButton);
     };
   });
+
+  // Mouse "back"/"forward" side buttons (button 3/4 - Chromium never routes
+  // these through click, only mouseup) - the same navigation history other
+  // desktop apps use theirs for.
+  function onMouseNavButton(e: MouseEvent): void {
+    if (e.button === 3) {
+      e.preventDefault();
+      goBack();
+    } else if (e.button === 4) {
+      e.preventDefault();
+      goForward();
+    }
+  }
 
   function handleViewChange(view: ViewName): void {
     if (isLazyView(view)) {
@@ -393,4 +410,6 @@
   <!-- Main window only: the inspector claims Ctrl+Shift+click app-wide, and a
        pop-out has no Settings toggle to turn it back off. -->
   <ThemeInspector />
+  <!-- Main window only too: uiScale zooms the main window, not a pop-out. -->
+  <ZoomShortcuts />
 {/if}

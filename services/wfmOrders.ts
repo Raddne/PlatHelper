@@ -1,6 +1,10 @@
 import { withScope } from "./logger";
 import { normalizeErrorMessage } from "../config/shared/errors";
-import { SUBTYPE_REQUIRED_CODE } from "../config/shared/wfmOrders";
+import {
+  SUBTYPE_REQUIRED_CODE,
+  ORDER_LIMIT_CODE,
+  looksLikeOrderLimitMessage,
+} from "../config/shared/wfmOrders";
 
 import { requestV2 } from "./wfmClient";
 import { getInGameName } from "./wfmSession";
@@ -158,6 +162,16 @@ class WfmSubtypeRequiredError extends WfmApiError {
   }
 }
 
+/** The account is already at WFM's total-order cap (docs §B.5a's
+ *  can_create_order gate) - see config/shared/wfmOrders.ts for why the exact
+ *  trigger message is a best-effort match, not a confirmed string. */
+class WfmOrderLimitError extends WfmApiError {
+  constructor(message: string) {
+    super(message, ORDER_LIMIT_CODE, 400);
+    this.name = "WfmOrderLimitError";
+  }
+}
+
 async function resolveSubtypeChoices(itemId: string): Promise<string[]> {
   try {
     const entry = await wfmCatalog.lookupById(itemId);
@@ -260,6 +274,9 @@ export async function createOrder({
           continue;
         }
         if (choices.length > 0) throw new WfmSubtypeRequiredError(choices);
+      }
+      if (looksLikeOrderLimitMessage(message)) {
+        throw new WfmOrderLimitError(message);
       }
       throw err;
     }

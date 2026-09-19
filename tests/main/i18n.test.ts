@@ -16,6 +16,11 @@ const REFERENCE_ROOTS = ["src", "ipc", "config/shared"].map((dir) =>
 // warframe.market whispers are sent to other players, so they must stay English.
 const ENGLISH_ONLY = ["common.whisperBuy", "common.whisperSell"];
 
+// Keys this fork added on top of upstream WFHelper. The release must carry no
+// translation beyond upstream's own, so these stay English by fallback.
+const FORK_ENGLISH_ONLY =
+  /^(liveScraper\.|presets\.|messages\.|nav\.(liveScraper|messages|newGroupDefaultName|ungroup|renameGroupHint)$|common\.add$)/;
+
 // Trade shorthand, grade letters and relic tier names read the same everywhere,
 // so de.json leaves them out and the English fallback serves them.
 const LANGUAGE_NEUTRAL = /^(appearance\.label\.grade|inventory\.wt[bs]|relics\.tier\.)/;
@@ -32,7 +37,23 @@ const CHINESE_NAMES_IN_ENGLISH = new Set([
 ]);
 
 // Same text today, but each names a distinct UI role and must stay free to diverge.
-const ALLOWED_TWINS = new Set(["setup.step.finish"]);
+const ALLOWED_TWINS = new Set([
+  "setup.step.finish",
+  // Live Scraper: the same label in different settings sections, table columns
+  // and status badges. Each belongs to its own section and may diverge.
+  "liveScraper.listings.col.riven",
+  "liveScraper.settings.general.tradeModeWishlist",
+  "liveScraper.settings.syndicate.volumeThreshold",
+  "liveScraper.settings.item.minProfit",
+  "liveScraper.settings.riven.minProfit",
+  "liveScraper.settings.syndicate.maxPriceIncrease",
+  "liveScraper.settings.syndicate.minBuyersAbove",
+  "liveScraper.listings.status.maxPriceDrop",
+  "liveScraper.listings.col.owned",
+  "liveScraper.quantityShort",
+  "presets.manager.title",
+  "presets.wizard.createTitle",
+]);
 
 function sourceFiles(dir: string, out: string[] = []): string[] {
   for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
@@ -89,10 +110,19 @@ describe("i18n dictionaries", () => {
 
   it("translates every key German is expected to carry", () => {
     const untranslated = Object.keys(en).filter(
-      (key) => !(key in de) && !ENGLISH_ONLY.includes(key) && !LANGUAGE_NEUTRAL.test(key),
+      (key) =>
+        !(key in de) &&
+        !ENGLISH_ONLY.includes(key) &&
+        !LANGUAGE_NEUTRAL.test(key) &&
+        !FORK_ENGLISH_ONLY.test(key),
     );
 
     expect(untranslated).toEqual([]);
+  });
+
+  it("carries no generated translation for the keys this fork added", () => {
+    expect(Object.keys(de).filter((key) => FORK_ENGLISH_ONLY.test(key))).toEqual([]);
+    expect(Object.keys(zh).filter((key) => FORK_ENGLISH_ONLY.test(key))).toEqual([]);
   });
 
   it("translates every key Chinese is expected to carry", () => {
@@ -101,6 +131,7 @@ describe("i18n dictionaries", () => {
         !(key in zh) &&
         !ENGLISH_ONLY.includes(key) &&
         !LANGUAGE_NEUTRAL.test(key) &&
+        !FORK_ENGLISH_ONLY.test(key) &&
         !CHINESE_NAMES_IN_ENGLISH.has(key),
     );
 

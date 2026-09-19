@@ -60,6 +60,36 @@ export const MARKET_ALERTS_IMPORT = "market-alerts:import";
 /** Main -> renderer push: a hit was recorded or the engine status moved. */
 export const MARKET_ALERTS_CHANGED = "market-alerts:changed";
 
+export const LIVE_SCRAPER_GET_SETTINGS = "live-scraper:get-settings";
+export const LIVE_SCRAPER_UPDATE_SETTINGS = "live-scraper:update-settings";
+export const LIVE_SCRAPER_RESET_SETTINGS = "live-scraper:reset-settings";
+export const LIVE_SCRAPER_STOCK_LIST = "live-scraper:stock-list";
+export const LIVE_SCRAPER_STOCK_CREATE = "live-scraper:stock-create";
+export const LIVE_SCRAPER_STOCK_UPDATE = "live-scraper:stock-update";
+export const LIVE_SCRAPER_STOCK_DELETE = "live-scraper:stock-delete";
+export const LIVE_SCRAPER_WISHLIST_LIST = "live-scraper:wishlist-list";
+export const LIVE_SCRAPER_WISHLIST_CREATE = "live-scraper:wishlist-create";
+export const LIVE_SCRAPER_WISHLIST_UPDATE = "live-scraper:wishlist-update";
+export const LIVE_SCRAPER_WISHLIST_DELETE = "live-scraper:wishlist-delete";
+export const LIVE_SCRAPER_RIVEN_STOCK_LIST = "live-scraper:riven-stock-list";
+export const LIVE_SCRAPER_RIVEN_STOCK_CREATE = "live-scraper:riven-stock-create";
+export const LIVE_SCRAPER_RIVEN_STOCK_UPDATE = "live-scraper:riven-stock-update";
+export const LIVE_SCRAPER_RIVEN_STOCK_DELETE = "live-scraper:riven-stock-delete";
+export const LIVE_SCRAPER_START = "live-scraper:start";
+export const LIVE_SCRAPER_STOP = "live-scraper:stop";
+export const LIVE_SCRAPER_STATUS = "live-scraper:status";
+/** Main -> renderer push: settings, stock/wishlist, or engine status changed. */
+export const LIVE_SCRAPER_CHANGED = "live-scraper:changed";
+
+export const WFM_CHAT_STATE = "wfm-chat:state";
+export const WFM_CHAT_REFRESH = "wfm-chat:refresh";
+export const WFM_CHAT_MESSAGES = "wfm-chat:messages";
+export const WFM_CHAT_SEND = "wfm-chat:send";
+export const WFM_CHAT_DELETE = "wfm-chat:delete";
+export const WFM_CHAT_SET_ACTIVE = "wfm-chat:set-active";
+/** Main -> renderer push: chat list/connection state, or one new message. */
+export const WFM_CHAT_EVENT = "wfm-chat:event";
+
 export const APP_UPDATE_CHECK = "app:update-check";
 export const APP_UPDATE_STATE = "app:update-state";
 export const APP_UPDATE_DOWNLOAD = "app:update-download";

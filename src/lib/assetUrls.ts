@@ -27,6 +27,9 @@ export const NAV_ICON_URLS = {
   stats: new URL("../../assets/icons/Stats.png", import.meta.url).href,
   wiki: new URL("../../assets/icons/Wiki.svg", import.meta.url).href,
   arbi: new URL("../../assets/icons/ArbiAnalyze.png", import.meta.url).href,
+  // Placeholder icon until the Live Scraper gets its own dedicated artwork.
+  liveScraper: new URL("../../assets/icons/Market.png", import.meta.url).href,
+  messages: new URL("../../assets/icons/Messages.svg", import.meta.url).href,
 } as const;
 
 export const POLARITY_ICON_URLS = {

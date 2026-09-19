@@ -60,7 +60,7 @@ export const arbiSummaryWindowsController = createOverlayWindowsController({
   hardenBrowserWindowNavigation,
   overlayWindowFile: ARBI_SUMMARY_WINDOW_FILE,
   windowLabel: "arbi summary window",
-  windowTitle: "WFHelper Arbitration Summary",
+  windowTitle: "PlatHelper Arbitration Summary",
   preloadFileName: "preload-arbi.js",
   placement: "top-right",
   displayMode: "primary",

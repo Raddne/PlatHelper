@@ -26,6 +26,8 @@ interface ElectronTestHarnessOptions {
   skipLanguageSeed?: boolean;
   /** JSON files to drop into userData before launch, keyed by file name. */
   userDataFiles?: Record<string, unknown>;
+  /** Initial EE.log text; the monitor only attaches to a log that exists at launch. */
+  eeLog?: string;
 }
 
 export interface ElectronTestHarness {
@@ -58,6 +60,10 @@ export async function launchElectronTestHarness(
     path.join(helperDir, "inventory.json"),
     JSON.stringify(options.inventory ?? { Suits: [] }),
   );
+  if (options.eeLog !== undefined) {
+    fs.mkdirSync(path.join(localAppData, "Warframe"), { recursive: true });
+    fs.writeFileSync(path.join(localAppData, "Warframe", "EE.log"), options.eeLog);
+  }
   for (const [name, contents] of Object.entries(options.userDataFiles ?? {})) {
     fs.writeFileSync(path.join(userData, name), JSON.stringify(contents));
   }

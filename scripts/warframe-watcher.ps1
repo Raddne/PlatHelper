@@ -44,7 +44,7 @@ function Get-GameState {
         return $false
     } catch { return $null }
 }
-$mutex = New-Object Threading.Mutex($false, "Local\WFHelperWarframeWatcher-$key")
+$mutex = New-Object Threading.Mutex($false, "Local\PlatHelperWarframeWatcher-$key")
 $ownsMutex = $false
 try {
     try { $ownsMutex = $mutex.WaitOne(20000) }

@@ -583,7 +583,7 @@ export function createOverlayScanController(options: OverlayScanControllerOption
         items.length === 0 && process.platform === "linux" ? getLinuxCaptureFailure() : null;
       if (captureFailure) {
         log.warn(
-          `[Trigger] no screen capture (${captureFailure}) - allow WFHelper in the share dialog`,
+          `[Trigger] no screen capture (${captureFailure}) - allow PlatHelper in the share dialog`,
         );
         windows.sendOverlayEvent(RELIC_REWARD_ITEMS, {
           items: [],
@@ -598,7 +598,7 @@ export function createOverlayScanController(options: OverlayScanControllerOption
       if (ocrHealth && !ocrHealth.available) {
         log.warn(
           `[Trigger] Windows OCR unavailable: ${ocrHealth.reason} - install a Windows OCR ` +
-            `language pack (Windows Settings > Time & Language > Language), then restart WFHelper`,
+            `language pack (Windows Settings > Time & Language > Language), then restart PlatHelper`,
         );
         windows.sendOverlayEvent(RELIC_REWARD_ITEMS, {
           items: [],

@@ -361,7 +361,7 @@ async function runOnceWindows(): Promise<boolean> {
   const reason = native ? await nativeAuthzReason(native.reason) : "error";
   if (reason === "access-denied") {
     log.error(
-      "Warframe is likely running as administrator - WFHelper cannot read an " +
+      "Warframe is likely running as administrator - PlatHelper cannot read an " +
         "elevated game. Restart Warframe without admin rights.",
     );
   }
@@ -471,7 +471,7 @@ function runHelperExe(): Promise<{ ok: boolean; reason: HelperRunReason | null }
           log.error(`Helper output did not contain auth params (${reason})`);
           if (reason === "access-denied") {
             log.error(
-              "Warframe is likely running as administrator - WFHelper cannot read " +
+              "Warframe is likely running as administrator - PlatHelper cannot read " +
                 "an elevated game. Restart Warframe without admin rights.",
             );
           }

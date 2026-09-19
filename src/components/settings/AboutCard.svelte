@@ -45,7 +45,7 @@
     },
     {
       label: $tr("settings.creditSource"),
-      url: "https://github.com/WFHelper/WFHelper",
+      url: "https://github.com/Raddne/PlatHelper",
       text: "GitHub",
     },
     { label: $tr("settings.creditWebsite"), url: "https://wfhelper.com", text: "wfhelper.com" },

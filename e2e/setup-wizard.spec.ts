@@ -77,7 +77,7 @@ test.describe.serial("First-run setup wizard", () => {
 
   test("opens on the appearance step with the sidebar hidden", async () => {
     await expect(wizard.page.locator("#sidebar")).toHaveCount(0);
-    await expect(wizard.page.getByRole("heading", { name: "Welcome to WFHelper" })).toBeVisible();
+    await expect(wizard.page.getByRole("heading", { name: "Welcome to PlatHelper" })).toBeVisible();
   });
 
   test("the appearance step renders its controls and its pinned footer", async () => {

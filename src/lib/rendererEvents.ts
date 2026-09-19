@@ -17,6 +17,7 @@ import { addNotificationEntry, loadNotificationHistory } from "../stores/notific
 import { detectedWarframeUiScale, overlaySettings } from "../stores/overlaySettings.js";
 import { addToast } from "../stores/toasts.js";
 import { applyUpdateState } from "../stores/updates.js";
+import { initWfmChatStore } from "../stores/wfmChat.js";
 
 async function refreshInventoryModifiedAt(): Promise<void> {
   try {
@@ -102,6 +103,7 @@ export function initRendererEvents(): () => void {
     // The toast itself is silent; playing the clip in-app keeps it on the
     // WFHelper mixer slider instead of the system master volume.
     on("notification-sound-play", (payload) => void playNotificationSound(payload)),
+    initWfmChatStore(),
 
     // Post-run overlay "Detailed Stats" button: open the arbi tab on that run.
     on("arbi-open-run", (runId) => {

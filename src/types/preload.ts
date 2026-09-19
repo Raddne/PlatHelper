@@ -150,6 +150,65 @@ export interface PreloadAPI {
   marketAlertsImport: (
     text: IpcInvokeMap["marketAlertsImport"]["args"][0],
   ) => Promise<IpcInvokeMap["marketAlertsImport"]["return"]>;
+  liveScraperGetSettings: () => Promise<IpcInvokeMap["liveScraperGetSettings"]["return"]>;
+  liveScraperUpdateSettings: (
+    next: IpcInvokeMap["liveScraperUpdateSettings"]["args"][0],
+  ) => Promise<IpcInvokeMap["liveScraperUpdateSettings"]["return"]>;
+  liveScraperResetSettings: () => Promise<IpcInvokeMap["liveScraperResetSettings"]["return"]>;
+  liveScraperStockList: () => Promise<IpcInvokeMap["liveScraperStockList"]["return"]>;
+  liveScraperStockCreate: (
+    payload: IpcInvokeMap["liveScraperStockCreate"]["args"][0],
+  ) => Promise<IpcInvokeMap["liveScraperStockCreate"]["return"]>;
+  liveScraperStockUpdate: (
+    id: IpcInvokeMap["liveScraperStockUpdate"]["args"][0],
+    patch: IpcInvokeMap["liveScraperStockUpdate"]["args"][1],
+  ) => Promise<IpcInvokeMap["liveScraperStockUpdate"]["return"]>;
+  liveScraperStockDelete: (
+    id: IpcInvokeMap["liveScraperStockDelete"]["args"][0],
+  ) => Promise<IpcInvokeMap["liveScraperStockDelete"]["return"]>;
+  liveScraperWishlistList: () => Promise<IpcInvokeMap["liveScraperWishlistList"]["return"]>;
+  liveScraperWishlistCreate: (
+    payload: IpcInvokeMap["liveScraperWishlistCreate"]["args"][0],
+  ) => Promise<IpcInvokeMap["liveScraperWishlistCreate"]["return"]>;
+  liveScraperWishlistUpdate: (
+    id: IpcInvokeMap["liveScraperWishlistUpdate"]["args"][0],
+    patch: IpcInvokeMap["liveScraperWishlistUpdate"]["args"][1],
+  ) => Promise<IpcInvokeMap["liveScraperWishlistUpdate"]["return"]>;
+  liveScraperWishlistDelete: (
+    id: IpcInvokeMap["liveScraperWishlistDelete"]["args"][0],
+  ) => Promise<IpcInvokeMap["liveScraperWishlistDelete"]["return"]>;
+  liveScraperRivenStockList: () => Promise<IpcInvokeMap["liveScraperRivenStockList"]["return"]>;
+  liveScraperRivenStockCreate: (
+    payload: IpcInvokeMap["liveScraperRivenStockCreate"]["args"][0],
+  ) => Promise<IpcInvokeMap["liveScraperRivenStockCreate"]["return"]>;
+  liveScraperRivenStockUpdate: (
+    id: IpcInvokeMap["liveScraperRivenStockUpdate"]["args"][0],
+    patch: IpcInvokeMap["liveScraperRivenStockUpdate"]["args"][1],
+  ) => Promise<IpcInvokeMap["liveScraperRivenStockUpdate"]["return"]>;
+  liveScraperRivenStockDelete: (
+    id: IpcInvokeMap["liveScraperRivenStockDelete"]["args"][0],
+  ) => Promise<IpcInvokeMap["liveScraperRivenStockDelete"]["return"]>;
+  liveScraperStart: () => Promise<IpcInvokeMap["liveScraperStart"]["return"]>;
+  liveScraperStop: () => Promise<IpcInvokeMap["liveScraperStop"]["return"]>;
+  liveScraperStatus: () => Promise<IpcInvokeMap["liveScraperStatus"]["return"]>;
+  onLiveScraperChanged: (
+    callback: (data: IpcEventMap["live-scraper:changed"]) => void,
+  ) => () => void;
+  wfmChatState: () => Promise<IpcInvokeMap["wfmChatState"]["return"]>;
+  wfmChatRefresh: () => Promise<IpcInvokeMap["wfmChatRefresh"]["return"]>;
+  wfmChatMessages: (
+    chatId: IpcInvokeMap["wfmChatMessages"]["args"][0],
+  ) => Promise<IpcInvokeMap["wfmChatMessages"]["return"]>;
+  wfmChatSend: (
+    payload: IpcInvokeMap["wfmChatSend"]["args"][0],
+  ) => Promise<IpcInvokeMap["wfmChatSend"]["return"]>;
+  wfmChatDelete: (
+    chatId: IpcInvokeMap["wfmChatDelete"]["args"][0],
+  ) => Promise<IpcInvokeMap["wfmChatDelete"]["return"]>;
+  wfmChatSetActive: (
+    chatId: IpcInvokeMap["wfmChatSetActive"]["args"][0],
+  ) => Promise<IpcInvokeMap["wfmChatSetActive"]["return"]>;
+  onWfmChatEvent: (callback: (data: IpcEventMap["wfm-chat:event"]) => void) => () => void;
   onInventoryUpdated: (callback: (data: IpcEventMap["inventory-updated"]) => void) => () => void;
   onProfileAccountChanged: (callback: () => void) => () => void;
   onInventoryStatusUpdated: (
