@@ -486,3 +486,34 @@ describe("wfmPresence away across restarts", () => {
     expect(setStatus).not.toHaveBeenCalled();
   });
 });
+
+describe("wfmPresence push retry", () => {
+  it("retries an auto push WFM refused, instead of waiting for the next edge", async () => {
+    const presence = await freshPresence();
+    presence.setOptions({ autoIngameEnabled: true, holdMinutes: 0 });
+    setStatus.mockRejectedValueOnce(new Error("socket closed"));
+
+    await presence.syncGameRunning(true);
+    expect(setStatus).toHaveBeenLastCalledWith("ingame", null);
+    expect(presence.getState().autoActive).toBe(false);
+
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(presence.getState().autoActive).toBe(true);
+  });
+
+  it("retries an away push WFM refused", async () => {
+    const presence = await freshPresence();
+    presence.setOptions(AWAY_IDLE);
+    await presence.setManualStatus("online");
+    presence.syncIdle(0);
+    setStatus.mockRejectedValueOnce(new Error("socket closed"));
+
+    presence.syncIdle(600);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(presence.getState().awayActive).toBe(false);
+
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(presence.getState().awayActive).toBe(true);
+    expect(setStatus).toHaveBeenLastCalledWith("invisible", null);
+  });
+});

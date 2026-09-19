@@ -807,9 +807,10 @@ async function syncOverlayHotkeyGate(): Promise<void> {
   }
 }
 
-// The shortest away delay the setting allows is a minute, so a 30s sample is
-// fine-grained enough; presence itself decides whether the reading is wanted.
-const IDLE_POLL_MS = 30_000;
+// The sample rate is the whole latency of coming back: the away threshold is
+// only checked here, so a coarse interval strands an active player as invisible
+// for up to one tick. GetLastInputInfo is cheap enough to ask often.
+const IDLE_POLL_MS = 5_000;
 let _idlePollTimer: ReturnType<typeof setInterval> | null = null;
 
 function startIdlePoll(): void {
