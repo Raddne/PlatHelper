@@ -94,7 +94,7 @@
       : null;
 
   $: components = item
-    ? enrichComponents(item.components || [], $componentOwnership, $itemDb || {})
+    ? enrichComponents(item.components || [], $componentOwnership, $itemDb || {}, itemKey)
     : [];
 
   $: safetyVerdict = item ? verdictFor(item, $inventorySafetyVerdicts) : null;

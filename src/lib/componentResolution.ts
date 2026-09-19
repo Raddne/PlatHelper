@@ -31,6 +31,7 @@ function withOwnership(
   comp: ComponentInfo,
   ownership: Map<string, number>,
   itemDb: Record<string, ItemDbEntry> | null,
+  root: string | undefined,
 ): ComponentInfo {
   // `ownedCount` stays the folded pile every readiness rule counts on; `built`
   // is the display figure, which a held blueprint must not inflate.
@@ -43,7 +44,7 @@ function withOwnership(
   if (!itemDb || !comp.uniqueName) return enriched;
   const part = { uniqueName: comp.uniqueName, count: comp.itemCount || 1 };
   enriched.built = builtPartCount(part, ownership, itemDb);
-  enriched.blueprintHeld = buildPartState(part, ownership, itemDb) === "blueprint";
+  enriched.blueprintHeld = buildPartState(part, ownership, itemDb, root) === "blueprint";
   return enriched;
 }
 
@@ -53,12 +54,13 @@ export function enrichComponents(
   components: ComponentInfo[],
   ownership: Map<string, number>,
   itemDb: Record<string, ItemDbEntry> | null = null,
+  root?: string,
 ): ComponentInfo[] {
   return mergeDuplicateIngredients(
     components,
     (comp) => comp.itemCount,
     (comp, itemCount) => ({ ...comp, itemCount }),
-  ).map((comp) => withOwnership(comp, ownership, itemDb));
+  ).map((comp) => withOwnership(comp, ownership, itemDb, root));
 }
 
 function fallbackComponent(
@@ -77,6 +79,7 @@ function fallbackComponent(
     },
     ownership,
     itemDb,
+    undefined,
   );
 }
 
@@ -90,7 +93,7 @@ export function resolveComponentByUniqueName(
 
   if (db.isBuildComponent && db.componentOf) {
     const parent = itemDb[db.componentOf];
-    const enriched = enrichComponents(parent?.components || [], ownership, itemDb);
+    const enriched = enrichComponents(parent?.components || [], ownership, itemDb, db.componentOf);
     const aliases = componentUniqueNameAliases(uniqueName);
     const parentComp = enriched.find((comp) =>
       Boolean(comp.uniqueName && aliases.includes(comp.uniqueName)),

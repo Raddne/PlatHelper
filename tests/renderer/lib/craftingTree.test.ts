@@ -880,4 +880,33 @@ describe("part state", () => {
       buildPartState({ ...part(FRAME_BP), isBlueprintItem: true }, new Map([[FRAME_BP, 1]]), db),
     ).toBe("blueprint");
   });
+
+  it("owns the recipe's own blueprint instead of listing it as one to craft", () => {
+    const WEAPON = "/Lotus/Weapons/Tenno/Melee/Machete";
+    const WEAPON_BP = "/Lotus/Types/Recipes/Weapons/MacheteBlueprint";
+    const db: Record<string, ItemDbEntry> = {
+      ...partDb(),
+      [WEAPON]: item("Machete", {
+        blueprintUniqueName: WEAPON_BP,
+        buildPrice: 0,
+        buildTime: 0,
+        num: 1,
+        ingredients: [{ uniqueName: RUBEDO, count: 900 }],
+      }),
+      // The item-database heuristic marks anything under /Types/Recipes/ a part.
+      [WEAPON_BP]: {
+        ...item("Blueprint"),
+        buildsProduct: WEAPON,
+        isBuildComponent: true,
+      },
+    };
+    db[CHASSIS] = { ...db[CHASSIS], isBuildComponent: true };
+    const held = new Map([[WEAPON_BP, 1]]);
+
+    expect(buildPartState(part(WEAPON_BP), held, db, WEAPON)).toBe("owned");
+    // Without the root it cannot tell, and keeps the old answer.
+    expect(buildPartState(part(WEAPON_BP), held, db)).toBe("blueprint");
+    // A real part's blueprint is still something to go and craft.
+    expect(buildPartState(part(CHASSIS), new Map([[CHASSIS_BP, 1]]), db, FRAME)).toBe("blueprint");
+  });
 });

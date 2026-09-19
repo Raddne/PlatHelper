@@ -357,10 +357,17 @@ export function buildPartState(
   part: PartRef,
   ownership: ReadonlyMap<string, number>,
   itemDb: Record<string, ItemDbEntry>,
+  root?: string,
 ): PartState {
   const state = partState(part, ownership, itemDb);
   if (state !== "blueprint") return state;
-  if (part.isBlueprintItem === true || itemDb[part.uniqueName]?.isBuildComponent === true) {
+  const entry = itemDb[part.uniqueName];
+  // `root`'s own blueprint is not a part to go and craft: holding it is owning
+  // it, or a weapon with no parts would report itself as one part still to build.
+  const product = entry?.buildsProduct;
+  const ownBlueprint =
+    root !== undefined && product !== undefined && isSameOwnedItem(product, root);
+  if (!ownBlueprint && (part.isBlueprintItem === true || entry?.isBuildComponent === true)) {
     return state;
   }
   return ownedComponentCount(part.uniqueName, ownership) >= part.count ? "owned" : "missing";

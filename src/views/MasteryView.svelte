@@ -435,6 +435,7 @@
               { uniqueName: comp.uniqueName, count: comp.itemCount || 1 },
               ownership,
               db,
+              item.uniqueName,
             ) === "blueprint"
           : false,
       }));
