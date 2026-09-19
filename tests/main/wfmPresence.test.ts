@@ -307,19 +307,6 @@ describe("wfmPresence away while idle", () => {
     expect(presence.getState().awayActive).toBe(false);
   });
 
-  it("stays out of the way while auto in-game holds the running game", async () => {
-    const presence = await freshPresence();
-    presence.setOptions({ ...AWAY_IDLE, autoIngameEnabled: true });
-    await presence.setManualStatus("online");
-    await presence.syncGameRunning(true);
-    setStatus.mockClear();
-
-    presence.syncIdle(600);
-    await vi.advanceTimersByTimeAsync(0);
-    expect(setStatus).not.toHaveBeenCalled();
-    expect(presence.getState()).toMatchObject({ status: "ingame", autoActive: true });
-  });
-
   it("still applies while the game runs with auto in-game off", async () => {
     const presence = await freshPresence();
     presence.setOptions(AWAY_IDLE);
@@ -329,6 +316,25 @@ describe("wfmPresence away while idle", () => {
     presence.syncIdle(600);
     await vi.advanceTimersByTimeAsync(0);
     expect(setStatus).toHaveBeenLastCalledWith("invisible", null);
+  });
+
+  it("hides during a run with auto in-game on, and returns to ingame on activity", async () => {
+    const presence = await freshPresence();
+    presence.setOptions({ ...AWAY_IDLE, autoIngameEnabled: true });
+    await presence.setManualStatus("online");
+    await presence.syncGameRunning(true);
+    expect(setStatus).toHaveBeenLastCalledWith("ingame", null);
+
+    presence.syncIdle(600);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(setStatus).toHaveBeenLastCalledWith("invisible", null);
+
+    presence.syncIdle(0);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(setStatus).toHaveBeenLastCalledWith("ingame", null);
+
+    await presence.syncGameRunning(false);
+    expect(setStatus).toHaveBeenLastCalledWith("online", null);
   });
 
   it("re-arms only on the next idle edge after a manual pick", async () => {

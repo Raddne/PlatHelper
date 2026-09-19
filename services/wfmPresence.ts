@@ -176,13 +176,11 @@ function _refreshIdleAway(): boolean {
   return true;
 }
 
-/** Auto In Game outranks the away rules on purpose: being AFK inside the game
- * is the game's business, and the account already advertises "In Game" there. */
 function _wantedOverride(): PresenceOverride {
+  if (_awayArmed && _awayIdleEnabled && _idleAway) return "away";
   if (_gameOpen && _autoEnabled) return "auto";
   if (!_awayArmed) return null;
-  if (_awayClosedEnabled && !_gameOpen) return "away";
-  return _awayIdleEnabled && _idleAway ? "away" : null;
+  return _awayClosedEnabled && !_gameOpen ? "away" : null;
 }
 
 /** Re-run the auto/away rules against the current game, idle and option state.
