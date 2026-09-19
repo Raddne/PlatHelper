@@ -104,7 +104,7 @@ desktop toast as well.
 
 ## Credits and license
 
-PlatHelper is built on WFHelper by the WFHelper team and stays under the same
+PlatHelper is built on WFHelper (made by the WFHelper team) and stays under the same
 [MIT license](LICENSE). Inventory data comes from
 [warframe-api-helper](https://github.com/Sainan/warframe-api-helper). PlatHelper
 is not affiliated with Digital Extremes or warframe.market.
