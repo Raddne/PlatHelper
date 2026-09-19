@@ -7,6 +7,7 @@ import {
   consumersOf,
   isReservablePart,
   partConsumerIndex,
+  partDemandAliases,
   partsConsumedBy,
   type PartRow,
 } from "./partConsumers.js";
@@ -456,7 +457,7 @@ function resolveDbEntry(
 /** Copies of `uniqueName` that unmastered builds still claim, whichever spelling
  *  the caller holds. Zero when nothing above it is outstanding. */
 export function recipeCopiesFor(context: SafetyContext, uniqueName: string): number {
-  const aliases = componentUniqueNameAliases(uniqueName);
+  const aliases = partDemandAliases(uniqueName, context.itemDb);
   return reserveUnitsToCopies(
     demandFor(context.unmasteredDemand, aliases),
     resolveDbEntry(context.itemDb, aliases),
@@ -534,10 +535,48 @@ function floor(
   return params ? { rule, quantity, reasonKey, params } : { rule, quantity, reasonKey };
 }
 
+/** A set only sells whole, so it holds back the sets its most constrained part
+ *  cannot cover, carrying that part's own reasons. */
+function setPartFloors(item: SafetyItem, context: SafetyContext): readonly SafetyFloor[] {
+  let quantity = 0;
+  let reasons: readonly SafetyReservation[] = [];
+  for (const part of reservableParts(context.itemDb, setRootOf(item.internalName))) {
+    const uniqueName = typeof part.uniqueName === "string" ? part.uniqueName : "";
+    if (!uniqueName) continue;
+    const required = toCount(part.itemCount, 1) || 1;
+    const verdict = safeToList(
+      {
+        internalName: uniqueName,
+        uniqueName,
+        amount: ownedComponentCount(uniqueName, context.ownedCounts),
+      },
+      context,
+    );
+    let kept = 0;
+    for (const reservation of verdict.reservations) kept = Math.max(kept, reservation.quantity);
+    const sets = Math.ceil(kept / required);
+    if (sets > quantity) {
+      quantity = sets;
+      reasons = verdict.reservations;
+    }
+  }
+  if (quantity <= 0) return [];
+  return reasons
+    .filter((reservation) => reservation.binding)
+    .map((reservation) =>
+      floor(
+        reservation.rule,
+        quantity,
+        reservation.reasonKey,
+        reservation.params ? { ...reservation.params, count: quantity } : undefined,
+      ),
+    );
+}
+
 export function safeToList(item: SafetyItem, context: SafetyContext): SafetyVerdict {
   const total = toCount(item.amount, 1);
   const key = safetyKeyFor(item);
-  const aliases = componentUniqueNameAliases(key);
+  const aliases = partDemandAliases(key, context.itemDb);
   const entry = resolveDbEntry(context.itemDb, aliases);
   const floors: SafetyFloor[] = [];
 
@@ -601,6 +640,14 @@ export function safeToList(item: SafetyItem, context: SafetyContext): SafetyVerd
     floors.push(
       floor("setKeep", setCopies, "inventory.safety.reason.setKeep", { count: setCopies }),
     );
+  }
+
+  if (item.inventoryGroup === "full_sets") {
+    for (const partFloor of setPartFloors(item, context)) {
+      const at = floors.findIndex((candidate) => candidate.rule === partFloor.rule);
+      if (at < 0) floors.push(partFloor);
+      else if (partFloor.quantity > floors[at].quantity) floors[at] = partFloor;
+    }
   }
 
   let highest = 0;
