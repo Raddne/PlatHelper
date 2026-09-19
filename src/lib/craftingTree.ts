@@ -14,6 +14,8 @@ export interface CraftingTreeNode {
   imageUrl: string | null;
   count: number;
   owned: number;
+  /** Copies actually crafted; a held blueprint counts in `owned` but not here. */
+  built: number;
   missing: number;
   isCraftable: boolean;
   isBlueprintItem?: boolean;
@@ -176,6 +178,7 @@ function buildNode(
         imageUrl: bpItem?.imageUrl || null,
         count: bpNeeded,
         owned: bpOwned,
+        built: bpOwned,
         missing: Math.max(0, bpNeeded - bpOwned),
         isCraftable: false,
         isBlueprintItem: true,
@@ -208,6 +211,7 @@ function buildNode(
     imageUrl,
     count,
     owned,
+    built: builtPartCount({ uniqueName, count }, ownership, itemDb),
     missing,
     isCraftable: effectiveRecipe !== null,
     recipe: effectiveRecipe,

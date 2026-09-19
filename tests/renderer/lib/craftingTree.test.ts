@@ -292,6 +292,40 @@ function expandableDb(): Record<string, ItemDbEntry> {
   };
 }
 
+describe("built counts on tree nodes", () => {
+  const PART = "/Lotus/Types/Recipes/WarframeRecipes/CalibanPrimeChassisComponent";
+  const PART_BP = `${PART}Blueprint`;
+  const FRAME = "/Lotus/Powersuits/Caliban/CalibanPrime";
+
+  const db: Record<string, ItemDbEntry> = {
+    [FRAME]: {
+      name: "Caliban Prime",
+      masterable: true,
+      recipe: {
+        buildPrice: 0,
+        buildTime: 0,
+        num: 1,
+        ingredients: [{ uniqueName: PART, count: 1 }],
+      },
+    },
+    [PART]: { name: "Chassis", isBuildComponent: true, componentOf: FRAME },
+    [PART_BP]: { name: "Chassis Blueprint", buildsProduct: PART },
+  };
+
+  it("holds a part at built 0 while only its blueprint is owned", () => {
+    const tree = buildCraftingTree(FRAME, db, new Map([[PART_BP, 1]]));
+    const part = childOf(tree, PART);
+    // The folded pile still reads one, which is what the readiness rules want.
+    expect(part?.owned).toBe(1);
+    expect(part?.built).toBe(0);
+  });
+
+  it("counts a part that really is built", () => {
+    const tree = buildCraftingTree(FRAME, db, new Map([[PART, 1]]));
+    expect(childOf(tree, PART)?.built).toBe(1);
+  });
+});
+
 function childOf(node: CraftingTreeNode | null | undefined, uniqueName: string) {
   return node?.children.find((child) => child.uniqueName === uniqueName);
 }
@@ -303,6 +337,7 @@ function looseNode(uniqueName: string, name: string): CraftingTreeNode {
     imageUrl: null,
     count: 1,
     owned: 0,
+    built: 0,
     missing: 1,
     isCraftable: false,
     recipe: null,
@@ -352,6 +387,7 @@ describe("crafting tree expansion", () => {
       imageUrl: null,
       count: 1,
       owned: 0,
+      built: 0,
       missing: 1,
       isCraftable: false,
       recipe: null,
