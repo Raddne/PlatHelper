@@ -16,6 +16,15 @@ WFHelper profile, so your login and settings carry over.
 > auctions on your warframe.market account. Start with small budgets and watch
 > the first runs.
 
+## Installation
+
+Head over to [Releases](https://github.com/Raddne/PlatHelper/releases)
+
+Either:
+> Download and run and setup.exe, follow the guided installation
+Or
+> Download the portable.zip and extract the files within to a directory of your choosing
+
 ## Live Scraper
 
 ![Live Scraper with stock, wishlist and the listings panel](.github/screenshots/scraper.png)
