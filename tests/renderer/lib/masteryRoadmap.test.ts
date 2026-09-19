@@ -6,10 +6,12 @@ import {
   componentPartState,
   estimateMasteryPurchaseCost,
   masteryBuildReadiness,
+  masteryCraftableCount,
   masteryPartCounts,
+  masteryPartRows,
   type MasteryRoadmapSourceItem,
 } from "../../../src/lib/masteryRoadmap.js";
-import type { ComponentInfo } from "../../../src/types/inventory.js";
+import type { ComponentInfo, ItemDbEntry } from "../../../src/types/inventory.js";
 import type { OwnedCounts, RelicDatabase, RelicReward } from "../../../src/types/relics.js";
 
 function item(overrides: Partial<MasteryRoadmapSourceItem>): MasteryRoadmapSourceItem {
@@ -583,5 +585,54 @@ describe("estimateMasteryPurchaseCost", () => {
         () => 3,
       ),
     ).toBe(3);
+  });
+});
+
+describe("masteryPartRows", () => {
+  const FRAME = "/Lotus/Powersuits/Caliban/CalibanPrime";
+  const CHASSIS = "/Lotus/Types/Recipes/WarframeRecipes/CalibanPrimeChassisComponent";
+  const FRAME_BP = "/Lotus/Types/Recipes/WarframeRecipes/CalibanPrimeBlueprint";
+  const OROKIN_CELL = "/Lotus/Types/Items/MiscItems/OrokinCell";
+  const SALVAGE = "/Lotus/Types/Items/MiscItems/Salvage";
+
+  const db: Record<string, ItemDbEntry> = {
+    [FRAME]: { name: "Caliban Prime", masterable: true },
+    [CHASSIS]: { name: "Chassis", isBuildComponent: true, componentOf: FRAME },
+    [FRAME_BP]: { name: "Blueprint", buildsProduct: FRAME },
+    [OROKIN_CELL]: { name: "Orokin Cell" },
+    [SALVAGE]: { name: "Salvage" },
+  };
+
+  it("drops raw materials so they cannot read as parts to craft", () => {
+    const rows = masteryPartRows(
+      [
+        { uniqueName: FRAME_BP },
+        { uniqueName: CHASSIS },
+        { uniqueName: OROKIN_CELL },
+        { uniqueName: SALVAGE },
+      ],
+      db,
+    );
+
+    expect(rows.map((row) => row.uniqueName)).toEqual([FRAME_BP, CHASSIS]);
+  });
+
+  it("leaves a resource-only recipe with no parts to tally", () => {
+    const rows = masteryPartRows([{ uniqueName: OROKIN_CELL }, { uniqueName: SALVAGE }], db);
+    expect(rows).toEqual([]);
+  });
+
+  it("counts only real parts as craftable, whatever state a resource reads", () => {
+    const rows = [{ uniqueName: FRAME_BP }, { uniqueName: CHASSIS }, { uniqueName: OROKIN_CELL }];
+    expect(masteryCraftableCount(rows, () => "blueprint", db)).toBe(2);
+  });
+
+  it("keeps every recipe row in the total so a missing resource still shows", () => {
+    const rows: ComponentInfo[] = [
+      { name: "Blueprint", uniqueName: FRAME_BP, ownedCount: 1, itemCount: 1 },
+      { name: "Chassis", uniqueName: CHASSIS, ownedCount: 0, itemCount: 1 },
+      { name: "Orokin Cell", uniqueName: OROKIN_CELL, ownedCount: 0, itemCount: 5 },
+    ];
+    expect(masteryPartCounts(rows.map(componentPartState)).total).toBe(3);
   });
 });

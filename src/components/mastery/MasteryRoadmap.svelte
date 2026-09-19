@@ -7,7 +7,12 @@
   import { easyMasteryPotentialRank } from "../../lib/masteryProjection.js";
   import { readStorage, writeStorage } from "../../lib/persistence.js";
   import { locale, tr } from "../../lib/i18n.js";
-  import { componentPartState, masteryPartCounts } from "../../lib/masteryRoadmap.js";
+  import {
+    componentPartState,
+    masteryCraftableCount,
+    masteryPartCounts,
+  } from "../../lib/masteryRoadmap.js";
+  import { itemDb } from "../../stores/data.js";
   import type { MasteryRoadmap, MasteryRoadmapRecommendation } from "../../lib/masteryRoadmap.js";
 
   type RoadmapMode = "easy" | "relics" | "platinum";
@@ -202,6 +207,11 @@
               })
             : ACCESS_LABELS[item.access]}
         {@const parts = masteryPartCounts(item.components.map(componentPartState))}
+        {@const craftable = masteryCraftableCount(
+          item.components,
+          componentPartState,
+          $itemDb || {},
+        )}
         <button
           type="button"
           class="grid min-w-0 grid-cols-[4rem_minmax(0,1fr)_auto] items-center gap-3 rounded-[var(--radius-lg)] border border-[var(--ui-panel-border)] bg-[var(--ui-panel-bg)] p-2.5 text-left text-inherit transition-[border-color,background-color] hover:border-accent-dim hover:bg-bg-hover"
@@ -263,10 +273,10 @@
                     })}
               </span>
               <span class="mt-1 block text-xs text-text-muted">
-                {#if parts.craftable > 0}{$tr("mastery.roadmap.partsOwnedCraftableLine", {
+                {#if craftable > 0}{$tr("mastery.roadmap.partsOwnedCraftableLine", {
                     category: item.category,
                     owned: parts.built,
-                    craftable: parts.craftable,
+                    craftable,
                     total: parts.total,
                   })}{:else}{$tr("mastery.roadmap.partsOwnedLine", {
                     category: item.category,
@@ -285,14 +295,11 @@
                 {#if item.access === "owned"}{$tr("mastery.roadmap.levelLine", {
                     rank: item.rank,
                     maxRank: item.maxRank,
-                  })}{:else if parts.craftable > 0}{$tr(
-                    "mastery.roadmap.partsOwnedCraftableShort",
-                    {
-                      owned: parts.built,
-                      craftable: parts.craftable,
-                      total: parts.total,
-                    },
-                  )}{:else if item.components.length > 0}{$tr("mastery.roadmap.partsOwnedShort", {
+                  })}{:else if craftable > 0}{$tr("mastery.roadmap.partsOwnedCraftableShort", {
+                    owned: parts.built,
+                    craftable,
+                    total: parts.total,
+                  })}{:else if item.components.length > 0}{$tr("mastery.roadmap.partsOwnedShort", {
                     owned: parts.built,
                     total: parts.total,
                   })}{:else}{$tr("mastery.notOwned")}{/if}

@@ -1,7 +1,8 @@
 import { componentUniqueNameAliases } from "../../config/shared/componentNames.js";
 import { getLookupByName } from "./inventoryMarket.js";
+import { isReservablePart } from "./inventory/partConsumers.js";
 import type { PartState } from "./craftingTree.js";
-import type { ComponentInfo, ParsedItem } from "../types/inventory.js";
+import type { ComponentInfo, ItemDbEntry, ParsedItem } from "../types/inventory.js";
 import type { FoundryState } from "../types/filters.js";
 import type { WfmItemsLookup } from "../types/ipc.js";
 import type { OwnedCounts, RelicDatabase, RelicQuality, RelicReward } from "../types/relics.js";
@@ -151,6 +152,28 @@ export function masteryBuildReadiness(
   const states = components.map(componentPartState);
   if (states.some((state) => state === "missing")) return null;
   return states.some((state) => state === "blueprint") ? "craftParts" : "buildable";
+}
+
+/** The recipe rows that count as parts. Raw materials are farmed rather than
+ *  crafted, so a weapon built straight from resources has no parts to tally. */
+export function masteryPartRows<T extends { uniqueName?: string }>(
+  rows: readonly T[],
+  itemDb: Record<string, ItemDbEntry>,
+): T[] {
+  return rows.filter(
+    (row) => row.uniqueName != null && isReservablePart(row.uniqueName, itemDb[row.uniqueName]),
+  );
+}
+
+/** Rows you could put in the foundry right now. The total still counts every
+ *  recipe row, because being short a resource is just as blocking, but a raw
+ *  material is farmed rather than crafted so it never reads as craftable. */
+export function masteryCraftableCount<T extends { uniqueName?: string }>(
+  rows: readonly T[],
+  stateOf: (row: T) => PartState,
+  itemDb: Record<string, ItemDbEntry>,
+): number {
+  return masteryPartRows(rows, itemDb).filter((row) => stateOf(row) === "blueprint").length;
 }
 
 export function masteryPartCounts(states: readonly PartState[]): {

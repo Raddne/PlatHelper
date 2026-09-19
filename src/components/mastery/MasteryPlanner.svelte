@@ -18,7 +18,7 @@
     type PlannedItem,
     type PlannerSort,
   } from "../../lib/masteryPlanner.js";
-  import { masteryPartCounts } from "../../lib/masteryRoadmap.js";
+  import { masteryCraftableCount, masteryPartCounts } from "../../lib/masteryRoadmap.js";
   import { creditsRow } from "../../lib/syndicates/rankup.js";
   import { inventoryData, itemDb } from "../../stores/data.js";
   import type { ComponentInfo } from "../../types/inventory.js";
@@ -151,6 +151,7 @@
 {#snippet plannedCard(item: PlannedItem)}
   {@const listedParts = unfinishedParts(item.components)}
   {@const parts = masteryPartCounts(item.components.map(plannerPartState))}
+  {@const craftable = masteryCraftableCount(item.components, plannerPartState, $itemDb || {})}
   {@const missingMaterials = missingOnly(item.resources)}
   {@const materialsOpen = expandedMaterials[item.uniqueName] === true}
   {@const shownMaterials = materialsOpen
@@ -331,9 +332,9 @@
       <span class="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-text-muted">
         {#if item.components.length > 0}
           <span>
-            {#if parts.craftable > 0}{$tr("mastery.roadmap.partsOwnedCraftableShort", {
+            {#if craftable > 0}{$tr("mastery.roadmap.partsOwnedCraftableShort", {
                 owned: parts.built,
-                craftable: parts.craftable,
+                craftable,
                 total: parts.total,
               })}{:else}{$tr("mastery.roadmap.partsOwnedShort", {
                 owned: parts.built,
