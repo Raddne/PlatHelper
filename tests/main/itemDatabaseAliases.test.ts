@@ -3,6 +3,24 @@ import { beforeAll, describe, expect, it, vi } from "vitest";
 import * as itemDb from "../../services/itemDatabase";
 import * as publicExportSource from "../../services/publicExportSource";
 import { deriveGroup } from "../../src/lib/inventory/itemClassification";
+import { partDemandAliases } from "../../src/lib/inventory/partConsumers";
+import type { ItemDbEntry } from "../../src/types/inventory";
+
+function aliasDb(keys: readonly string[]): Record<string, ItemDbEntry> {
+  const lookup = itemDb.getRendererLookup();
+  const db: Record<string, ItemDbEntry> = {};
+  for (const key of keys) {
+    const entry = lookup[key];
+    if (!entry) continue;
+    db[key] = {
+      name: entry.name,
+      isBuildComponent: entry.isBuildComponent,
+      ...(entry.componentOf ? { componentOf: entry.componentOf } : {}),
+      ...(entry.buildsProduct ? { buildsProduct: entry.buildsProduct } : {}),
+    };
+  }
+  return db;
+}
 
 describe("itemDatabase WFCD alias enrichment", () => {
   beforeAll(() => {
@@ -61,6 +79,18 @@ describe("itemDatabase WFCD alias enrichment", () => {
       "/Lotus/Types/Recipes/Weapons/WeaponParts/CrpArSniperReceiver",
     );
     expect(lookup[rendererBp?.buildsProduct || ""]?.recipe).toBeTruthy();
+  });
+
+  it("gives a renamed part blueprint the alias every recipe names it by", () => {
+    const receiverBp = "/Lotus/Types/Recipes/Weapons/WeaponParts/AmbassadorReceiverBlueprint";
+    const receiver = "/Lotus/Types/Recipes/Weapons/WeaponParts/CrpArSniperReceiver";
+    const weaponBp = "/Lotus/Types/Recipes/Weapons/SagekPrimeBlueprint";
+    const weapon = "/Lotus/Weapons/Grineer/Pistols/GrnOrokinPistol/GrnOrokinPistol";
+    const db = aliasDb([receiverBp, receiver, weaponBp, weapon]);
+
+    expect(Object.keys(db)).toHaveLength(4);
+    expect(partDemandAliases(receiverBp, db)).toContain(receiver);
+    expect(partDemandAliases(weaponBp, db)).not.toContain(weapon);
   });
 
   it("preserves unresolved weapon-part tradability as unknown for renderer heuristics", () => {
