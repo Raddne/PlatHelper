@@ -2,6 +2,12 @@
   import { tr as t } from "../lib/i18n.js";
   import { persistedString } from "../lib/persistence.js";
   import { invoke, send } from "../lib/ipc.js";
+  import {
+    clickRow,
+    EMPTY_ROW_SELECTION,
+    pruneSelection,
+    type RowSelection,
+  } from "../lib/rowSelection.js";
   import MarketStatsModal from "./market/MarketStatsModal.svelte";
   import { liveScraperSettings, updateItemGeneralSettings } from "../stores/liveScraperSettings.js";
   import type {
@@ -18,8 +24,15 @@
     stockRivens: StockRiven[];
     wtbListings: LiveScraperWtbListing[];
     onRemove: (kind: "stock" | "wishlist" | "riven", id: string, name: string) => void;
+    onRemoveMany: (entries: RemovableEntry[]) => void;
   }
-  let { stock, wishlist, stockRivens, wtbListings, onRemove }: Props = $props();
+  let { stock, wishlist, stockRivens, wtbListings, onRemove, onRemoveMany }: Props = $props();
+
+  interface RemovableEntry {
+    kind: "stock" | "wishlist" | "riven";
+    id: string;
+    name: string;
+  }
 
   type Tab = "wtb" | "wts" | "rivens";
   const TABS: readonly Tab[] = ["wtb", "wts", "rivens"];
@@ -117,6 +130,57 @@
     rivens: stockRivens.length,
   });
 
+  // ---- Search ---------------------------------------------------------------
+  // Filters what is shown; the tab counters keep counting everything tracked.
+  let query = $state("");
+  let needle = $derived(query.trim().toLowerCase());
+  const matches = (...texts: string[]): boolean =>
+    needle === "" || texts.some((text) => text.toLowerCase().includes(needle));
+
+  let shownWtb = $derived(wtbRows.filter((row) => matches(row.itemName)));
+  let shownStock = $derived(stock.filter((item) => matches(item.itemName)));
+  let shownRivens = $derived(
+    stockRivens.filter((riven) => matches(riven.weaponName, riven.rivenName)),
+  );
+
+  // ---- Row selection (click, Ctrl+click, Shift+click) ----------------------
+  let rowOrder = $derived<string[]>(
+    $tab === "wtb"
+      ? shownWtb.map((row) => row.key)
+      : $tab === "wts"
+        ? shownStock.map((item) => item.id)
+        : shownRivens.map((riven) => riven.id),
+  );
+  let selection = $state<RowSelection>(EMPTY_ROW_SELECTION);
+  let selectionTab: Tab | null = null;
+
+  $effect(() => {
+    // A selection never spans tabs, and never outlives its rows.
+    // Read up front: an early return must not drop rowOrder as a dependency.
+    const order = rowOrder;
+    if (selectionTab !== $tab) {
+      selectionTab = $tab;
+      selection = EMPTY_ROW_SELECTION;
+      return;
+    }
+    selection = pruneSelection(order, selection);
+  });
+
+  function onRowClick(event: MouseEvent, key: string): void {
+    if ((event.target as HTMLElement | null)?.closest("button, input, a")) return;
+    selection = clickRow(rowOrder, selection, key, {
+      ctrl: event.ctrlKey || event.metaKey,
+      shift: event.shiftKey,
+    });
+  }
+
+  // Shift+click would otherwise drag a text selection across the table.
+  function onRowMouseDown(event: MouseEvent): void {
+    if (event.shiftKey && !(event.target as HTMLElement | null)?.closest("input")) {
+      event.preventDefault();
+    }
+  }
+
   function plat(value: number | null): string {
     return value == null ? "–" : `${value}p`;
   }
@@ -183,7 +247,8 @@
     | { kind: "stock"; item: StockItem }
     | { kind: "wishlist"; item: WishlistItem }
     | { kind: "scan"; row: WtbRow }
-    | { kind: "riven"; riven: StockRiven };
+    | { kind: "riven"; riven: StockRiven }
+    | { kind: "bulk" };
 
   interface MenuItem {
     id: string;
@@ -214,9 +279,13 @@
   let editorDraft = $state<number | null>(null);
   let statsFor = $state<{ slug: string; title: string } | null>(null);
 
-  function openMenu(event: MouseEvent, target: MenuTarget): void {
+  function openMenu(event: MouseEvent, key: string, rowTarget: MenuTarget): void {
     event.preventDefault();
     editor = null;
+    // Right-click inside a multi-selection acts on all of it; anywhere else it
+    // moves the selection to that row first, like a file manager.
+    if (!selection.selected.has(key)) selection = { selected: new Set([key]), anchor: key };
+    const target: MenuTarget = selection.selected.size > 1 ? { kind: "bulk" } : rowTarget;
     menu = {
       target,
       x: Math.max(8, Math.min(event.clientX, window.innerWidth - MENU_WIDTH)),
@@ -297,7 +366,98 @@
     ];
   }
 
+  function bulkMenuItems(): MenuItem[] {
+    const picked = selection.selected;
+    const count = picked.size;
+    const items: MenuItem[] = [];
+    const prices: PriceCommit[] = [];
+    const pausers: ((isHidden: boolean) => unknown)[] = [];
+    const removable: RemovableEntry[] = [];
+
+    if ($tab === "wts") {
+      for (const item of stock.filter((entry) => picked.has(entry.id))) {
+        prices.push(setStockMinPrice(item.id));
+        if (!item.adopted) {
+          pausers.push((isHidden) => invoke("liveScraperStockUpdate", item.id, { isHidden }));
+        }
+        removable.push({ kind: "stock", id: item.id, name: item.itemName });
+      }
+    } else if ($tab === "rivens") {
+      for (const riven of stockRivens.filter((entry) => picked.has(entry.id))) {
+        prices.push(setRivenMinPrice(riven.id));
+        pausers.push((isHidden) => invoke("liveScraperRivenStockUpdate", riven.id, { isHidden }));
+        removable.push({ kind: "riven", id: riven.id, name: riven.rivenName });
+      }
+    } else {
+      for (const row of wtbRows.filter((entry) => picked.has(entry.key))) {
+        if (row.wishlistId) {
+          const id = row.wishlistId;
+          prices.push(setWishlistMaxPrice(id));
+          pausers.push((isHidden) => invoke("liveScraperWishlistUpdate", id, { isHidden }));
+          removable.push({ kind: "wishlist", id, name: row.itemName });
+        } else if (row.scanWfmId) {
+          prices.push(setScanMaxPrice(row.scanWfmId));
+        }
+      }
+    }
+
+    if (prices.length > 0) {
+      const isBuy = $tab === "wtb";
+      items.push({
+        id: "bulk-price",
+        label: isBuy
+          ? $t("liveScraper.listings.menu.bulkMaxPrice", { count: prices.length })
+          : $t("liveScraper.listings.menu.bulkMinPrice", { count: prices.length }),
+        run: () =>
+          editValue(
+            $t("liveScraper.listings.selectedCount", { count }),
+            isBuy
+              ? $t("liveScraper.listings.col.maxPrice")
+              : $t("liveScraper.listings.col.minPrice"),
+            null,
+            PRICE,
+            async (value) => {
+              for (const commit of prices) await commit(value);
+            },
+          ),
+      });
+    }
+    if (pausers.length > 0) {
+      items.push({
+        id: "bulk-pause",
+        label: $t("liveScraper.listings.menu.bulkPause", { count: pausers.length }),
+        run: () => {
+          for (const pause of pausers) void pause(true);
+        },
+      });
+      items.push({
+        id: "bulk-resume",
+        label: $t("liveScraper.listings.menu.bulkResume", { count: pausers.length }),
+        run: () => {
+          for (const pause of pausers) void pause(false);
+        },
+      });
+    }
+    items.push({
+      id: "clear-selection",
+      label: $t("liveScraper.listings.menu.clearSelection"),
+      separated: items.length > 0,
+      run: () => (selection = EMPTY_ROW_SELECTION),
+    });
+    if (removable.length > 0) {
+      items.push({
+        id: "bulk-remove",
+        label: $t("liveScraper.listings.menu.bulkRemove", { count: removable.length }),
+        danger: true,
+        separated: true,
+        run: () => onRemoveMany(removable),
+      });
+    }
+    return items;
+  }
+
   function menuItemsFor(target: MenuTarget): MenuItem[] {
+    if (target.kind === "bulk") return bulkMenuItems();
     type MenuKey =
       | "editMinPrice"
       | "editMaxPrice"
@@ -527,6 +687,17 @@
     };
   });
 
+  $effect(() => {
+    if (selection.selected.size === 0 || menu || editor) return;
+    const onKeyDown = (e: KeyboardEvent): void => {
+      // Escape inside a price input cancels that edit, nothing more.
+      if (e.key !== "Escape" || (e.target as HTMLElement | null)?.closest("input")) return;
+      selection = EMPTY_ROW_SELECTION;
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  });
+
   function statSummary(riven: StockRiven): string {
     return riven.stats.map((s) => `${s.positive ? "+" : "−"}${s.tag}`).join(", ");
   }
@@ -584,6 +755,12 @@
   >
 {/snippet}
 
+{#snippet noMatches()}
+  <p class="ls-empty" data-ls-no-matches>
+    {$t("liveScraper.listings.noMatches", { query: query.trim() })}
+  </p>
+{/snippet}
+
 {#snippet statusBadge(status: AnyStatus)}
   <span class="ls-status" data-tone={TONES[status]}
     >{$t(`liveScraper.listings.status.${status}`)}</span
@@ -606,12 +783,29 @@
         {$t(`liveScraper.listings.tabs.${entry}`)} ({counts[entry]})
       </button>
     {/each}
+    <span class="ls-tools">
+      {#if selection.selected.size > 0}
+        <span class="ls-selected-count" data-ls-selected-count>
+          {$t("liveScraper.listings.selectedCount", { count: selection.selected.size })}
+        </span>
+      {/if}
+      <input
+        type="search"
+        class="ls-search"
+        data-ls-search
+        placeholder={$t("liveScraper.listings.searchPlaceholder")}
+        aria-label={$t("liveScraper.listings.searchPlaceholder")}
+        bind:value={query}
+      />
+    </span>
   </div>
 
   <div class="ls-scroll">
     {#if $tab === "wtb"}
       {#if wtbRows.length === 0}
         <p class="ls-empty">{$t("liveScraper.listings.emptyWtb")}</p>
+      {:else if shownWtb.length === 0}
+        {@render noMatches()}
       {:else}
         <table class="ls-table">
           <thead>
@@ -628,14 +822,23 @@
             </tr>
           </thead>
           <tbody>
-            {#each wtbRows as row (row.key)}
+            {#each shownWtb as row (row.key)}
               {@const wish = row.wishlistId
                 ? wishlist.find((w) => w.id === row.wishlistId)
                 : undefined}
               <tr
                 data-tone={TONES[row.status]}
+                data-ls-row={row.key}
+                class:selected={selection.selected.has(row.key)}
+                aria-selected={selection.selected.has(row.key)}
+                onclick={(e) => onRowClick(e, row.key)}
+                onmousedown={onRowMouseDown}
                 oncontextmenu={(e) =>
-                  openMenu(e, wish ? { kind: "wishlist", item: wish } : { kind: "scan", row })}
+                  openMenu(
+                    e,
+                    row.key,
+                    wish ? { kind: "wishlist", item: wish } : { kind: "scan", row },
+                  )}
               >
                 <td class="name">
                   {row.itemName}{#if row.rank != null}<span class="ls-sub"> R{row.rank}</span>{/if}
@@ -674,6 +877,8 @@
     {:else if $tab === "wts"}
       {#if stock.length === 0}
         <p class="ls-empty">{$t("liveScraper.listings.emptyWts")}</p>
+      {:else if shownStock.length === 0}
+        {@render noMatches()}
       {:else}
         <table class="ls-table">
           <thead>
@@ -690,11 +895,16 @@
             </tr>
           </thead>
           <tbody>
-            {#each stock as item (item.id)}
+            {#each shownStock as item (item.id)}
               {@const p = profit(item.listPrice, item.bought)}
               <tr
                 data-tone={TONES[item.status]}
-                oncontextmenu={(e) => openMenu(e, { kind: "stock", item })}
+                data-ls-row={item.id}
+                class:selected={selection.selected.has(item.id)}
+                aria-selected={selection.selected.has(item.id)}
+                onclick={(e) => onRowClick(e, item.id)}
+                onmousedown={onRowMouseDown}
+                oncontextmenu={(e) => openMenu(e, item.id, { kind: "stock", item })}
               >
                 <td class="name">
                   {item.itemName}{#if typeof item.subType?.rank === "number"}<span class="ls-sub">
@@ -723,6 +933,8 @@
       {/if}
     {:else if stockRivens.length === 0}
       <p class="ls-empty">{$t("liveScraper.listings.emptyRivens")}</p>
+    {:else if shownRivens.length === 0}
+      {@render noMatches()}
     {:else}
       <table class="ls-table">
         <thead>
@@ -740,11 +952,16 @@
           </tr>
         </thead>
         <tbody>
-          {#each stockRivens as riven (riven.id)}
+          {#each shownRivens as riven (riven.id)}
             {@const p = profit(riven.listPrice, riven.bought)}
             <tr
               data-tone={TONES[riven.status]}
-              oncontextmenu={(e) => openMenu(e, { kind: "riven", riven })}
+              data-ls-row={riven.id}
+              class:selected={selection.selected.has(riven.id)}
+              aria-selected={selection.selected.has(riven.id)}
+              onclick={(e) => onRowClick(e, riven.id)}
+              onmousedown={onRowMouseDown}
+              oncontextmenu={(e) => openMenu(e, riven.id, { kind: "riven", riven })}
             >
               <td class="name">{riven.weaponName} <span class="ls-sub">{riven.rivenName}</span></td>
               <td class="ls-sub attrs" title={statSummary(riven)}>{statSummary(riven)}</td>
@@ -884,6 +1101,36 @@
   }
   .ls-table tbody tr:hover {
     background: var(--bg-hover);
+  }
+  .ls-table tbody tr.selected {
+    background: var(--accent-glow);
+    box-shadow:
+      inset 3px 0 0 var(--ls-tone, transparent),
+      inset 0 0 0 1px var(--accent-dim);
+  }
+  .ls-tools {
+    margin-left: auto;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding-bottom: 0.35rem;
+  }
+  .ls-selected-count {
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+  }
+  .ls-search {
+    width: 14rem;
+    border: 1px solid var(--border);
+    border-radius: 0.375rem;
+    background: transparent;
+    padding: 0.3rem 0.5rem;
+    font-size: 0.75rem;
+    color: var(--text-primary);
+  }
+  .ls-search:focus {
+    outline: none;
+    border-color: var(--accent-dim);
   }
   .ls-table .num {
     text-align: right;

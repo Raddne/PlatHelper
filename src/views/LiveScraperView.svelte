@@ -104,6 +104,25 @@
     await refresh();
   }
 
+  async function removeEntries(
+    entries: { kind: RemovableKind; id: string; name: string }[],
+  ): Promise<void> {
+    const count = entries.length;
+    if (!(await confirmWithDialog($tr("liveScraper.confirmRemoveMany", { count }), $tr))) return;
+    let failed = 0;
+    for (const entry of entries) {
+      const result =
+        entry.kind === "stock"
+          ? await invoke("liveScraperStockDelete", entry.id)
+          : entry.kind === "wishlist"
+            ? await invoke("liveScraperWishlistDelete", entry.id)
+            : await invoke("liveScraperRivenStockDelete", entry.id);
+      if (!result.ok) failed += 1;
+    }
+    removeError = failed > 0 ? $tr("liveScraper.removeManyFailed", { failed, count }) : null;
+    await refresh();
+  }
+
   async function addWishlistItem(): Promise<void> {
     if (!wishlistDraftItem?.url_name) return;
     const result = await invoke("liveScraperWishlistCreate", {
@@ -460,6 +479,7 @@
       {stockRivens}
       wtbListings={status?.wtbListings ?? []}
       onRemove={removeEntry}
+      onRemoveMany={removeEntries}
     />
   </div>
 </section>
