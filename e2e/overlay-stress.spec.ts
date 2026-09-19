@@ -41,7 +41,7 @@ type OverlayWindowRef = {
   webContents: { id: number };
 } | null;
 type ChurnTarget = "reward" | "planner" | "riven" | "arbiSummary";
-type ChurnAction = "show" | "hide" | "interactive" | "passive";
+type ChurnAction = "show" | "hide" | "interactive" | "passive" | "sample";
 type OverlayBridgeWindow = Window & { overlay: { close: () => void } };
 
 function readCount(name: string, fallback: number): number {
@@ -141,7 +141,9 @@ function churn(
         };
         if (options.action === "show") riven.onRivenSessionOpen();
         else if (options.action === "hide") riven.onRivenSessionClose();
-        else riven.setRivenInteractiveMode(options.action === "interactive");
+        else if (options.action !== "sample") {
+          riven.setRivenInteractiveMode(options.action === "interactive");
+        }
         visible = riven.isAnyRivenWindowVisible();
         windows = [context.default.rivenOverlayLeftWindow, context.default.rivenOverlayRightWindow];
       } else {
@@ -158,7 +160,9 @@ function churn(
             : overlayIpc.plannerWindowsController);
         if (options.action === "show") controller.createOverlayWindow();
         else if (options.action === "hide") controller.hideOverlayWindow();
-        else controller.setOverlayInteractiveMode(options.action === "interactive");
+        else if (options.action !== "sample") {
+          controller.setOverlayInteractiveMode(options.action === "interactive");
+        }
         visible = controller.isOverlayWindowVisible();
         const key =
           options.target === "reward"
@@ -180,6 +184,15 @@ function churn(
     },
     { target, action },
   );
+}
+
+/** Windows reports the blur after `hide()` returns, so a same-tick `isFocused()`
+ *  can still read the pre-hide value. Polling settles that without hiding a
+ *  window that genuinely keeps focus: that one never goes false. */
+async function expectUnfocused(app: ElectronApplication, target: ChurnTarget): Promise<void> {
+  await expect
+    .poll(async () => (await churn(app, target, "sample")).focused, { timeout: 10_000 })
+    .toBe(false);
 }
 
 test("overlay show/hide churn keeps the main process alive", async () => {
@@ -349,12 +362,12 @@ test("overlay show/hide churn keeps the main process alive", async () => {
         const hidden = await step(() => churn(live.app, target, "hide"));
         expect(hidden.visible).toBe(false);
         expect(hidden.focusable).toBe(false);
-        expect(hidden.focused).toBe(false);
+        await step(() => expectUnfocused(live.app, target));
         if (iteration % INTERACTIVE_EVERY === 0) {
           const requested = await step(() => churn(live.app, target, "interactive"));
           expect(requested.visible).toBe(false);
           expect(requested.focusable).toBe(false);
-          expect(requested.focused).toBe(false);
+          await step(() => expectUnfocused(live.app, target));
           await step(() => churn(live.app, target, "passive"));
         }
         await wait(SETTLE_MS);
