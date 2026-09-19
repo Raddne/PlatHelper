@@ -93,7 +93,9 @@
       ? buildCraftingTree(treeRootKey, $itemDb || {}, $componentOwnership)
       : null;
 
-  $: components = item ? enrichComponents(item.components || [], $componentOwnership) : [];
+  $: components = item
+    ? enrichComponents(item.components || [], $componentOwnership, $itemDb || {})
+    : [];
 
   $: safetyVerdict = item ? verdictFor(item, $inventorySafetyVerdicts) : null;
   $: reservations =
@@ -317,12 +319,12 @@
             <h3>{$tr("detail.components")}</h3>
             <div class="detail-components">
               {#each components as comp}
-                {@const ownedCount = comp.ownedCount ?? 0}
                 {@const needed = comp.itemCount || 1}
+                {@const ownedCount = comp.built ?? comp.ownedCount ?? 0}
                 {@const countClass =
                   ownedCount >= needed
                     ? "text-success"
-                    : ownedCount > 0
+                    : ownedCount > 0 || comp.blueprintHeld
                       ? "text-warning"
                       : "text-danger"}
                 <button
@@ -335,7 +337,11 @@
                   on:click={() => selectComponent(comp)}
                 >
                   <span class="comp-name">{itemLabel(comp) || $tr("common.unknown")}</span>
-                  <span class="comp-count {countClass}">{ownedCount}/{needed}</span>
+                  <span
+                    class="comp-count {countClass}"
+                    title={comp.blueprintHeld ? $tr("common.blueprintOwnedNotBuilt") : undefined}
+                    >{ownedCount}/{needed}</span
+                  >
                 </button>
               {/each}
             </div>

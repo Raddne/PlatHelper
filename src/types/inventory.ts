@@ -32,6 +32,8 @@ export interface ComponentInfo {
   itemCount?: number;
   ownedCount?: number;
   owned?: boolean;
+  /** Copies actually crafted, which a held blueprint does not add to. */
+  built?: number;
   building?: boolean;
   /** Its blueprint is in the inventory but the part itself has not been crafted. */
   blueprintHeld?: boolean;
