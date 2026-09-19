@@ -4,6 +4,13 @@ Patch notes for every PlatHelper release. The release workflow copies the sectio
 
 Keep every bullet on one line: GitHub shows a line break inside release notes as a line break.
 
+## v0.1.4
+
+- **Live Scraper with many listings is much more responsive.** The status used to stay on "Cleaning up orders..." while the scraper was really working through every sell listing; it now shows what it is doing ("Selling 12/40: item name").
+- Listings are processed in rotating blocks of 40 per pass, so Stop, setting changes, buy orders and rivens no longer wait for a full round over hundreds of listings.
+- After the first round each listing needs one warframe.market request instead of two, which roughly halves the time for a full round. A full round over several hundred listings still takes minutes: warframe.market only allows about three requests per second.
+- Picking up hundreds of existing sell listings on first start is faster.
+
 ## v0.1.3
 
 - **Important fix - Live Scraper no longer deletes buy orders you placed yourself.** With "Auto-delete" on (the default), starting the scraper used to remove every buy order on the account during "Cleaning up orders". It now only ever deletes orders it created itself; orders you placed by hand are never deleted, re-priced or taken down by the automatic passes.
