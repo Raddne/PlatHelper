@@ -28,7 +28,12 @@ vi.mock("../../services/wfmRivenSearch", () => ({
   deleteRivenAuction: async () => ({ ok: true }),
 }));
 
-import { progressStockRiven } from "../../services/liveScraperRiven";
+import {
+  listStockRivenAt,
+  progressStockRiven,
+  quoteLowestRivenPrice,
+  rivenSearchTerms,
+} from "../../services/liveScraperRiven";
 import type { StockRiven } from "../../config/shared/liveScraperRivenStock";
 
 const WTS = { minProfit: 25, thresholdPercentage: 15, maxResults: 5 };
@@ -131,5 +136,60 @@ describe("progressStockRiven", () => {
     );
     expect(result).toMatchObject({ action: "skipped", auctionId: null });
     expect(h.created).toEqual([]);
+  });
+});
+
+describe("quick list from the Rivens tab", () => {
+  beforeEach(() => {
+    h.listings = [
+      listing("a0", 3000, "other", "offline"),
+      listing("a1", 3888, "other", "ingame"),
+      listing("mine", 100, "me", "online"),
+    ];
+    h.created.length = 0;
+    h.patches.length = 0;
+  });
+
+  it("quotes the cheapest comparable buyout, own auction excluded", async () => {
+    expect(await quoteLowestRivenPrice("Dual Toxocyst", [], "me", false)).toEqual({
+      ok: true,
+      price: 3000,
+      listings: 2,
+    });
+  });
+
+  it("can restrict the quote to sellers who are online or in game", async () => {
+    expect(await quoteLowestRivenPrice("Dual Toxocyst", [], "me", true)).toEqual({
+      ok: true,
+      price: 3888,
+      listings: 1,
+    });
+  });
+
+  it("reports no price when nothing comparable is listed", async () => {
+    h.listings = [];
+    expect(await quoteLowestRivenPrice("Dual Toxocyst", [], "me", false)).toMatchObject({
+      price: null,
+      listings: 0,
+    });
+  });
+
+  it("posts the auction at the confirmed price and records it for the engine", async () => {
+    const result = await listStockRivenAt(riven({}), 3000);
+    expect(result).toEqual({ ok: true, auctionId: "new-auction" });
+    expect(h.created).toEqual([3000]);
+    expect(h.patches).toEqual([{ status: "live", listPrice: 3000, auctionId: "new-auction" }]);
+  });
+
+  it("builds the search terms from the stat tags", () => {
+    const terms = rivenSearchTerms("Dual Toxocyst", [
+      { tag: "WeaponCritChanceMod", positive: true, multiplier: false, value: 1 },
+      { tag: "WeaponArmorPiercingDamageMod", positive: false, multiplier: false, value: -1 },
+    ]);
+    expect(terms).toEqual({
+      weaponSlug: "dual_toxocyst",
+      positive: ["critical_chance"],
+      negative: ["puncture_damage"],
+    });
   });
 });

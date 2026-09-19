@@ -2759,5 +2759,15 @@
   "messages.deleteFailed": "Could not delete the chat: {error}",
   "messages.openProfile": "Profile",
   "messages.copyWhisper": "Copy /w",
-  "messages.copyWhisperHint": "Copies an in-game whisper command for this player."
+  "messages.copyWhisperHint": "Copies an in-game whisper command for this player.",
+  "rivenQuick.menuSearch": "Search this roll on warframe.market",
+  "rivenQuick.menuList": "List at the lowest price...",
+  "rivenQuick.onlineOnlyQuestion": "Only count listings from sellers who are online or in game?\n\nNo = every listing counts, offline sellers included.",
+  "rivenQuick.onlineOnlyYes": "Yes, online only",
+  "rivenQuick.onlineOnlyNo": "No, all listings",
+  "rivenQuick.confirm": "List {name} on warframe.market for {price}p?\n\nThat is the cheapest of {count} comparable listing(s). The Live Scraper takes the listing over on its next run.",
+  "rivenQuick.noListings": "No comparable listing found, so there is no price to match.",
+  "rivenQuick.unknownWeapon": "warframe.market does not know this weapon.",
+  "rivenQuick.done": "Listed for {price}p. The Live Scraper manages it from its next run.",
+  "rivenQuick.failed": "Could not list the riven: {error}"
 }

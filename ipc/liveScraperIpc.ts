@@ -7,6 +7,8 @@ import * as liveScraperStock from "../services/liveScraperStock";
 import * as liveScraperRivenStock from "../services/liveScraperRivenStock";
 import * as liveScraperListingRemoval from "../services/liveScraperListingRemoval";
 import * as liveScraperEngine from "../services/liveScraperEngine";
+import * as liveScraperRiven from "../services/liveScraperRiven";
+import { normalizeErrorMessage } from "../config/shared/errors";
 import * as wfmSession from "../services/wfmSession";
 import type {
   CreateStockItemInput,
@@ -21,6 +23,9 @@ import {
   LIVE_SCRAPER_RIVEN_STOCK_CREATE,
   LIVE_SCRAPER_RIVEN_STOCK_DELETE,
   LIVE_SCRAPER_RIVEN_STOCK_LIST,
+  LIVE_SCRAPER_RIVEN_QUICK_LIST,
+  LIVE_SCRAPER_RIVEN_QUOTE,
+  LIVE_SCRAPER_RIVEN_SEARCH_URL,
   LIVE_SCRAPER_RIVEN_STOCK_UPDATE,
   LIVE_SCRAPER_START,
   LIVE_SCRAPER_STATUS,
@@ -249,6 +254,71 @@ function register(): void {
       liveScraperEngine.requestRivenPass();
       pushLiveScraperChanged();
       return { ok: true as const, item };
+    },
+  );
+
+  // Rivens tab context menu: the same search the engine prices from, as a link.
+  handleAuthorized(LIVE_SCRAPER_RIVEN_SEARCH_URL, assertMainRendererSender, (_event, payload) => {
+    const input = parseStockRivenInput(payload);
+    const terms = input ? liveScraperRiven.rivenSearchTerms(input.weaponName, input.stats) : null;
+    if (!terms) return null;
+    const params = new URLSearchParams({ type: "riven", weapon_url_name: terms.weaponSlug });
+    if (terms.positive.length > 0) params.set("positive_stats", terms.positive.join(","));
+    if (terms.negative.length > 0) params.set("negative_stats", terms.negative.join(","));
+    params.set("polarity", "any");
+    params.set("sort_by", "price_asc");
+    return `https://warframe.market/auctions/search?${params.toString()}`;
+  });
+
+  handleAuthorized(
+    LIVE_SCRAPER_RIVEN_QUOTE,
+    assertMainRendererSender,
+    async (_event, payload: unknown, onlineOnly: unknown) => {
+      const input = parseStockRivenInput(payload);
+      if (!input) return { ok: false as const, error: "invalid payload" };
+      try {
+        return await liveScraperRiven.quoteLowestRivenPrice(
+          input.weaponName,
+          input.stats,
+          wfmSession.getInGameName(),
+          onlineOnly === true,
+        );
+      } catch (err) {
+        return { ok: false as const, error: normalizeErrorMessage(err, "search failed") };
+      }
+    },
+  );
+
+  // Lists one owned riven at a price the user confirmed and files it as a stock
+  // riven with its auction id, which is what makes the engine adopt it.
+  handleAuthorized(
+    LIVE_SCRAPER_RIVEN_QUICK_LIST,
+    assertMainRendererSender,
+    async (_event, payload: unknown, price: unknown) => {
+      const input = parseStockRivenInput(payload);
+      const platinum =
+        typeof price === "number" && Number.isInteger(price) && price >= 1 && price <= 10_000_000
+          ? price
+          : null;
+      if (!input || platinum == null) return { ok: false as const, error: "invalid payload" };
+      if (!wfmSession.getInGameName()) return { ok: false as const, error: "not signed in" };
+      const existing = input.sourceItemId
+        ? liveScraperRivenStock
+            .listStockRivens()
+            .find((riven) => riven.sourceItemId === input.sourceItemId)
+        : undefined;
+      if (existing?.auctionId) return { ok: false as const, error: "already listed" };
+      const row = existing ?? liveScraperRivenStock.createStockRiven(input);
+      try {
+        const result = await liveScraperRiven.listStockRivenAt(row, platinum);
+        if (!result.ok && !existing) liveScraperRivenStock.deleteStockRiven(row.id);
+        pushLiveScraperChanged();
+        return result.ok ? { ok: true as const, price: platinum } : result;
+      } catch (err) {
+        if (!existing) liveScraperRivenStock.deleteStockRiven(row.id);
+        pushLiveScraperChanged();
+        return { ok: false as const, error: normalizeErrorMessage(err, "listing failed") };
+      }
     },
   );
 

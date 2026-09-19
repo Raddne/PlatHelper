@@ -26,6 +26,7 @@ import {
   deleteRivenAuction,
 } from "./wfmRivenSearch";
 import { updateStockRiven } from "./liveScraperRivenStock";
+import { isActiveOrderStatus } from "../config/shared/wfmOrders";
 import { averageFilteredLowestPrices } from "../config/shared/liveScraperRivenPricing";
 import { isThresholdDisabled } from "../config/shared/liveScraperPricing";
 import { tagToWfmUrlName, polarityToWfm } from "../config/shared/wfmRivenVocabulary";
@@ -60,9 +61,10 @@ interface CompetingAuctions {
 }
 
 async function fetchCompetingPrices(
-  riven: StockRiven,
+  riven: Pick<StockRiven, "stats" | "auctionId">,
   weaponSlug: string,
   ownName: string | null,
+  onlineOnly = false,
 ): Promise<CompetingAuctions> {
   const listings = await searchSimilarRivens(weaponSlug, {
     limit: 2000,
@@ -71,8 +73,10 @@ async function fetchCompetingPrices(
   });
   const prices = listings
     .filter((l) => l.isDirectSell && l.buyoutPrice != null && l.buyoutPrice > 0)
-    // Deliberately not filtered by seller status: a riven is one of a kind, so an
-    // offline seller's auction is as much the going price as an online one's.
+    // The engine deliberately does not filter by seller status: a riven is one of a
+    // kind, so an offline seller's auction is as much the going price as an online
+    // one's. Only the manual quick-list asks the user and may pass onlineOnly.
+    .filter((l) => !onlineOnly || isActiveOrderStatus(l.sellerStatus))
     .filter((l) => !ownName || l.seller.toLowerCase() !== ownName.toLowerCase())
     .map((l) => l.buyoutPrice as number)
     .sort((a, b) => a - b);
@@ -267,4 +271,51 @@ export async function progressStockRiven(
     price: postPrice,
     error: dispatch.error,
   };
+}
+
+/** The WFM family slug plus the stat url names a search for this riven uses. */
+export function rivenSearchTerms(
+  weaponName: string,
+  stats: readonly StockRivenStat[],
+): { weaponSlug: string; positive: string[]; negative: string[] } | null {
+  const weaponSlug = rivenData.getRivenFamilySlug(weaponName);
+  if (!weaponSlug) return null;
+  return {
+    weaponSlug,
+    positive: statUrlNames(stats, true),
+    negative: statUrlNames(stats, false),
+  };
+}
+
+/** Cheapest direct-sell auction with the same stats, for the Rivens tab's
+ *  "list at the lowest price". Null price = nothing comparable is listed. */
+export async function quoteLowestRivenPrice(
+  weaponName: string,
+  stats: readonly StockRivenStat[],
+  ownName: string | null,
+  onlineOnly: boolean,
+): Promise<{ ok: true; price: number | null; listings: number } | { ok: false; error: string }> {
+  const weaponSlug = rivenData.getRivenFamilySlug(weaponName);
+  if (!weaponSlug) return { ok: false, error: "unknown weapon" };
+  const { prices } = await fetchCompetingPrices(
+    { stats: [...stats], auctionId: null },
+    weaponSlug,
+    ownName,
+    onlineOnly,
+  );
+  return { ok: true, price: prices[0] ?? null, listings: prices.length };
+}
+
+/** Posts the auction for a freshly created stock row at a fixed price and records
+ *  it on the row, so the engine's next riven pass takes the listing over. */
+export async function listStockRivenAt(
+  riven: StockRiven,
+  price: number,
+): Promise<{ ok: true; auctionId: string | null } | { ok: false; error: string }> {
+  const dispatch = await dispatchRivenAuction({ ...riven, auctionId: null }, price, false);
+  if (dispatch.action !== "created") {
+    return { ok: false, error: dispatch.error ?? "auction was not created" };
+  }
+  updateStockRiven(riven.id, { status: "live", listPrice: price, auctionId: dispatch.auctionId });
+  return { ok: true, auctionId: dispatch.auctionId };
 }

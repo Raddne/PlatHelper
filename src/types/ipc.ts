@@ -605,6 +605,18 @@ export interface IpcInvokeMap {
     args: [id: string];
     return: { ok: true } | { ok: false; error: string };
   };
+  liveScraperRivenSearchUrl: {
+    args: [riven: IpcInvokeMap["liveScraperRivenStockCreate"]["args"][0]];
+    return: string | null;
+  };
+  liveScraperRivenQuote: {
+    args: [riven: IpcInvokeMap["liveScraperRivenStockCreate"]["args"][0], onlineOnly: boolean];
+    return: { ok: true; price: number | null; listings: number } | { ok: false; error: string };
+  };
+  liveScraperRivenQuickList: {
+    args: [riven: IpcInvokeMap["liveScraperRivenStockCreate"]["args"][0], price: number];
+    return: { ok: true; price: number } | { ok: false; error: string };
+  };
   liveScraperStart: {
     args: [];
     return: LiveScraperEngineStatus;

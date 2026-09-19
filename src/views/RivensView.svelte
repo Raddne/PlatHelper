@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import { invoke, on } from "../lib/ipc.js";
+  import { confirmWithDialog, invoke, on, send } from "../lib/ipc.js";
+  import type { IpcInvokeMap } from "../types/ipc.js";
   import {
     ELEMENT_ICON_URLS,
     NAV_ICON_URLS,
@@ -147,7 +148,7 @@
 
   // Right-click menus are placed by hand, so keep the box inside the viewport.
   const MENU_WIDTH = 224;
-  const MENU_HEIGHT = 96;
+  const MENU_HEIGHT = 168;
 
   function openCardMenu(event: MouseEvent, riven: DecodedRiven): void {
     event.preventDefault();
@@ -169,6 +170,79 @@
       addToast({ level: "success", message: $tr("common.copied") });
     } catch {
       addToast({ level: "error", message: $tr("common.copyFailed") });
+    }
+  }
+
+  /** What the Live Scraper files for a riven it sells: listed as if maxed, like
+   *  the manual listing form, because that is what the mod is worth. */
+  function stockRivenInput(riven: DecodedRiven): IpcInvokeMap["liveScraperRivenQuote"]["args"][0] {
+    return {
+      sourceItemId: riven.itemId,
+      weaponName: riven.weaponName,
+      rivenName: riven.rivenName,
+      masteryReq: riven.masteryReq,
+      rerolls: riven.rerolls,
+      polarity: riven.polarity,
+      modRank: riven.maxRank,
+      stats: riven.stats.map((stat) => ({
+        tag: stat.tag,
+        positive: stat.positive,
+        multiplier: stat.multiplier,
+        value: stat.maxRankValue,
+      })),
+      bought: 0,
+    };
+  }
+
+  async function searchOnMarket(riven: DecodedRiven): Promise<void> {
+    cardMenu = null;
+    const url = await invoke("liveScraperRivenSearchUrl", stockRivenInput(riven));
+    if (url) send("open-external", url);
+    else addToast({ level: "error", message: $tr("rivenQuick.unknownWeapon") });
+  }
+
+  let quickListing = $state(false);
+
+  /** Lists the riven at the cheapest comparable buyout. Two questions: whose
+   *  listings count, then the price found - the second one is the way out. */
+  async function quickList(riven: DecodedRiven): Promise<void> {
+    cardMenu = null;
+    if (quickListing) return;
+    quickListing = true;
+    try {
+      const onlineOnly = await invoke("confirmDialog", {
+        message: $tr("rivenQuick.onlineOnlyQuestion"),
+        okLabel: $tr("rivenQuick.onlineOnlyYes"),
+        cancelLabel: $tr("rivenQuick.onlineOnlyNo"),
+      });
+      const input = stockRivenInput(riven);
+      const quote = await invoke("liveScraperRivenQuote", input, onlineOnly);
+      if (!quote.ok) {
+        addToast({ level: "error", message: $tr("rivenQuick.failed", { error: quote.error }) });
+        return;
+      }
+      if (quote.price == null) {
+        addToast({ level: "warning", message: $tr("rivenQuick.noListings") });
+        return;
+      }
+      const go = await confirmWithDialog(
+        $tr("rivenQuick.confirm", {
+          name: riven.rivenName,
+          price: quote.price,
+          count: quote.listings,
+        }),
+        $tr,
+      );
+      if (!go) return;
+      const result = await invoke("liveScraperRivenQuickList", input, quote.price);
+      if (!result.ok) {
+        addToast({ level: "error", message: $tr("rivenQuick.failed", { error: result.error }) });
+        return;
+      }
+      addToast({ level: "success", message: $tr("rivenQuick.done", { price: result.price }) });
+      reloadListings();
+    } finally {
+      quickListing = false;
     }
   }
 
@@ -726,6 +800,26 @@
     >
       {$tr("rivens.copyChatTag")}
     </button>
+    <button
+      type="button"
+      class="block w-full px-3 py-1.5 text-left text-xs text-text-secondary hover:bg-surface-hover hover:text-text-primary"
+      role="menuitem"
+      data-riven-menu-search
+      onclick={() => searchOnMarket(menuRiven)}
+    >
+      {$tr("rivenQuick.menuSearch")}
+    </button>
+    {#if !menuListing}
+      <button
+        type="button"
+        class="block w-full px-3 py-1.5 text-left text-xs text-text-secondary hover:bg-surface-hover hover:text-text-primary"
+        role="menuitem"
+        data-riven-menu-quick-list
+        onclick={() => quickList(menuRiven)}
+      >
+        {$tr("rivenQuick.menuList")}
+      </button>
+    {/if}
     {#if menuListing}
       <button
         type="button"

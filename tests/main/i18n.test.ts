@@ -19,7 +19,7 @@ const ENGLISH_ONLY = ["common.whisperBuy", "common.whisperSell"];
 // Keys this fork added on top of upstream WFHelper. The release must carry no
 // translation beyond upstream's own, so these stay English by fallback.
 const FORK_ENGLISH_ONLY =
-  /^(liveScraper\.|presets\.|messages\.|nav\.(liveScraper|messages|newGroupDefaultName|ungroup|renameGroupHint)$|common\.add$)/;
+  /^(liveScraper\.|presets\.|messages\.|rivenQuick\.|nav\.(liveScraper|messages|newGroupDefaultName|ungroup|renameGroupHint)$|common\.add$)/;
 
 // Trade shorthand, grade letters and relic tier names read the same everywhere,
 // so de.json leaves them out and the English fallback serves them.

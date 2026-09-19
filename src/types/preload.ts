@@ -188,6 +188,17 @@ export interface PreloadAPI {
   liveScraperRivenStockDelete: (
     id: IpcInvokeMap["liveScraperRivenStockDelete"]["args"][0],
   ) => Promise<IpcInvokeMap["liveScraperRivenStockDelete"]["return"]>;
+  liveScraperRivenSearchUrl: (
+    riven: IpcInvokeMap["liveScraperRivenSearchUrl"]["args"][0],
+  ) => Promise<IpcInvokeMap["liveScraperRivenSearchUrl"]["return"]>;
+  liveScraperRivenQuote: (
+    riven: IpcInvokeMap["liveScraperRivenQuote"]["args"][0],
+    onlineOnly: IpcInvokeMap["liveScraperRivenQuote"]["args"][1],
+  ) => Promise<IpcInvokeMap["liveScraperRivenQuote"]["return"]>;
+  liveScraperRivenQuickList: (
+    riven: IpcInvokeMap["liveScraperRivenQuickList"]["args"][0],
+    price: IpcInvokeMap["liveScraperRivenQuickList"]["args"][1],
+  ) => Promise<IpcInvokeMap["liveScraperRivenQuickList"]["return"]>;
   liveScraperStart: () => Promise<IpcInvokeMap["liveScraperStart"]["return"]>;
   liveScraperStop: () => Promise<IpcInvokeMap["liveScraperStop"]["return"]>;
   liveScraperStatus: () => Promise<IpcInvokeMap["liveScraperStatus"]["return"]>;

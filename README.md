@@ -84,6 +84,15 @@ cheapest few.
   averaged. Set it to `1` to follow the cheapest one.
 - The row's minimum price is a floor, never a target.
 
+Shortcut from the **Rivens** tab: right-click a riven card for
+
+- **Search this roll on warframe.market** - opens the auction search for the
+  same weapon and stats, cheapest first.
+- **List at the lowest price...** - asks whether only online sellers should
+  count, shows the cheapest comparable price, and posts the auction once you
+  confirm. The riven is added to the Live Scraper, which manages the listing from
+  its next run.
+
 ## Messages
 
 ![warframe.market messages tab](.github/screenshots/chat.png)
