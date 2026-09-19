@@ -51,7 +51,8 @@ jobs:
       # Before anything slow: a release without patch notes is not a release.
       - name: Patch notes from CHANGELOG.md
         shell: bash
-        run: node scripts/release-notes.mjs "${{ steps.version.outputs.version }}" > release-notes.md
+        # Written outside the checkout: `pnpm version` below refuses a dirty work tree.
+        run: node scripts/release-notes.mjs "${{ steps.version.outputs.version }}" > "$RUNNER_TEMP/release-notes.md"
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
@@ -116,6 +117,8 @@ jobs:
           $pkg = Get-Content package.json | ConvertFrom-Json
           $productName = $pkg.build.productName
           $version = $pkg.version
+          $notesFile = Join-Path $env:RUNNER_TEMP "release-notes.md"
+          $bodyFile = Join-Path $env:RUNNER_TEMP "release-body.md"
           $paths = @(
             "release/latest.yml",
             "release/$productName-$version-Setup.exe",
@@ -133,17 +136,17 @@ jobs:
               --target $env:GITHUB_SHA `
               --title "PlatHelper $env:TAG" `
               --draft `
-              --notes-file release-notes.md `
+              --notes-file $notesFile `
               --generate-notes
             if ($LASTEXITCODE -ne 0) { throw "Failed to create release $env:TAG" }
           } else {
             # A release made by hand in the UI: keep its text, but never let it go
             # out without the patch notes on top.
             $body = gh release view $env:TAG --repo $env:GITHUB_REPOSITORY --json body --jq .body
-            $notes = (Get-Content release-notes.md -Raw).Trim()
+            $notes = (Get-Content $notesFile -Raw).Trim()
             if (-not "$body".Contains($notes)) {
-              Set-Content -Path release-body.md -Value ($notes + "`n`n" + "$body".Trim()) -Encoding utf8
-              gh release edit $env:TAG --repo $env:GITHUB_REPOSITORY --notes-file release-body.md
+              Set-Content -Path $bodyFile -Value ($notes + "`n`n" + "$body".Trim()) -Encoding utf8
+              gh release edit $env:TAG --repo $env:GITHUB_REPOSITORY --notes-file $bodyFile
               if ($LASTEXITCODE -ne 0) { throw "Failed to add patch notes to $env:TAG" }
             }
           }
