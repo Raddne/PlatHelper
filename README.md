@@ -94,18 +94,6 @@ desktop toast as well.
   rename it. **Customize** saves sidebar layouts as presets.
 - **Mouse back/forward buttons** switch between the views you visited.
 
-## Install / build
-
-Build the Windows installer yourself:
-
-```bash
-pnpm install
-pnpm run dist:win
-```
-
-The installer ends up in `release/`. PlatHelper installs next to WFHelper; you
-can remove the old app afterwards.
-
 ## Credits and license
 
 PlatHelper is built on WFHelper by the WFHelper team and stays under the same
