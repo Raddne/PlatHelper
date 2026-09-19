@@ -1,6 +1,6 @@
 name: Release
 
-# Push a tag like v1.0.1 (or create a release with a new tag in the GitHub UI) and
+# Push a tag like v0.1.1 (or create a release with a new tag in the GitHub UI) and
 # this builds the Windows installer plus a portable zip and publishes them. "Run workflow" does the
 # same for a version typed in by hand, creating the tag on the chosen branch.
 on:
@@ -10,7 +10,7 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: "Version to release, without the v (e.g. 1.0.1)"
+        description: "Version to release, without the v (e.g. 0.1.1)"
         required: true
         type: string
 
@@ -40,7 +40,7 @@ jobs:
           version="${INPUT_VERSION:-${GITHUB_REF_NAME#v}}"
           version="${version#v}"
           if ! printf '%s' "$version" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$'; then
-            echo "::error::'$version' is not a version like 1.0.1"
+            echo "::error::'$version' is not a version like 0.1.1"
             exit 1
           fi
           echo "version=$version" >> "$GITHUB_OUTPUT"
