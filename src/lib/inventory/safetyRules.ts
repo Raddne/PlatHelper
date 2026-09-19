@@ -192,6 +192,9 @@ export interface SafetyContext {
   readonly itemDb: Record<string, ItemDbEntry>;
   /** The ownership the demand walk ran on; empty when the caller passed none. */
   readonly ownedCounts: ReadonlyMap<string, number>;
+  /** Mastered uniqueNames; empty without mastery data, which keeps the last-copy
+   *  rule reserving rather than reading "unknown" as "already mastered". */
+  readonly mastered: ReadonlySet<string>;
   readonly spareDefault: number;
   readonly spares: ReadonlyMap<string, number>;
   readonly locks: ReadonlySet<string>;
@@ -512,6 +515,7 @@ export function buildSafetyContext(input: SafetyContextInput): SafetyContext {
   return {
     itemDb,
     ownedCounts: input.ownedCounts ?? new Map(),
+    mastered: mastered ?? new Set(),
     spareDefault: settings.spareDefault,
     spares: new Map(Object.entries(settings.spares)),
     locks: new Set(settings.locks),
@@ -600,7 +604,9 @@ export function safeToList(item: SafetyItem, context: SafetyContext): SafetyVerd
   }
 
   const masterable = entry?.masterable === true || item.inventoryGroup === "equipment";
-  if (masterable && total > 0) {
+  // Mastery is permanent, so the last copy of something already mastered is free.
+  const alreadyMastered = aliases.some((alias) => context.mastered.has(alias));
+  if (masterable && !alreadyMastered && total > 0) {
     floors.push(floor("lastCopy", 1, "inventory.safety.reason.lastCopy"));
   }
 

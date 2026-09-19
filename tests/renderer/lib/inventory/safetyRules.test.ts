@@ -79,6 +79,23 @@ describe("safeToList floors", () => {
     expect(verdict).toMatchObject({ total: 3, reserved: 1, safe: 2 });
   });
 
+  it("frees the last copy of a frame that is already mastered", () => {
+    const verdict = safeToList(
+      row({ internalName: FRAME, uniqueName: FRAME, amount: 1, inventoryGroup: "equipment" }),
+      context({ masteredUniqueNames: new Set([FRAME]) }),
+    );
+    expect(verdict).toMatchObject({ total: 1, reserved: 0, safe: 1 });
+    expect(verdict.reservations).toEqual([]);
+  });
+
+  it("keeps the last copy while no mastery data has arrived", () => {
+    const verdict = safeToList(
+      row({ internalName: FRAME, uniqueName: FRAME, amount: 1 }),
+      buildSafetyContext({ itemDb: DB, pinnedRequirements: new Map<string, number>() }),
+    );
+    expect(ruleQuantity(verdict.reservations, "lastCopy")).toBe(1);
+  });
+
   it("does not keep a last copy of a plain mod", () => {
     const verdict = safeToList(
       row({ internalName: MOD, uniqueName: MOD, amount: 4, inventoryGroup: "mods" }),
