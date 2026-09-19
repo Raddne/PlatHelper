@@ -6,7 +6,7 @@ warframe.market orders). Everything WFHelper does is still here - see
 [wfhelper.com](https://wfhelper.com) for the full feature tour and FAQ.
 
 This guide only covers what PlatHelper adds on top: an automated
-warframe.market trader, a messages tab and a few comfort features. The trading
+warframe.market live scraper, a messages tab and a few comfort features. The trading
 logic is modelled on [Quantframe](https://github.com/Kenya-DK/quantframe-react).
 
 PlatHelper keeps its own data folder. On first start it copies an existing
