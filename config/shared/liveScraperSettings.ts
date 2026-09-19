@@ -60,6 +60,9 @@ export interface ItemWtbSettings {
 }
 
 export interface ItemWtsSettings {
+  /** Fixed platinum added on top of the lowest competing sell listing; 0 matches it.
+   *  Not in Quantframe - a PlatHelper addition. */
+  aboveLowest: number;
   minProfit: number;
   minSma: number;
   maxPriceDrop: number;
@@ -136,7 +139,7 @@ function defaultItemWtb(): ItemWtbSettings {
 }
 
 function defaultItemWts(): ItemWtsSettings {
-  return { minProfit: 10, minSma: 3, maxPriceDrop: -1, minListingsBelow: -1 };
+  return { aboveLowest: 0, minProfit: 10, minSma: 3, maxPriceDrop: -1, minListingsBelow: -1 };
 }
 
 function defaultRivenGeneral(): RivenGeneralSettings {
@@ -274,6 +277,7 @@ function normalizeItemWts(raw: unknown): ItemWtsSettings {
   const e = (raw ?? {}) as Record<string, unknown>;
   const d = defaultItemWts();
   return {
+    aboveLowest: Math.max(0, num(e.aboveLowest, d.aboveLowest)),
     minProfit: num(e.minProfit, d.minProfit),
     minSma: num(e.minSma, d.minSma),
     maxPriceDrop: num(e.maxPriceDrop, d.maxPriceDrop),

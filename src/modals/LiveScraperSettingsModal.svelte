@@ -409,6 +409,13 @@
               {$tr("liveScraper.settings.item.wtsTitle")}
             </h3>
             {@render numberField(
+              $tr("liveScraper.settings.item.aboveLowest"),
+              $tr("liveScraper.settings.item.aboveLowestDesc"),
+              $liveScraperSettings.items.wts.aboveLowest,
+              0,
+              (v) => updateItemWtsSettings((s) => ({ ...s, aboveLowest: v })),
+            )}
+            {@render numberField(
               $tr("liveScraper.settings.item.minProfit"),
               $tr("liveScraper.settings.item.minProfitDesc"),
               $liveScraperSettings.items.wts.minProfit,

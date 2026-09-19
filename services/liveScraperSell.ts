@@ -139,7 +139,10 @@ export async function progressStockItem(
   }
 
   let status: StockEntryStatus = "live";
-  let postPrice = marketInfo.sellVolume >= 2 ? (marketInfo.lowestPrice ?? 0) : 0;
+  // `aboveLowest` sits a fixed amount over the cheapest competitor instead of
+  // matching it; the floors and limits below still apply on top.
+  let postPrice =
+    marketInfo.sellVolume >= 2 ? (marketInfo.lowestPrice ?? 0) + Math.max(0, wts.aboveLowest) : 0;
 
   if (item.minPrice != null && postPrice < item.minPrice) {
     postPrice = item.minPrice;
