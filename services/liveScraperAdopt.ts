@@ -25,7 +25,14 @@ export function syncAdoptedSellOrders(mySellOrders: readonly NormalisedOrder[]):
       owned: entry.owned,
       bought: 0,
     });
-    updateStockItem(created.id, { adopted: true, listPrice: entry.listPrice, status: "live" });
+    // The price the user chose is the floor: the scraper may follow the market
+    // up from there, never undercut what they asked for. Editable per row.
+    updateStockItem(created.id, {
+      adopted: true,
+      listPrice: entry.listPrice,
+      minPrice: entry.listPrice,
+      status: "live",
+    });
     log.info(`[Adopt] now managing existing sell order: ${entry.itemName} @ ${entry.listPrice}p`);
   }
   for (const entry of plan.updateOwned) updateStockItem(entry.id, { owned: entry.owned });
