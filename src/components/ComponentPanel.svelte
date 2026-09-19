@@ -110,8 +110,14 @@
               >{/if}
           </div>{/if}
         {#if comp.tradable}<div class="detail-meta">{$tr("detail.tradable")}</div>{/if}
-        <div class="detail-meta">
-          {$tr("detail.owned", { owned: comp.ownedCount ?? 0, needed: comp.itemCount || 1 })}
+        <div
+          class="detail-meta"
+          title={comp.blueprintHeld ? $tr("common.blueprintOwnedNotBuilt") : undefined}
+        >
+          {$tr("detail.owned", {
+            owned: comp.built ?? comp.ownedCount ?? 0,
+            needed: comp.itemCount || 1,
+          })}
         </div>
       </div>
     </div>
