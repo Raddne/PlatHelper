@@ -68,9 +68,19 @@ test.describe("Zoom shortcuts", () => {
     await page.waitForTimeout(400);
     expect(await zoomFactor()).toBe(before);
 
-    await page.keyboard.press("Control+0");
+    // Zoom out first so the reset has something to undo even in a fresh app (a
+    // retried test starts one), and dispatch the key: a CI runner's hidden desktop
+    // gives the window no real keyboard focus.
+    await ctrlWheel(100);
+    await expect.poll(zoomFactor).toBeLessThan(before);
+    const zoomedOut = await zoomFactor();
+    await page.evaluate(() => {
+      window.dispatchEvent(
+        new KeyboardEvent("keydown", { key: "0", ctrlKey: true, cancelable: true, bubbles: true }),
+      );
+    });
     await expect(page.locator("[data-zoom-badge]")).toHaveText("100%");
-    await expect.poll(zoomFactor).toBeGreaterThan(before);
+    await expect.poll(zoomFactor).toBeGreaterThan(zoomedOut);
   });
 
   test("the zoom stops at the upper bound", async () => {

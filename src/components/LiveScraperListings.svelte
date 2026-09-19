@@ -907,19 +907,19 @@
     color: var(--text-muted);
   }
   .pos {
-    color: var(--success, #4ade80);
+    color: var(--success);
   }
   .neg {
-    color: var(--danger, #f87171);
+    color: var(--danger);
   }
   [data-tone="good"] {
-    --ls-tone: var(--success, #4ade80);
+    --ls-tone: var(--success);
   }
   [data-tone="warn"] {
-    --ls-tone: var(--warning, #fbbf24);
+    --ls-tone: var(--warning);
   }
   [data-tone="bad"] {
-    --ls-tone: var(--danger, #f87171);
+    --ls-tone: var(--danger);
   }
   [data-tone="muted"] {
     --ls-tone: var(--text-muted);
@@ -996,7 +996,7 @@
     border-radius: 0.5rem;
     background: var(--surface-tooltip, var(--bg-deep));
     padding: 0.25rem 0;
-    box-shadow: var(--ui-panel-shadow, 0 8px 24px rgba(0, 0, 0, 0.5));
+    box-shadow: var(--ui-panel-shadow);
   }
   .ls-menu-item {
     display: block;
@@ -1028,7 +1028,7 @@
     border-radius: 0.5rem;
     background: var(--surface-tooltip, var(--bg-deep));
     padding: 0.75rem;
-    box-shadow: var(--ui-panel-shadow, 0 8px 24px rgba(0, 0, 0, 0.5));
+    box-shadow: var(--ui-panel-shadow);
   }
   .ls-editor-title {
     overflow: hidden;

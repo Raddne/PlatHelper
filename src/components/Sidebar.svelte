@@ -908,7 +908,7 @@
     font-size: 0.7rem;
     font-weight: 700;
     line-height: 1.25rem;
-    color: #111;
+    color: var(--text-on-accent);
   }
 
   .nav-hit {
@@ -953,7 +953,7 @@
   /* Armed = releasing now groups the row in hand with this one. */
   :global(.nav-btn-armed) .nav-hit {
     inset: 3px;
-    box-shadow: 0 0 0 2px #fff;
+    box-shadow: 0 0 0 2px var(--text-primary);
     transition:
       box-shadow 0.15s ease,
       inset 0.15s ease;
@@ -990,8 +990,8 @@
     font-size: 0.9rem;
     font-weight: 500;
     box-shadow:
-      0 6px 16px rgba(0, 0, 0, 0.4),
-      0 0 0 1px var(--border);
+      var(--ui-panel-shadow),
+      0 0 0 1px var(--border-strong);
     pointer-events: none;
     will-change: transform;
   }

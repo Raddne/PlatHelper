@@ -432,13 +432,13 @@
     width: 0.65rem;
     border: 2px solid var(--bg-deep);
     border-radius: 999px;
-    background: #6b7280;
+    background: var(--text-muted);
   }
   .msg-status[data-status="online"] {
-    background: #22c55e;
+    background: var(--success);
   }
   .msg-status[data-status="ingame"] {
-    background: #a855f7;
+    background: var(--info);
   }
   .msg-unread {
     min-width: 1.2rem;
@@ -450,7 +450,7 @@
     font-size: 0.7rem;
     font-weight: 700;
     line-height: 1.2rem;
-    color: #111;
+    color: var(--text-on-accent);
   }
   .msg-delete {
     cursor: pointer;
@@ -466,7 +466,7 @@
     opacity: 1;
   }
   .msg-delete:hover {
-    color: var(--danger, #ef4444);
+    color: var(--danger);
   }
   .msg-thread-head {
     display: flex;
@@ -537,8 +537,8 @@
     color: var(--text-muted);
   }
   .msg-conn[data-state="online"] {
-    border-color: #22c55e;
-    color: #22c55e;
+    border-color: var(--success);
+    color: var(--success);
   }
   .msg-conn[data-state="connecting"] {
     border-color: var(--accent);
