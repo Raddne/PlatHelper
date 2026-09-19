@@ -1,7 +1,7 @@
 name: Release
 
 # Push a tag like v1.0.1 (or create a release with a new tag in the GitHub UI) and
-# this builds the Windows installer and publishes it. "Run workflow" does the
+# this builds the Windows installer plus a portable zip and publishes them. "Run workflow" does the
 # same for a version typed in by hand, creating the tag on the chosen branch.
 on:
   push:
@@ -76,11 +76,13 @@ jobs:
 
       # No backend or signing secrets: a PlatHelper build talks to the default
       # backend baked into the source and ships unsigned, same as a local build.
-      - name: Build Windows installer
+      # zip = the unpacked app as a portable download; the installer stays the
+      # auto-updater's target, which is why latest.yml only ever names the Setup.exe.
+      - name: Build Windows installer and portable zip
         run: |
           pnpm run verify:onnx-models
           pnpm run build
-          pnpm exec electron-builder --win nsis --publish never
+          pnpm exec electron-builder --win nsis zip --publish never
 
       - name: Verify packaged Windows runtime
         shell: pwsh
@@ -110,7 +112,8 @@ jobs:
           $paths = @(
             "release/latest.yml",
             "release/$productName-$version-Setup.exe",
-            "release/$productName-$version-Setup.exe.blockmap"
+            "release/$productName-$version-Setup.exe.blockmap",
+            "release/$productName-$version-portable.zip"
           )
           foreach ($path in $paths) {
             if (-not (Test-Path $path)) { throw "Missing release asset: $path" }
