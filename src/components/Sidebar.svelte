@@ -23,6 +23,7 @@
   import { resetTourAutoStart } from "../stores/tour.js";
   import type { MessageKey } from "../lib/i18n.js";
   import { VIEW_LABEL_KEYS, type SidebarViewName } from "../lib/viewRegistry.js";
+  import CommunityLinks from "./CommunityLinks.svelte";
   import FeedbackModal from "./FeedbackModal.svelte";
 
   $: showDevTools = $devMode;
@@ -314,6 +315,7 @@
       </svg>
       <span>{$tr("feedback.title")}</span>
     </button>
+    <CommunityLinks {collapsed} />
   </div>
 </nav>
 

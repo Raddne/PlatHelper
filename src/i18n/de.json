@@ -39,6 +39,7 @@
   "feedback.errorInvalid": "Einige Angaben konnten nicht angenommen werden. Prüfe das Formular und das angehängte Bild.",
   "feedback.errorFailed": "Die Zustellung konnte nicht bestätigt werden. Dein Entwurf bleibt erhalten; ein erneuter Versuch kann eine doppelte Nachricht senden.",
   "nav.resources": "Ressourcen",
+  "nav.joinDiscord": "Discord beitreten",
   "nav.test": "Test",
   "nav.overlay": "Overlay",
   "nav.loadJson": "JSON laden",

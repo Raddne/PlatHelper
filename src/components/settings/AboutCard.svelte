@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { PATREON_URL } from "../../config/links.js";
+  import { DISCORD_URL, PATREON_URL } from "../../config/links.js";
   import { tr } from "../../lib/i18n.js";
   import { send } from "../../lib/ipc.js";
   import SettingsSection from "./SettingsSection.svelte";
@@ -51,7 +51,7 @@
     { label: $tr("settings.creditWebsite"), url: "https://wfhelper.com", text: "wfhelper.com" },
     {
       label: $tr("settings.creditCommunity"),
-      url: "https://discord.gg/7Gm3UvUSww",
+      url: DISCORD_URL,
       text: $tr("settings.creditCommunityValue"),
     },
   ]);

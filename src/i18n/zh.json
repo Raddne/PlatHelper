@@ -45,6 +45,7 @@
   "feedback.errorInvalid": "部分反馈信息未能通过验证，请检查表单及所附图片。",
   "feedback.errorFailed": "无法确认是否送达。你的草稿已保留，重试可能会重复发送。",
   "nav.resources": "资源",
+  "nav.joinDiscord": "加入 Discord",
   "nav.test": "测试",
   "nav.overlay": "悬浮窗",
   "nav.loadJson": "加载 JSON",

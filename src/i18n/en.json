@@ -39,6 +39,7 @@
   "feedback.errorInvalid": "Some feedback details could not be accepted. Check the form and attached image.",
   "feedback.errorFailed": "Delivery could not be confirmed. Your draft has been kept; trying again may send a duplicate.",
   "nav.resources": "Resources",
+  "nav.joinDiscord": "Join the Discord",
   "nav.test": "Test",
   "nav.overlay": "Overlay",
   "nav.loadJson": "Load JSON",
