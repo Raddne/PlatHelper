@@ -124,6 +124,11 @@ async function dispatchRivenAuction(
       description: "",
     });
     if (result.ok) return { action: "updated", auctionId: result.auctionId ?? riven.auctionId };
+    if (riven.adopted) {
+      // The user's own auction: never replaced by a new one. If it is really
+      // gone, the next adoption sync drops the row.
+      return { action: "skipped", auctionId: riven.auctionId, error: result.error };
+    }
     if (!isAuctionGoneError(result.error)) {
       // Anything else (rate limit, network) may leave the auction alive, so a
       // new one could duplicate it: drop the id and let the next pass decide.
@@ -220,7 +225,10 @@ export async function progressStockRiven(
   }
 
   const { prices, ownAuctionListed } = await fetchCompetingPrices(riven, weaponSlug, ownName);
-  if (!ownAuctionListed) {
+  // An adopted auction was confirmed live by the adoption sync a moment ago; a
+  // search that misses it (private, hidden, beyond the result cap) must not
+  // lead to a second auction for the same riven.
+  if (!ownAuctionListed && !riven.adopted) {
     log.info(
       `[LiveScraperRiven] auction ${riven.auctionId} is no longer listed, creating a new one`,
     );

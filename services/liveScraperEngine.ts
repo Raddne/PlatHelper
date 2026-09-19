@@ -47,6 +47,7 @@ import { solveKnapsack, type KnapsackCandidate } from "../config/shared/liveScra
 import { isThresholdDisabled } from "../config/shared/liveScraperPricing";
 import { isBlacklisted } from "../config/shared/liveScraperStock";
 import { rotateBatch } from "../config/shared/rotateBatch";
+import { syncAdoptedRivenAuctions } from "./liveScraperRivenAdopt";
 import type { StockItem, WishlistItem } from "../config/shared/liveScraperStock";
 import type {
   LiveScraperEngineStatus,
@@ -354,8 +355,15 @@ async function maybeProcessRivenPass(
   const intervalMs = Math.max(1, settings.rivens.general.updateInterval) * 1000;
   if (_lastRivenPassAt != null && Date.now() - _lastRivenPassAt < intervalMs) return null;
 
-  const rivens = listStockRivens().filter((r) => !r.isHidden || r.status !== "inactive");
   _lastRivenPassAt = Date.now();
+  // Pick up auctions the user already has on warframe.market before pricing.
+  try {
+    emitProgress("Checking riven auctions...");
+    await syncAdoptedRivenAuctions();
+  } catch (err) {
+    log.warn("[Tick] failed to fetch my riven auctions; adoption skipped this pass:", err);
+  }
+  const rivens = listStockRivens().filter((r) => !r.isHidden || r.status !== "inactive");
   if (rivens.length === 0) return null;
 
   const ownName = _deps?.getOwnName() ?? null;
