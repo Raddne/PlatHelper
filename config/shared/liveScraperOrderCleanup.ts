@@ -34,7 +34,11 @@ function orderSubType(order: CleanupOrderLike): SubTypeLike | undefined {
  *  stock item). Quantframe wipes every sell order, including ones the user
  *  listed by hand on warframe.market - here those are never touched. The
  *  default predicate manages nothing, so a caller that forgets it deletes no
- *  sell order at all rather than all of them. Buy orders are unchanged:
+ *  sell order at all rather than all of them.
+ *  Second deviation, after a user lost some 500 hand-placed orders to the
+ *  start-up wipe: NO order is deleted unless `isOwnOrder` says the scraper
+ *  created it. Same fail-safe default - a caller that forgets the predicate
+ *  deletes nothing.
  *  - `autoDelete && justStarted`: FULL WIPE of every non-blacklisted order
  *    (buy and sell) - the one-time destructive pass the UI's start-confirm
  *    modal warns about, only ever true on the very first tick of a session.
@@ -48,6 +52,21 @@ export function computeOrdersToDelete(
   myOrders: CleanupMyOrders,
   justStarted: boolean,
   isManagedSell: (order: CleanupOrderLike) => boolean = () => false,
+  isOwnOrder: (order: CleanupOrderLike) => boolean = () => false,
+): string[] {
+  return computeCandidates(
+    settings,
+    { buy: myOrders.buy.filter(isOwnOrder), sell: myOrders.sell.filter(isOwnOrder) },
+    justStarted,
+    isManagedSell,
+  );
+}
+
+function computeCandidates(
+  settings: LiveScraperSettings,
+  myOrders: CleanupMyOrders,
+  justStarted: boolean,
+  isManagedSell: (order: CleanupOrderLike) => boolean,
 ): string[] {
   const general = settings.general;
   if (!general.autoDelete && !general.deleteConflictingOrders) return [];

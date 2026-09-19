@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { computeOrdersToDelete } from "../../config/shared/liveScraperOrderCleanup";
+import { computeOrdersToDelete as computeWithOwnership } from "../../config/shared/liveScraperOrderCleanup";
 import { defaultLiveScraperSettings } from "../../config/shared/liveScraperSettings";
 import type { LiveScraperSettings, TradeMode } from "../../config/shared/liveScraperSettings";
 import type { CleanupOrderLike } from "../../config/shared/liveScraperOrderCleanup";
@@ -34,6 +34,15 @@ function settingsWith(overrides: {
     },
   };
 }
+
+// The mode and blacklist rules below are tested with every order counting as
+// scraper-created; ownership has its own block at the end.
+const computeOrdersToDelete = (
+  settings: LiveScraperSettings,
+  myOrders: { buy: CleanupOrderLike[]; sell: CleanupOrderLike[] },
+  justStarted: boolean,
+  isManagedSell?: (order: CleanupOrderLike) => boolean,
+): string[] => computeWithOwnership(settings, myOrders, justStarted, isManagedSell, () => true);
 
 describe("computeOrdersToDelete", () => {
   it("does nothing when both autoDelete and deleteConflictingOrders are off", () => {
@@ -147,5 +156,31 @@ describe("computeOrdersToDelete", () => {
     const settings = settingsWith({ autoDelete: true });
     const ids = computeOrdersToDelete(settings, { buy: [], sell: [order("s1", "sell")] }, true);
     expect(ids).toEqual([]);
+  });
+});
+
+describe("computeOrdersToDelete ownership", () => {
+  const mine = {
+    buy: [order("hand-buy", "buy"), order("own-buy", "buy")],
+    sell: [order("hand-sell", "sell"), order("own-sell", "sell")],
+  };
+  const own = (o: CleanupOrderLike): boolean => o.id.startsWith("own-");
+
+  it("deletes nothing at all when the caller names no own orders", () => {
+    const settings = settingsWith({ autoDelete: true });
+    expect(computeWithOwnership(settings, mine, true, () => true)).toEqual([]);
+  });
+
+  it("the start-up wipe only takes orders the scraper created", () => {
+    const settings = settingsWith({ autoDelete: true });
+    expect(computeWithOwnership(settings, mine, true, () => true, own).sort()).toEqual([
+      "own-buy",
+      "own-sell",
+    ]);
+  });
+
+  it("the sell-only mode cleanup leaves hand-placed buy orders alone", () => {
+    const settings = settingsWith({ autoDelete: true, tradeModes: ["sell"] });
+    expect(computeWithOwnership(settings, mine, false, () => true, own)).toEqual(["own-buy"]);
   });
 });

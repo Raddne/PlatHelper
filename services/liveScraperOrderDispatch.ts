@@ -18,6 +18,7 @@
 
 import { withScope } from "./logger";
 import { createOrder, updateOrder, deleteOrder, type NormalisedOrder } from "./wfmOrders";
+import { forgetOwnedOrder, markOrderOwned } from "./liveScraperOwnedOrders";
 import { normalizeErrorMessage } from "../config/shared/errors";
 import { isOrderLimitError } from "../config/shared/wfmOrders";
 
@@ -61,6 +62,7 @@ export async function dispatchOrder(params: DispatchOrderParams): Promise<Dispat
           modRank,
           subtype,
         });
+        markOrderOwned(order.id);
         return { action: "created", orderId: order.id };
       } catch (err) {
         if (isOrderLimitError(err)) {
@@ -101,6 +103,7 @@ export async function dispatchOrder(params: DispatchOrderParams): Promise<Dispat
     if (ops.has("Update") && ops.has("Delete")) {
       if (!existingOrder) return { action: "skipped", orderId: null };
       await deleteOrder(existingOrder.id);
+      forgetOwnedOrder(existingOrder.id);
       return { action: "deleted", orderId: existingOrder.id };
     }
 

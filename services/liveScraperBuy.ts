@@ -25,6 +25,7 @@ import { wtbRankFor } from "./liveScraperCatalogScan";
 import { isBlacklisted } from "../config/shared/liveScraperStock";
 import { matchExistingOrder } from "./liveScraperOrderMatch";
 import { dispatchOrder, type DispatchOrderResult } from "./liveScraperOrderDispatch";
+import { isOwnedOrder } from "./liveScraperOwnedOrders";
 import { shouldApplyMaxPriceDrop, isThresholdDisabled } from "../config/shared/liveScraperPricing";
 import type { NormalisedOrder } from "./wfmOrders";
 import type { ItemMarketInfo } from "./liveScraperOrderBook";
@@ -83,6 +84,8 @@ export async function priceBuyingItem(
 
   const rank = wtbRankFor(catalogItem);
   const existing = matchExistingOrder(myBuyOrders, catalogItem.id, rank, null);
+  // A buy order the user placed by hand: not ours to re-price or take down.
+  if (existing && !isOwnedOrder(existing.id)) return null;
   const ops = new Set<string>();
   ops.add(existing ? "Update" : "Create");
 

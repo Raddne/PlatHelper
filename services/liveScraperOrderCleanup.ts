@@ -6,6 +6,7 @@ import { withScope } from "./logger";
 import { deleteOrder } from "./wfmOrders";
 import * as wfmCatalog from "./wfmCatalog";
 import { listStockItems } from "./liveScraperStock";
+import { forgetOwnedOrder, isOwnedOrder, pruneOwnedOrders } from "./liveScraperOwnedOrders";
 import type { NormalisedOrder } from "./wfmOrders";
 import { computeOrdersToDelete } from "../config/shared/liveScraperOrderCleanup";
 import type { LiveScraperSettings } from "../config/shared/liveScraperSettings";
@@ -52,9 +53,14 @@ export async function runOrderCleanup(
   justStarted: boolean,
   shouldContinue: () => boolean,
 ): Promise<OrderCleanupResult> {
+  pruneOwnedOrders([...myOrders.buy, ...myOrders.sell].map((order) => order.id));
   const managedSellKeys = await collectManagedSellKeys();
-  const ids = computeOrdersToDelete(settings, myOrders, justStarted, (order) =>
-    managedSellKeys.has(sellKey(order.itemId, order.modRank, order.subtype)),
+  const ids = computeOrdersToDelete(
+    settings,
+    myOrders,
+    justStarted,
+    (order) => managedSellKeys.has(sellKey(order.itemId, order.modRank, order.subtype)),
+    (order) => isOwnedOrder(order.id),
   );
   const deletedIds: string[] = [];
   let failed = 0;
@@ -62,6 +68,7 @@ export async function runOrderCleanup(
     if (!shouldContinue()) break;
     try {
       await deleteOrder(id);
+      forgetOwnedOrder(id);
       deletedIds.push(id);
     } catch (err) {
       failed += 1;
