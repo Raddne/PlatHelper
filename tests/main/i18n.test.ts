@@ -50,7 +50,6 @@ const ALLOWED_TWINS = new Set([
   "liveScraper.settings.syndicate.minBuyersAbove",
   "liveScraper.listings.status.maxPriceDrop",
   "liveScraper.listings.col.owned",
-  "liveScraper.quantityShort",
   "presets.manager.title",
   "presets.wizard.createTitle",
 ]);

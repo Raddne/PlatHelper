@@ -217,27 +217,6 @@
     <div class="grid gap-4 md:grid-cols-2">
       <section class="grid gap-2 rounded-lg border border-border p-3">
         <h3 class="m-0 text-sm font-semibold text-text-primary">{$tr("liveScraper.stockTitle")}</h3>
-        {#if stock.length > 0}
-          <ul class="m-0 grid gap-1 p-0">
-            {#each stock as item (item.id)}
-              <li class="flex items-center gap-2 rounded-md border border-border px-2 py-1 text-xs">
-                <span class="min-w-0 flex-1 truncate text-text-primary">{item.itemName}</span>
-                <span class="text-text-muted"
-                  >{$tr("liveScraper.ownedShort", { count: item.owned })}</span
-                >
-                <button
-                  type="button"
-                  class="btn-secondary btn-sm"
-                  onclick={() => removeEntry("stock", item.id, item.itemName)}
-                >
-                  {$tr("common.delete")}
-                </button>
-              </li>
-            {/each}
-          </ul>
-        {:else}
-          <p class="m-0 text-xs text-text-muted">{$tr("liveScraper.stockEmpty")}</p>
-        {/if}
         <div class="flex flex-wrap items-end gap-2">
           {#if stockDraftItem}
             <div class="grid min-w-0 flex-1 gap-1">
@@ -322,27 +301,6 @@
         <h3 class="m-0 text-sm font-semibold text-text-primary">
           {$tr("liveScraper.wishlistTitle")}
         </h3>
-        {#if wishlist.length > 0}
-          <ul class="m-0 grid gap-1 p-0">
-            {#each wishlist as item (item.id)}
-              <li class="flex items-center gap-2 rounded-md border border-border px-2 py-1 text-xs">
-                <span class="min-w-0 flex-1 truncate text-text-primary">{item.itemName}</span>
-                <span class="text-text-muted">
-                  {$tr("liveScraper.quantityShort", { count: item.quantity })}
-                </span>
-                <button
-                  type="button"
-                  class="btn-secondary btn-sm"
-                  onclick={() => removeEntry("wishlist", item.id, item.itemName)}
-                >
-                  {$tr("common.delete")}
-                </button>
-              </li>
-            {/each}
-          </ul>
-        {:else}
-          <p class="m-0 text-xs text-text-muted">{$tr("liveScraper.wishlistEmpty")}</p>
-        {/if}
         <div class="flex flex-wrap items-end gap-2">
           {#if wishlistDraftItem}
             <div class="grid min-w-0 flex-1 gap-1">
