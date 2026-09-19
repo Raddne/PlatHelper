@@ -32,7 +32,7 @@ The engine can run three jobs at once (Settings > General > *Active trade modes*
 | **Sell** | Keeps sell orders (WTS) for your stock priced against the competition. |
 | **Wishlist** | Places buy orders for specific items you want, up to your maximum price. |
 
-### The settings that matter
+### How to configure your scraper
 
 Under *Settings > Items > Buying (WTB)*. `-1` switches a filter off.
 
@@ -45,7 +45,7 @@ Under *Settings > Items > Buying (WTB)*. `-1` switches a filter off.
 | **Maximum total buy budget** | Upper limit for the platinum bound in all buy orders together. The engine picks the most profitable set that fits. |
 | **Buy quantity** | How many pieces each buy order asks for. |
 
-For selling, *Minimum profit* under *Selling (WTS)* is the one to set: a sell
+For selling, set *Minimum profit* under *Selling (WTS)*.: a sell
 order never goes below your buy price plus this value.
 
 ### Listings
