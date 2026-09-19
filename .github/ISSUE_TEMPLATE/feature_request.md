@@ -1,6 +1,6 @@
 ---
 name: Feature request
-about: Suggest an idea for WFHelper
+about: Suggest an idea for PlatHelper
 labels: enhancement
 ---
 

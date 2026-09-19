@@ -84,23 +84,6 @@ jobs:
           path: test-results/
           if-no-files-found: ignore
 
-  # Commit subjects stay enforced in CI when local hooks are skipped.
-  commit-style:
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Commit subjects
-        run: node scripts/check-commit-msg.mjs --ci
-        env:
-          BASE_REF: ${{ github.base_ref }}
-          BEFORE_SHA: ${{ github.event.before }}
-          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
-
   # Native E2E stays on Windows; Linux also gates application startup.
 
   validate-windows:

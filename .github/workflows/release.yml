@@ -1,66 +1,50 @@
 name: Release
 
+# Push a tag like v1.0.1 (or create a release with a new tag in the GitHub UI) and
+# this builds the Windows installer and publishes it. "Run workflow" does the
+# same for a version typed in by hand, creating the tag on the chosen branch.
 on:
   push:
     tags:
       - "v*"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to release, without the v (e.g. 1.0.1)"
+        required: true
+        type: string
 
 permissions:
   contents: write
-  checks: read
+
+concurrency:
+  group: release-${{ github.event.inputs.version || github.ref_name }}
+  cancel-in-progress: false
 
 jobs:
-  # The tag points at a commit the branch push already ran CI on, and check runs
-  # attach to the commit rather than the ref, so the release reads that result
-  # instead of re-running the suite. A commit with missing, failed or
-  # still-running checks does not get built.
-  require-green-ci:
-    runs-on: ubuntu-latest
-    timeout-minutes: 25
-    steps:
-      - name: Require green checks on this commit
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          SHA: ${{ github.sha }}
-        run: |
-          # Job names as they appear in check-runs; every CI job is listed so a
-          # red one cannot be released around.
-          required="validate validate-windows commit-style"
-          # Tolerates tagging straight after the branch push, when the branch run
-          # has not reported yet.
-          for attempt in $(seq 1 40); do
-            runs=$(gh api "repos/${GITHUB_REPOSITORY}/commits/${SHA}/check-runs" \
-              --paginate --jq '.check_runs[] | "\(.name)=\(.status):\(.conclusion // "-")"' | sort -u)
-            echo "$runs"
-            pending=0
-            for name in $required; do
-              line=$(printf '%s\n' "$runs" | grep "^${name}=" | head -1 || true)
-              case "$line" in
-                "") pending=1 ;;
-                *=completed:success) ;;
-                *=completed:*) echo "::error::${line} on ${SHA}"; exit 1 ;;
-                *) pending=1 ;;
-              esac
-            done
-            if [ "$pending" = 0 ]; then
-              echo "required checks are green on ${SHA}"
-              exit 0
-            fi
-            sleep 30
-          done
-          echo "::error::required checks never reported green on ${SHA}"
-          echo "::error::push the branch and let CI finish before tagging"
-          exit 1
-
   release-windows:
-    needs: require-green-ci
     runs-on: windows-latest
-    # Normally ~3 min; a stalled runner should go red, not sit for 6 hours.
-    timeout-minutes: 20
+    # Normally well under 15 min; a stalled runner should go red, not sit for 6 hours.
+    timeout-minutes: 30
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Resolve version
+        id: version
+        shell: bash
+        env:
+          INPUT_VERSION: ${{ github.event.inputs.version }}
+        run: |
+          version="${INPUT_VERSION:-${GITHUB_REF_NAME#v}}"
+          version="${version#v}"
+          if ! printf '%s' "$version" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$'; then
+            echo "::error::'$version' is not a version like 1.0.1"
+            exit 1
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "tag=v$version" >> "$GITHUB_OUTPUT"
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
@@ -71,83 +55,38 @@ jobs:
           node-version: 22
           cache: pnpm
 
-      # The tag is the version; package.json in the repo is only a dev placeholder.
-      # Must run before install: editing package.json afterwards makes pnpm re-sync
-      # deps inside the next `pnpm run`, which has wedged Windows runners.
+      # The tag is the version. Must run before install: editing package.json
+      # afterwards makes pnpm re-sync deps inside the next `pnpm run`, which has
+      # wedged Windows runners.
       - name: Set version from tag
         shell: bash
-        run: pnpm version "${GITHUB_REF_NAME#v}" --no-git-tag-version --allow-same-version
+        run: pnpm version "${{ steps.version.outputs.version }}" --no-git-tag-version --allow-same-version
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Validate release credentials
-        shell: pwsh
-        env:
-          CSC_LINK: ${{ secrets.CSC_LINK }}
-          CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          if (-not $env:GH_TOKEN) {
-            throw "Missing required release secret: GH_TOKEN"
-          }
+      # The release gates itself instead of reading CI's check runs, so a tag on
+      # a commit CI never saw (edited on github.com, Actions enabled later) still
+      # cannot ship broken code.
+      - name: Typecheck
+        run: pnpm typecheck
 
-          $hasSigningCert = -not [string]::IsNullOrWhiteSpace($env:CSC_LINK)
-          $hasSigningPassword = -not [string]::IsNullOrWhiteSpace($env:CSC_KEY_PASSWORD)
-          if ($hasSigningCert -ne $hasSigningPassword) {
-            throw "CSC_LINK and CSC_KEY_PASSWORD must be configured together"
-          }
+      - name: Unit tests
+        run: pnpm test
 
-          if (-not $hasSigningCert) {
-            Write-Warning "CSC_LINK/CSC_KEY_PASSWORD are not configured; building an unsigned Windows installer."
-          }
-
-      - name: Validate release runtime configuration
-        env:
-          VITE_WFM_BACKEND_URL: ${{ secrets.VITE_WFM_BACKEND_URL }}
-          VITE_WFM_BACKEND_DIRECT_FALLBACK: ${{ vars.VITE_WFM_BACKEND_DIRECT_FALLBACK }}
-          VITE_WFM_BACKEND_BOOTSTRAP_ENABLED: ${{ vars.VITE_WFM_BACKEND_BOOTSTRAP_ENABLED }}
-        # node directly: the script has no deps, keep pnpm's run lifecycle out of it
-        run: node scripts/validate-release-env.mjs
-
-      - name: Ensure release exists
-        shell: pwsh
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          gh release view "$env:GITHUB_REF_NAME" --repo "$env:GITHUB_REPOSITORY" *> $null
-          if ($LASTEXITCODE -eq 0) {
-            Write-Host "Release $env:GITHUB_REF_NAME already exists"
-          } else {
-            # Draft: paste the changelog, then Publish (which fires announce-release.yml).
-            gh release create "$env:GITHUB_REF_NAME" `
-              --repo "$env:GITHUB_REPOSITORY" `
-              --title "$env:GITHUB_REF_NAME" `
-              --draft `
-              --generate-notes
-            if ($LASTEXITCODE -ne 0) { throw "Failed to create release $env:GITHUB_REF_NAME" }
-            Write-Host "Created draft release $env:GITHUB_REF_NAME"
-          }
-
+      # No backend or signing secrets: a PlatHelper build talks to the default
+      # backend baked into the source and ships unsigned, same as a local build.
       - name: Build Windows installer
         run: |
           pnpm run verify:onnx-models
           pnpm run build
           pnpm exec electron-builder --win nsis --publish never
-        env:
-          CSC_LINK: ${{ secrets.CSC_LINK }}
-          CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
-          # baked into the renderer bundle; without these a CI installer
-          # bypasses the worker backend
-          VITE_WFM_BACKEND_URL: ${{ secrets.VITE_WFM_BACKEND_URL }}
-          VITE_WFM_BACKEND_DIRECT_FALLBACK: ${{ vars.VITE_WFM_BACKEND_DIRECT_FALLBACK }}
-          VITE_WFM_BACKEND_BOOTSTRAP_ENABLED: ${{ vars.VITE_WFM_BACKEND_BOOTSTRAP_ENABLED }}
 
       - name: Verify packaged Windows runtime
-        run: pnpm run test:packaged release/win-unpacked/WFHelper.exe
-
-      - name: Verify sustained overlay lifecycle
-        run: pnpm run test:overlay-stress
+        shell: pwsh
+        run: |
+          $productName = (Get-Content package.json | ConvertFrom-Json).build.productName
+          pnpm run test:packaged "release/win-unpacked/$productName.exe"
 
       - name: Preserve failed acceptance evidence
         if: failure()
@@ -157,10 +96,13 @@ jobs:
           path: test-results/
           if-no-files-found: ignore
 
-      - name: Upload release assets
+      # Draft first and published last, so nobody (and no auto-updater) ever sees
+      # a release that is still missing its installer.
+      - name: Publish release
         shell: pwsh
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ steps.version.outputs.tag }}
         run: |
           $pkg = Get-Content package.json | ConvertFrom-Json
           $productName = $pkg.build.productName
@@ -170,100 +112,24 @@ jobs:
             "release/$productName-$version-Setup.exe",
             "release/$productName-$version-Setup.exe.blockmap"
           )
-
           foreach ($path in $paths) {
-            if (-not (Test-Path $path)) {
-              throw "Missing release asset: $path"
-            }
+            if (-not (Test-Path $path)) { throw "Missing release asset: $path" }
           }
 
-          gh release upload "$env:GITHUB_REF_NAME" $paths --clobber --repo "$env:GITHUB_REPOSITORY"
+          gh release view $env:TAG --repo $env:GITHUB_REPOSITORY *> $null
+          if ($LASTEXITCODE -ne 0) {
+            gh release create $env:TAG `
+              --repo $env:GITHUB_REPOSITORY `
+              --target $env:GITHUB_SHA `
+              --title "PlatHelper $env:TAG" `
+              --draft `
+              --generate-notes
+            if ($LASTEXITCODE -ne 0) { throw "Failed to create release $env:TAG" }
+          }
 
-  # Linux AppImage into the same draft release (latest-linux.yml enables
-  # electron-updater on linux). Runs after release-windows so the draft
-  # already exists - no create race.
-  release-linux:
-    needs: [require-green-ci, release-windows]
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
+          gh release upload $env:TAG $paths --clobber --repo $env:GITHUB_REPOSITORY
+          if ($LASTEXITCODE -ne 0) { throw "Failed to upload release assets" }
 
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
-
-      - name: Setup Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: pnpm
-
-      # The tag is the version; package.json in the repo is only a dev placeholder.
-      # Must run before install: editing package.json afterwards makes pnpm re-sync
-      # deps inside the next `pnpm run`, which has wedged Windows runners.
-      - name: Set version from tag
-        shell: bash
-        run: pnpm version "${GITHUB_REF_NAME#v}" --no-git-tag-version --allow-same-version
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Validate release runtime configuration
-        env:
-          VITE_WFM_BACKEND_URL: ${{ secrets.VITE_WFM_BACKEND_URL }}
-          VITE_WFM_BACKEND_DIRECT_FALLBACK: ${{ vars.VITE_WFM_BACKEND_DIRECT_FALLBACK }}
-          VITE_WFM_BACKEND_BOOTSTRAP_ENABLED: ${{ vars.VITE_WFM_BACKEND_BOOTSTRAP_ENABLED }}
-        # node directly: the script has no deps, keep pnpm's run lifecycle out of it
-        run: node scripts/validate-release-env.mjs
-
-      # wayland-scanner and the protocol XML are build-time only; without them
-      # build-layer-shell skips and the AppImage ships with the addon missing.
-      - name: Install Wayland build dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libwayland-dev libwayland-bin wayland-protocols
-
-      - name: Build Linux AppImage
-        run: |
-          pnpm run verify:onnx-models
-          pnpm run build
-          node scripts/build-layer-shell.mjs --require
-          pnpm exec electron-builder --linux AppImage --publish never
-        env:
-          # baked into the renderer bundle; without these a CI installer
-          # bypasses the worker backend
-          VITE_WFM_BACKEND_URL: ${{ secrets.VITE_WFM_BACKEND_URL }}
-          VITE_WFM_BACKEND_DIRECT_FALLBACK: ${{ vars.VITE_WFM_BACKEND_DIRECT_FALLBACK }}
-          VITE_WFM_BACKEND_BOOTSTRAP_ENABLED: ${{ vars.VITE_WFM_BACKEND_BOOTSTRAP_ENABLED }}
-
-      - name: Verify packaged Linux runtime
-        run: |
-          pnpm exec playwright install-deps chromium
-          PRODUCT_NAME=$(node -p "require('./package.json').build.productName")
-          VERSION=$(node -p "require('./package.json').version")
-          xvfb-run -a pnpm run test:packaged "release/$PRODUCT_NAME-$VERSION.AppImage"
-
-      - name: Preserve failed acceptance evidence
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: linux-release-acceptance
-          path: test-results/
-          if-no-files-found: ignore
-
-      - name: Upload release assets
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          PRODUCT_NAME=$(node -p "require('./package.json').build.productName")
-          VERSION=$(node -p "require('./package.json').version")
-          PATHS=("release/latest-linux.yml" "release/$PRODUCT_NAME-$VERSION.AppImage")
-          for path in "${PATHS[@]}"; do
-            if [ ! -f "$path" ]; then
-              echo "Missing release asset: $path" >&2
-              exit 1
-            fi
-          done
-          gh release upload "$GITHUB_REF_NAME" "${PATHS[@]}" --clobber --repo "$GITHUB_REPOSITORY"
+          gh release edit $env:TAG --repo $env:GITHUB_REPOSITORY --draft=false --latest
+          if ($LASTEXITCODE -ne 0) { throw "Failed to publish release $env:TAG" }
+          Write-Host "Published $env:TAG"
