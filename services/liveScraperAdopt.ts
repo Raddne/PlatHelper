@@ -2,6 +2,7 @@
 
 import { withScope } from "./logger";
 import {
+  batchStockWrites,
   createStockItem,
   deleteStockItem,
   listStockItems,
@@ -16,6 +17,10 @@ const log = withScope("liveScraperAdopt");
  *  empty list from a failed fetch would drop every adopted row. */
 export function syncAdoptedSellOrders(mySellOrders: readonly NormalisedOrder[]): void {
   const plan = planAdoption(listStockItems(), mySellOrders);
+  batchStockWrites(() => applyPlan(plan));
+}
+
+function applyPlan(plan: ReturnType<typeof planAdoption>): void {
   for (const entry of plan.create) {
     const created = createStockItem({
       wfmId: entry.wfmUrl,

@@ -16,9 +16,32 @@ const cache = createJsonCache<LiveScraperStockFile>(
 
 let current: LiveScraperStockFile = cache.read() ?? { version: 1, stock: [], wishlist: [] };
 
+let batchDepth = 0;
+let batchDirty = false;
+
 function commit(next: LiveScraperStockFile): void {
   current = next;
+  if (batchDepth > 0) {
+    batchDirty = true;
+    return;
+  }
   cache.write(current);
+}
+
+/** Runs many stock changes with a single file write at the end. Picking up
+ *  several hundred existing listings used to rewrite the whole file twice per
+ *  listing. */
+export function batchStockWrites<T>(run: () => T): T {
+  batchDepth += 1;
+  try {
+    return run();
+  } finally {
+    batchDepth -= 1;
+    if (batchDepth === 0 && batchDirty) {
+      batchDirty = false;
+      cache.write(current);
+    }
+  }
 }
 
 function newId(): string {

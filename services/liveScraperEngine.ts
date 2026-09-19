@@ -46,6 +46,7 @@ import {
 import { solveKnapsack, type KnapsackCandidate } from "../config/shared/liveScraperKnapsack";
 import { isThresholdDisabled } from "../config/shared/liveScraperPricing";
 import { isBlacklisted } from "../config/shared/liveScraperStock";
+import { rotateBatch } from "../config/shared/rotateBatch";
 import type { StockItem, WishlistItem } from "../config/shared/liveScraperStock";
 import type {
   LiveScraperEngineStatus,
@@ -103,17 +104,39 @@ const MAX_WTB_CANDIDATES_PER_TICK = 15;
  *  so every candidate gets a turn over successive ticks instead of the same
  *  prefix winning forever. */
 function selectWtbBatch(candidates: readonly ItemStatSnapshot[]): ItemStatSnapshot[] {
-  const totalCount = candidates.length;
-  if (totalCount <= MAX_WTB_CANDIDATES_PER_TICK) {
-    _wtbRotationOffset = 0;
-    return candidates.slice();
-  }
-  const batch: ItemStatSnapshot[] = [];
-  for (let i = 0; i < MAX_WTB_CANDIDATES_PER_TICK; i++) {
-    batch.push(candidates[(_wtbRotationOffset + i) % totalCount]);
-  }
-  _wtbRotationOffset = (_wtbRotationOffset + MAX_WTB_CANDIDATES_PER_TICK) % totalCount;
-  return batch;
+  const batch = rotateBatch(candidates, _wtbRotationOffset, MAX_WTB_CANDIDATES_PER_TICK);
+  _wtbRotationOffset = batch.nextOffset;
+  return batch.items;
+}
+
+// Same idea for stock/wishlist entries. warframe.market allows roughly three
+// requests a second per IP, so an account with hundreds of listings needs
+// minutes for one full round whatever the code does. Working through them in
+// rotating blocks keeps every tick short: Stop, settings changes, the WTB pass
+// and the riven pass no longer wait for the whole round.
+const MAX_ENTRIES_PER_TICK = 40;
+let _entryRotationOffset = 0;
+
+function selectEntryBatch(entries: readonly InterestingEntry[]): InterestingEntry[] {
+  const batch = rotateBatch(entries, _entryRotationOffset, MAX_ENTRIES_PER_TICK);
+  _entryRotationOffset = batch.nextOffset;
+  return batch.items;
+}
+
+// The 48h closed average barely moves within an hour, and the shared stats
+// cache (5 min) never hits when one round over a large stock takes longer than
+// that. Remembering it here turns every round after the first into one request
+// per listing instead of two.
+const CLOSED_AVG_TTL_MS = 60 * 60 * 1000;
+const _closedAvgMemo = new Map<string, { value: number | null; at: number }>();
+
+async function closedAvgFor(wfmUrl: string): Promise<number | null> {
+  const hit = _closedAvgMemo.get(wfmUrl);
+  if (hit && Date.now() - hit.at < CLOSED_AVG_TTL_MS) return hit.value;
+  const value = await fetchPriceBySlug(wfmUrl);
+  // A failed fetch comes back as null too; do not pin that for an hour.
+  if (value != null) _closedAvgMemo.set(wfmUrl, { value, at: Date.now() });
+  return value;
 }
 
 const _wtbListings = new Map<string, LiveScraperWtbListing>();
@@ -455,13 +478,23 @@ async function tick(): Promise<void> {
 
         let processed = 0;
         let mutations = 0;
-        for (const entry of entries) {
+        const entryBatch = selectEntryBatch(entries);
+        // The moving-average floor is the only consumer of the closed average
+        // on the sell side; with it switched off the request is pure waste.
+        const sellNeedsClosedAvg = !isThresholdDisabled(settings.items.wts.minSma);
+        for (const entry of entryBatch) {
           // A stop requested mid-cycle must not keep firing WFM requests.
           if (!_running) break;
           const item = entry.item;
+          emitProgress(
+            `${entry.kind === "sell" ? "Selling" : "Wishlist"} ${processed + 1}/${entryBatch.length}: ${item.itemName}` +
+              (entries.length > entryBatch.length ? ` (${entries.length} tracked, rotating)` : ""),
+          );
           const [marketInfo, closedAvg] = await Promise.all([
             fetchItemMarketInfo(item.wfmUrl, item.subType, ownName),
-            fetchPriceBySlug(item.wfmUrl),
+            entry.kind === "sell" && !sellNeedsClosedAvg
+              ? Promise.resolve(null)
+              : closedAvgFor(item.wfmUrl),
           ]);
           processed += 1;
 
@@ -529,7 +562,9 @@ async function tick(): Promise<void> {
         const wishlistCount = entries.filter((e) => e.kind === "wishlist").length;
         const scanStatus = wtbActive ? getCatalogScanStatus() : null;
         _lastMessage =
-          `Processed ${processed}/${entries.length} item(s) (${sellCount} sell, ${wishlistCount} wishlist)` +
+          `Processed ${processed}/${entryBatch.length} item(s)` +
+          (entries.length > entryBatch.length ? ` of ${entries.length} (rotating)` : "") +
+          ` (${sellCount} sell, ${wishlistCount} wishlist)` +
           (wtbActive
             ? `, ${wtbProcessed}/${wtbBatchSize} WTB candidate(s) this tick` +
               (wtbCandidates.length > wtbBatchSize
