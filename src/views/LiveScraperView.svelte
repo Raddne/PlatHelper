@@ -90,8 +90,6 @@
   type RemovableKind = "stock" | "wishlist" | "riven";
   let removeError = $state<string | null>(null);
 
-  // Removing a row also takes its live warframe.market order/auction down, so
-  // it asks first; a failed WFM call keeps the row and says why.
   async function removeEntry(kind: RemovableKind, id: string, name: string): Promise<void> {
     if (!(await confirmWithDialog($tr("liveScraper.confirmRemove", { name }), $tr))) return;
     const result =

@@ -4,6 +4,17 @@ Patch notes for every PlatHelper release. The release workflow copies the sectio
 
 Keep every bullet on one line: GitHub shows a line break inside release notes as a line break.
 
+## v0.1.6
+
+- Maintenance release: internal cleanup, no changes to existing features.
+
+## v0.1.5
+
+- **Simplified Chinese:** Live Scraper, Messages, sidebar presets and the riven shortcuts are now translated (Settings > Language > 简体中文).
+- **Live Scraper picks up your existing riven auctions.** Auctions you already have on warframe.market appear under Rivens and are re-priced like the rest; the price you listed them at becomes their minimum price. A picked-up auction that is sold or closed simply disappears from the list and is never re-created.
+- A riven you added by hand that is already listed on warframe.market is linked to that auction instead of being listed a second time.
+- Listings panel: very long lists show the first 300 rows and point to the search box for the rest, so the view stays fast.
+
 ## v0.1.4
 
 - **Live Scraper with many listings is much more responsive.** The status used to stay on "Cleaning up orders..." while the scraper was really working through every sell listing; it now shows what it is doing ("Selling 12/40: item name").
