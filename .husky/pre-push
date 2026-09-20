@@ -13,8 +13,10 @@ pnpm test
 pnpm run backend:test
 pnpm run build
 
+# Electron sometimes crashes while exiting after every check has passed; that
+# alone earns a repeat (scripts/retry-exit-crash.mjs, three attempts at most), a real failure never.
 if [ "${OS:-}" = "Windows_NT" ]; then
-  pnpm run test:dbwin
-  pnpm run test:reward-scan
-  pnpm run test:e2e:built
+  node scripts/retry-exit-crash.mjs pnpm run test:dbwin
+  node scripts/retry-exit-crash.mjs pnpm run test:reward-scan
+  node scripts/retry-exit-crash.mjs pnpm run test:e2e:built
 fi
