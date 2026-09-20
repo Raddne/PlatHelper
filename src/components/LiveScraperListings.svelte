@@ -137,10 +137,26 @@
   const matches = (...texts: string[]): boolean =>
     needle === "" || texts.some((text) => text.toLowerCase().includes(needle));
 
-  let shownWtb = $derived(wtbRows.filter((row) => matches(row.itemName)));
-  let shownStock = $derived(stock.filter((item) => matches(item.itemName)));
-  let shownRivens = $derived(
+  // Several thousand rows with five buttons each would freeze the view, so the
+  // table stops at MAX_ROWS and points at the search box for the rest.
+  const MAX_ROWS = 300;
+  let matchedWtb = $derived(wtbRows.filter((row) => matches(row.itemName)));
+  let matchedStock = $derived(stock.filter((item) => matches(item.itemName)));
+  let matchedRivens = $derived(
     stockRivens.filter((riven) => matches(riven.weaponName, riven.rivenName)),
+  );
+  let shownWtb = $derived(matchedWtb.slice(0, MAX_ROWS));
+  let shownStock = $derived(matchedStock.slice(0, MAX_ROWS));
+  let shownRivens = $derived(matchedRivens.slice(0, MAX_ROWS));
+  let hiddenRows = $derived(
+    Math.max(
+      0,
+      ($tab === "wtb"
+        ? matchedWtb.length
+        : $tab === "wts"
+          ? matchedStock.length
+          : matchedRivens.length) - MAX_ROWS,
+    ),
   );
 
   // ---- Row selection (click, Ctrl+click, Shift+click) ----------------------
@@ -963,7 +979,14 @@
               onmousedown={onRowMouseDown}
               oncontextmenu={(e) => openMenu(e, riven.id, { kind: "riven", riven })}
             >
-              <td class="name">{riven.weaponName} <span class="ls-sub">{riven.rivenName}</span></td>
+              <td class="name">
+                {riven.weaponName} <span class="ls-sub">{riven.rivenName}</span>
+                {#if riven.adopted}
+                  <span class="ls-adopted" title={$t("liveScraper.listings.adoptedHint")}
+                    >{$t("liveScraper.listings.adopted")}</span
+                  >
+                {/if}
+              </td>
               <td class="ls-sub attrs" title={statSummary(riven)}>{statSummary(riven)}</td>
               <td class="num">{riven.masteryReq}</td>
               <td class="num">{riven.rerolls}</td>
@@ -983,6 +1006,11 @@
           {/each}
         </tbody>
       </table>
+    {/if}
+    {#if hiddenRows > 0}
+      <p class="ls-more" data-ls-more-rows>
+        {$t("liveScraper.listings.moreRows", { count: hiddenRows })}
+      </p>
     {/if}
   </div>
 </section>
@@ -1064,6 +1092,13 @@
     max-height: 26rem;
     min-height: 9rem;
     overflow: auto;
+  }
+  .ls-more {
+    margin: 0;
+    padding: 0.6rem 1rem;
+    text-align: center;
+    font-size: 0.75rem;
+    color: var(--text-muted);
   }
   .ls-empty {
     margin: 0;
