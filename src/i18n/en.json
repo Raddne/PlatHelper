@@ -578,6 +578,7 @@
   "liveScraper.removeManyFailed": "{failed} of {count} entries were not removed - their warframe.market listings could not be deleted.",
   "liveScraper.listings.searchPlaceholder": "Search listings...",
   "liveScraper.listings.noMatches": "No listing matches \"{query}\".",
+  "liveScraper.listings.moreRows": "{count} more rows not shown - use the search box to narrow the list.",
   "liveScraper.listings.selectedCount": "{count} selected",
   "liveScraper.listings.menu.bulkMinPrice": "Set min price for {count} rows...",
   "liveScraper.listings.menu.bulkMaxPrice": "Set max price for {count} rows...",

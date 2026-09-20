@@ -16,14 +16,16 @@ const REFERENCE_ROOTS = ["src", "ipc", "config/shared"].map((dir) =>
 // warframe.market whispers are sent to other players, so they must stay English.
 const ENGLISH_ONLY = ["common.whisperBuy", "common.whisperSell"];
 
-// Keys this fork added on top of upstream WFHelper. The release must carry no
-// translation beyond upstream's own, so these stay English by fallback.
+// Keys this fork added on top of upstream WFHelper. German stays English by
+// fallback; Simplified Chinese is translated at the owner's request.
 const FORK_ENGLISH_ONLY =
   /^(liveScraper\.|presets\.|messages\.|rivenQuick\.|nav\.(liveScraper|messages|newGroupDefaultName|ungroup|renameGroupHint)$|common\.add$)/;
 
 // Trade shorthand, grade letters and relic tier names read the same everywhere,
-// so de.json leaves them out and the English fallback serves them.
-const LANGUAGE_NEUTRAL = /^(appearance\.label\.grade|inventory\.wt[bs]|relics\.tier\.)/;
+// so the catalogues leave them out and the English fallback serves them. The
+// Live Scraper's WTB/WTS tabs and its WFM badge are the same shorthand.
+const LANGUAGE_NEUTRAL =
+  /^(appearance\.label\.grade|inventory\.wt[bs]|relics\.tier\.|liveScraper\.listings\.(tabs\.wt[bs]|adopted)$)/;
 
 // Names the game's own Chinese client leaves in English, so the fallback is the
 // correct rendering rather than a gap.
@@ -119,9 +121,8 @@ describe("i18n dictionaries", () => {
     expect(untranslated).toEqual([]);
   });
 
-  it("carries no generated translation for the keys this fork added", () => {
+  it("carries no generated German translation for the keys this fork added", () => {
     expect(Object.keys(de).filter((key) => FORK_ENGLISH_ONLY.test(key))).toEqual([]);
-    expect(Object.keys(zh).filter((key) => FORK_ENGLISH_ONLY.test(key))).toEqual([]);
   });
 
   it("translates every key Chinese is expected to carry", () => {
@@ -130,7 +131,6 @@ describe("i18n dictionaries", () => {
         !(key in zh) &&
         !ENGLISH_ONLY.includes(key) &&
         !LANGUAGE_NEUTRAL.test(key) &&
-        !FORK_ENGLISH_ONLY.test(key) &&
         !CHINESE_NAMES_IN_ENGLISH.has(key),
     );
 
