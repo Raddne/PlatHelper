@@ -1,8 +1,8 @@
 // Live deployment checks for failures Miniflare cannot reproduce. Override the default
-// https://api.wfhelper.com endpoint with WORKER_URL.
+// https://plathelper-api.cinxia.app endpoint with WORKER_URL.
 import { describe, it, expect, beforeAll } from 'vitest';
 
-const BASE_URL = (process.env.WORKER_URL || 'https://api.wfhelper.com').replace(/\/$/, '');
+const BASE_URL = (process.env.WORKER_URL || 'https://plathelper-api.cinxia.app').replace(/\/$/, '');
 const HOUR = 3600 * 1000;
 const DAY = 24 * HOUR;
 

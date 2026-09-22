@@ -6,24 +6,24 @@ order: 1
 version: "2.0"
 view: setup
 screenshot: docs-setup.png
-screenshotAlt: WFHelper setup with language, app size, and theme choices.
+screenshotAlt: PlatHelper setup with language, app size, and theme choices.
 screenshotCaption: The setup wizard. You can change these choices later in Settings.
 ---
 
-## Install and open WFHelper
+## Install and open PlatHelper
 
-1. Download WFHelper from [GitHub Releases](https://github.com/WFHelper/wfhelper/releases).
-2. On Windows, download the release's `WFHelper-<version>-Setup.exe` and run it. The installer is unsigned, so Windows SmartScreen may show a warning. Check that the file came from the project's release page before choosing **More info**, then **Run anyway**.
+1. Download PlatHelper from [GitHub Releases](https://github.com/Raddne/PlatHelper/releases).
+2. On Windows, download the release's `PlatHelper-<version>-Setup.exe` and run it. The installer is unsigned, so Windows SmartScreen may show a warning. Check that the file came from the project's release page before choosing **More info**, then **Run anyway**.
 3. On Linux, download the `.AppImage`, mark it executable in your file manager's Properties, and open it. See [Linux setup](#linux-setup) below for screen capture and Steam settings.
 4. Choose your language, app size, and theme in the setup wizard, then select **Next**.
 
-You do not need a WFHelper account. A warframe.market sign-in is only needed for account features such as managing your listings.
+You do not need a PlatHelper account. A warframe.market sign-in is only needed for account features such as managing your listings.
 
 ## Choose an inventory source
 
 ### Automatic inventory
 
-On Windows, select **warframe-api-helper**, then **Install Helper**. If it is already installed, select **Load Helper Data**. WFHelper downloads the helper through the setup wizard.
+On Windows, select **warframe-api-helper**, then **Install Helper**. If it is already installed, select **Load Helper Data**. PlatHelper downloads the helper through the setup wizard.
 
 On Linux, select **Read from the running game**. The inventory reader is built in, so there is no separate helper executable to install.
 
@@ -48,8 +48,8 @@ The wizard previews the relic reward, relic planner, riven, and arbitration summ
 
 To check a reward scan:
 
-1. Set **Warframe's UI language to English**. WFHelper's display language is a separate setting.
-2. Leave WFHelper running, enter a Void Fissure mission, and open a relic.
+1. Set **Warframe's UI language to English**. PlatHelper's display language is a separate setting.
+2. Leave PlatHelper running, enter a Void Fissure mission, and open a relic.
 3. When the reward choices appear, wait for the reward overlay to show their prices.
 4. If it does not appear, check the overlay settings and the **Relic trigger hotkey** in **Settings**. On Linux, also check the screen-share permission described below.
 
@@ -61,7 +61,7 @@ Run Warframe through Steam with Proton. For faster detection of overlay events, 
 
 The first capture in a session asks you to share a screen. Select the monitor showing Warframe and allow the request. If you dismiss it, the overlay cannot read the reward screen.
 
-Overlays work on X11, XWayland and native Wayland. On native Wayland they use the layer-shell protocol (KDE Plasma, Sway, Hyprland, niri, COSMIC); GNOME does not offer it, so WFHelper uses XWayland there. SteamOS game mode is unsupported.
+Overlays work on X11, XWayland and native Wayland. On native Wayland they use the layer-shell protocol (KDE Plasma, Sway, Hyprland, niri, COSMIC); GNOME does not offer it, so PlatHelper uses XWayland there. SteamOS game mode is unsupported.
 
 ## If setup gets stuck
 
@@ -72,7 +72,7 @@ Overlays work on X11, XWayland and native Wayland. On native Wayland they use th
 - **Items or quantities look old:** check the selected source and allow for the helper cooldown. Imported files need a newer export to reflect later changes.
 - **Overlay cannot read a reward:** confirm the game's English interface, check screen-share permission on Linux, and follow any OCR hint shown by the app. If a scan-debug bundle was created, **Settings > General > Open scan-debug folder** opens it.
 
-Report persistent problems through [GitHub Issues](https://github.com/WFHelper/wfhelper/issues) or [Discord](https://discord.gg/7Gm3UvUSww). Include your app version, operating system, inventory source, and exact error. Check logs and screenshots for personal information before sharing them.
+Report persistent problems through [GitHub Issues](https://github.com/Raddne/PlatHelper/issues) or [Discord](https://discord.gg/7Gm3UvUSww). Include your app version, operating system, inventory source, and exact error. Check logs and screenshots for personal information before sharing them.
 
 ## Next: explore your inventory
 

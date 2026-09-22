@@ -19,7 +19,6 @@
   import SettingsSection from "../components/settings/SettingsSection.svelte";
   import SettingsRow from "../components/settings/SettingsRow.svelte";
   import AboutCard from "../components/settings/AboutCard.svelte";
-  import SupportersCard from "../components/settings/SupportersCard.svelte";
   import ProtonLaunchOption from "../components/ProtonLaunchOption.svelte";
   import LinuxDisplayBackend from "../components/LinuxDisplayBackend.svelte";
   import SegmentedControl from "../components/SegmentedControl.svelte";
@@ -923,8 +922,6 @@
 
           <AboutCard />
         </div>
-
-        <SupportersCard />
       </div>
 
       <div class="settings-wide-actions pb-3">
@@ -1217,23 +1214,11 @@
 {/if}
 
 <style>
-  /* Size container so the supporters panel can query the real content width
-     (the viewport lies once the sidebar expands). */
-  .settings-shell {
-    container-type: inline-size;
-  }
-
   .settings-tab-grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr));
     gap: 0.85rem;
     align-items: start;
-  }
-
-  /* Positioning context for the supporters panel, which floats in the dead
-     space right of the 1120px view cap on wide windows. */
-  .settings-general-layout {
-    position: relative;
   }
 
   .settings-input {

@@ -10,8 +10,7 @@ import {
   type ElectronTestHarness,
 } from "./electronTestHarness";
 
-// The sidebar button is switched off (FEEDBACK_ENABLED in Sidebar.svelte).
-test.skip("feedback previews optional data and preserves a failed draft without duplicate sends", async () => {
+test("feedback previews optional data and preserves a failed draft without duplicate sends", async () => {
   const testInfo = test.info();
   let harness: ElectronTestHarness | undefined;
   const pageErrors: string[] = [];

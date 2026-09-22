@@ -1,16 +1,14 @@
 # PlatHelper
 
-PlatHelper is a fork of [WFHelper](https://github.com/WFHelper/WFHelper), the
-unofficial Warframe companion app (inventory, foundry, relic and riven scanning,
-warframe.market orders). Everything WFHelper does is still here - see
-[wfhelper.com](https://wfhelper.com) for the full feature tour and FAQ.
+PlatHelper is an unofficial Warframe companion app: inventory, foundry, relic
+and riven scanning, and warframe.market orders, plus an automated
+warframe.market live scraper, a messages tab and a few comfort features on
+top. The trading logic is modelled on
+[Quantframe](https://github.com/Kenya-DK/quantframe-react).
 
-This guide only covers what PlatHelper adds on top: an automated
-warframe.market live scraper, a messages tab and a few comfort features. The trading
-logic is modelled on [Quantframe](https://github.com/Kenya-DK/quantframe-react).
-
-PlatHelper keeps its own data folder. On first start it copies an existing
-WFHelper profile, so your login and settings carry over.
+PlatHelper keeps its own data folder. On first start it offers to import
+settings from the original app if it finds an existing install, so your login
+and settings carry over.
 
 > **Heads-up:** the Live Scraper creates, changes and deletes **real** orders and
 > auctions on your warframe.market account. Start with small budgets and watch
@@ -113,7 +111,6 @@ desktop toast as well.
 
 ## Credits and license
 
-PlatHelper is built on WFHelper (made by the WFHelper team) and stays under the same
-[MIT license](LICENSE). Inventory data comes from
+Based on WFHelper (MIT); see [LICENSE](LICENSE). Inventory data comes from
 [warframe-api-helper](https://github.com/Sainan/warframe-api-helper). PlatHelper
 is not affiliated with Digital Extremes or warframe.market.

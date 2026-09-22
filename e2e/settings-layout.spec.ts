@@ -14,18 +14,6 @@ function shotPath(name: string): string {
   return test.info().outputPath(name);
 }
 
-// The panel only renders with a supporters cache; seeding one keeps the layout
-// deterministic since loadSupporters() then returns it without fetching.
-const SUPPORTERS_CACHE = JSON.stringify({
-  cachedAt: Date.now(),
-  supporters: [
-    { name: "Fixture Patron One", tier: "biggest" },
-    { name: "Fixture Patron Two", tier: "big" },
-    { name: "Fixture Patron Three", tier: "basic" },
-    { name: "Fixture Patron Four", tier: "basic" },
-  ],
-});
-
 /**
  * Label beside control, both measured. A wrapped control shares no line with its
  * label, so `stacked` and `overlaps` are the two ways a row can end up.
@@ -110,9 +98,7 @@ test.describe("Settings rows degrade without colliding", () => {
   let page: Page;
 
   test.beforeAll(async () => {
-    harness = await launchElectronTestHarness("wfh-settings-layout-e2e-", {
-      storage: { wf_supporters_cache: SUPPORTERS_CACHE },
-    });
+    harness = await launchElectronTestHarness("wfh-settings-layout-e2e-");
     page = harness.page;
   });
 
@@ -161,72 +147,14 @@ test.describe("Settings rows degrade without colliding", () => {
     await setFontScale(page, null);
   });
 
-  test("the supporters panel keeps its gap to the card above it", async () => {
-    await openSettings(page, 1240);
-    const panel = page.locator("[data-supporters]");
-    await expect(panel, "seeded supporters cache did not render the panel").toBeVisible();
-
-    const measured = await page.evaluate(() => {
-      const el = document.querySelector<HTMLElement>("[data-supporters]");
-      if (!el) return null;
-      const style = getComputedStyle(el);
-      const panelTop = el.getBoundingClientRect().top;
-      let closest = -Infinity;
-      for (const card of Array.from(
-        document.querySelectorAll<HTMLElement>(".settings-masonry article"),
-      )) {
-        const bottom = card.getBoundingClientRect().bottom;
-        if (bottom <= panelTop + 1) closest = Math.max(closest, bottom);
-      }
-      return {
-        position: style.position,
-        marginTop: parseFloat(style.marginTop),
-        gap: closest === -Infinity ? null : panelTop - closest,
-      };
-    });
-    await page.screenshot({ path: shotPath("settings-supporters.png") });
-
-    expect(measured, "supporters panel disappeared mid-measurement").not.toBeNull();
-    // The floated wide-container variant anchors with `top`, not `margin-top`.
-    expect(measured!.position, "supporters panel is not in flow at 1240px").toBe("static");
-    expect(measured!.gap, "no card sits above the supporters panel").not.toBeNull();
-    expect(measured!.gap!, "supporters panel touches the card above it").toBeGreaterThanOrEqual(
-      measured!.marginTop - 1,
-    );
-  });
-
-  test("supporters stay beside Settings on a wide window", async () => {
-    await setFontScale(page, null);
-    await openSettings(page, 1920);
-    const panel = page.locator("[data-supporters]");
-    await expect(panel).toBeVisible();
-    const layout = await page.evaluate(() => {
-      const panel = document.querySelector("[data-supporters]")!.getBoundingClientRect();
-      const grid = document.querySelector(".settings-masonry")!.getBoundingClientRect();
-      return {
-        left: panel.left,
-        top: panel.top,
-        right: panel.right,
-        gridRight: grid.right,
-        gridTop: grid.top,
-        viewport: innerWidth,
-      };
-    });
-    expect(layout.left).toBeGreaterThan(layout.gridRight);
-    expect(Math.abs(layout.top - layout.gridTop)).toBeLessThan(30);
-    expect(layout.right).toBeLessThanOrEqual(layout.viewport);
-    await page.screenshot({ path: test.info().outputPath("settings-supporters-wide.png") });
-  });
-
   // The narrowest masonry column lands around 1040px; each row keeps label and
   // link on one line or fully stacks, and a raised font scale is what forces it to show.
-  test("Settings About and Supporters cards stay readable when the window narrows", async () => {
+  test("Settings About card stays readable when the window narrows", async () => {
     await setFontScale(page, 1.25);
 
     for (const width of [700, 900, 1040, 1200]) {
       await openSettings(page, width);
       await expect(page.locator(".settings-credit-row").first()).toBeVisible();
-      await expect(page.locator("[data-supporters]")).toBeVisible();
 
       const layout = await page.evaluate(() => {
         const rows = Array.from(document.querySelectorAll<HTMLElement>(".settings-credit-row"));
@@ -237,8 +165,6 @@ test.describe("Settings rows degrade without colliding", () => {
           document.querySelectorAll<HTMLElement>(".settings-link"),
           (link) => link.getBoundingClientRect().height,
         );
-        const supporters = document.querySelector<HTMLElement>("[data-supporters]");
-        const supportersRect = supporters?.getBoundingClientRect() ?? null;
         const actions = document.querySelector<HTMLElement>("[data-settings-actions]");
         const content = document.querySelector<HTMLElement>("#content")!;
         return {
@@ -246,9 +172,6 @@ test.describe("Settings rows degrade without colliding", () => {
           // Math.max of nothing is -Infinity, so an absent element has to be
           // reported rather than folded into a ratio that passes anything.
           linkCount: linkHeights.length,
-          supporterChipCount: supporters
-            ? supporters.querySelectorAll("span[class*='rounded-full']").length
-            : 0,
           // Either the value sits beside the label or it wrapped underneath it.
           collisions: rows
             .filter((row) => {
@@ -262,11 +185,6 @@ test.describe("Settings rows degrade without colliding", () => {
           linkHeightRatio: linkHeights.length
             ? Math.max(...linkHeights) / Math.min(...linkHeights)
             : null,
-          chipsOutside: supporters
-            ? Array.from(supporters.querySelectorAll<HTMLElement>("span[class*='rounded-full']"))
-                .filter((chip) => chip.getBoundingClientRect().right > supportersRect!.right)
-                .map((chip) => chip.textContent ?? "")
-            : null,
           actionsFit: actions ? actions.scrollWidth <= actions.clientWidth + 1 : false,
           contentFits: content.scrollWidth <= content.clientWidth,
         };
@@ -274,11 +192,9 @@ test.describe("Settings rows degrade without colliding", () => {
 
       expect(layout.rowCount, `no credit rows rendered at ${width}px`).toBeGreaterThan(0);
       expect(layout.linkCount, `no credit links rendered at ${width}px`).toBeGreaterThan(0);
-      expect(layout.supporterChipCount, `no supporter chips at ${width}px`).toBeGreaterThan(0);
       expect(layout.collisions, `credit rows collide at ${width}px`).toEqual([]);
       expect(layout.overflowing, `credit rows overflow at ${width}px`).toEqual([]);
       expect(layout.linkHeightRatio!, `a credit link wraps at ${width}px`).toBeLessThan(1.6);
-      expect(layout.chipsOutside, `supporter chips escape the card at ${width}px`).toEqual([]);
       expect(layout.actionsFit, `settings actions overflow at ${width}px`).toBe(true);
       expect(layout.contentFits, `settings scrolls sideways at ${width}px`).toBe(true);
     }

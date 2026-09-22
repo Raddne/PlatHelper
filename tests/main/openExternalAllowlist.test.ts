@@ -7,9 +7,6 @@ const ABOUT_CARD_HOSTS = [
   "github.com",
   "browse.wf",
   "svesk.github.io",
-  "wfhelper.com",
-  "discord.gg",
-  "www.patreon.com",
   "arbi.guide",
 ];
 
@@ -20,14 +17,15 @@ describe("open-external allowlist", () => {
   });
 
   it("is case-insensitive and trims", () => {
-    expect(isAllowedExternalHost(" WWW.Patreon.COM ")).toBe(true);
+    expect(isAllowedExternalHost(" WWW.Warframe.Market ")).toBe(true);
   });
 
   it("rejects unknown and lookalike hosts", () => {
     expect(isAllowedExternalHost("www.warframe.com")).toBe(true);
     expect(isAllowedExternalHost("www.warframe.com.evil.com")).toBe(false);
     expect(isAllowedExternalHost("evil.com")).toBe(false);
-    expect(isAllowedExternalHost("patreon.com.evil.com")).toBe(false);
+    expect(isAllowedExternalHost("patreon.com")).toBe(false);
+    expect(isAllowedExternalHost("wfhelper.com")).toBe(false);
     expect(isAllowedExternalHost("")).toBe(false);
   });
 });

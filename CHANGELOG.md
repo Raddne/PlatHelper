@@ -4,6 +4,12 @@ Patch notes for every PlatHelper release. The release workflow copies the sectio
 
 Keep every bullet on one line: GitHub shows a line break inside release notes as a line break.
 
+## v0.1.9
+
+- Price data now comes from PlatHelper's own backend instead of the upstream project's server.
+- Removed the upstream project's branding, donation buttons and links; the app now carries its own icon.
+- Feedback is back in the sidebar and goes to PlatHelper's own backend.
+
 ## v0.1.6
 
 - Maintenance release: internal cleanup, no changes to existing features.

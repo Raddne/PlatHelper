@@ -1,9 +1,7 @@
 <script lang="ts">
-  import { PATREON_URL } from "../../config/links.js";
   import { tr } from "../../lib/i18n.js";
   import { send } from "../../lib/ipc.js";
   import SettingsSection from "./SettingsSection.svelte";
-  import DocsLink from "../DocsLink.svelte";
 
   const appVersion = import.meta.env.VITE_APP_VERSION || "?";
 
@@ -48,12 +46,6 @@
       url: "https://github.com/Raddne/PlatHelper",
       text: "GitHub",
     },
-    { label: $tr("settings.creditWebsite"), url: "https://wfhelper.com", text: "wfhelper.com" },
-    {
-      label: $tr("settings.creditCommunity"),
-      url: "https://discord.gg/7Gm3UvUSww",
-      text: $tr("settings.creditCommunityValue"),
-    },
   ]);
 </script>
 
@@ -76,21 +68,6 @@
         {/if}
       </div>
     {/each}
-    <div class="settings-credit-row">
-      <span>{$tr("settings.creditHelp")}</span>
-      <DocsLink />
-    </div>
-    <div class="settings-credit-row">
-      <span>{$tr("settings.creditSupport")}</span>
-      <span class="flex flex-wrap items-center justify-end gap-x-2.5 gap-y-1">
-        <button
-          class="settings-link"
-          onclick={() => openLink("https://github.com/sponsors/MrZockerator")}
-          >&hearts; {$tr("settings.creditSponsors")}</button
-        >
-        <button class="settings-link" onclick={() => openLink(PATREON_URL)}>Patreon</button>
-      </span>
-    </div>
   </div>
 
   <p class="m-0 mt-2.5 text-xs leading-snug text-text-muted">

@@ -35,21 +35,17 @@ test("Settings, feedback and overlay previews keep their reviewed appearance", a
       animations: "disabled",
       maxDiffPixelRatio: 0.005,
     });
-    // The feedback button is switched off for now (FEEDBACK_ENABLED in
-    // Sidebar.svelte); its baseline is only compared while it exists.
     const feedbackOpen = page.locator("#sidebar [data-feedback-open]");
-    if ((await feedbackOpen.count()) > 0) {
-      await feedbackOpen.click();
-      const modal = page.locator("[data-feedback-modal]");
-      await expect(modal).toBeVisible();
-      await expect(page.locator("[data-feedback-metadata]")).toBeVisible();
-      await expect(modal).toHaveScreenshot("feedback.png", {
-        animations: "disabled",
-        mask: [page.locator("[data-feedback-metadata]")],
-        maxDiffPixelRatio: 0.005,
-      });
-      await page.locator("[data-feedback-cancel]").click();
-    }
+    await feedbackOpen.click();
+    const modal = page.locator("[data-feedback-modal]");
+    await expect(modal).toBeVisible();
+    await expect(page.locator("[data-feedback-metadata]")).toBeVisible();
+    await expect(modal).toHaveScreenshot("feedback.png", {
+      animations: "disabled",
+      mask: [page.locator("[data-feedback-metadata]")],
+      maxDiffPixelRatio: 0.005,
+    });
+    await page.locator("[data-feedback-cancel]").click();
     await setLayoutViewport(page, 1280, 1000);
     await page.locator('[data-tour-tab="customization"]').click();
     for (const kind of ["rivenLeft", "arbiSummary", "tradeNotification"]) {

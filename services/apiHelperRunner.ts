@@ -35,6 +35,10 @@ const MAX_HELPER_DOWNLOAD_BYTES = 128 * 1024 * 1024;
 const HELPER_RELEASE_TAG = "1.1.1";
 const GITHUB_RELEASES_URL = `https://api.github.com/repos/Sainan/warframe-api-helper/releases/tags/${HELPER_RELEASE_TAG}`;
 
+function userAgent(): string {
+  return `PlatHelper/${app.getVersion()}`;
+}
+
 // Accepted helper binary SHA-256s; anything else is refused. Bump on a new audited release.
 const PINNED_HELPER_SHA256: ReadonlySet<string> = new Set([
   // 1.1.1 (tag on 'senpai' branch) - verified 2026-04-18
@@ -718,7 +722,7 @@ function httpsDownloadToFile(
         rejectOnce(err);
         return;
       }
-      const request = https.get(absUrl, { headers: { "User-Agent": "WFHelper" } }, (res) => {
+      const request = https.get(absUrl, { headers: { "User-Agent": userAgent() } }, (res) => {
         // Follow redirect - but only to https:// targets. Resolve relative
         // locations against the current URL before re-validating.
         if (
@@ -804,7 +808,7 @@ export async function downloadHelper(
 
     const releaseRes = await httpsGetBuffer(
       GITHUB_RELEASES_URL,
-      { "User-Agent": "WFHelper", Accept: "application/vnd.github+json" },
+      { "User-Agent": userAgent(), Accept: "application/vnd.github+json" },
       MAX_RELEASE_METADATA_BYTES,
     );
 

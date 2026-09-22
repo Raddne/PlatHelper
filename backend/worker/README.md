@@ -197,7 +197,7 @@ the selected entries are warm.
 ## Live smoke test
 
 ```bash
-WORKER_URL=https://api.wfhelper.com npm run test:smoke
+WORKER_URL=https://plathelper-api.cinxia.app npm run test:smoke
 ```
 
 GitHub Actions runs the same test against production every six hours. Keep it out of pull-request

@@ -6,7 +6,9 @@
   let { page }: { page?: Extract<ViewName, "setup" | "inventory"> } = $props();
 
   const url = $derived(
-    `https://wfhelper.com/docs/${page === "setup" ? "getting-started" : (page ?? "")}`,
+    `https://github.com/Raddne/PlatHelper/blob/main/docs/features/${
+      page === "setup" ? "getting-started" : (page ?? "README")
+    }.md`,
   );
   const label = $derived(
     page

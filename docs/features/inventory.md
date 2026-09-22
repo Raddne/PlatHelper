@@ -6,7 +6,7 @@ order: 2
 version: "2.0"
 view: inventory
 screenshot: docs-inventory.png
-screenshotAlt: WFHelper Inventory with item categories, value estimates, filters, and owned item cards.
+screenshotAlt: PlatHelper Inventory with item categories, value estimates, filters, and owned item cards.
 screenshotCaption: Inventory with sample data.
 ---
 
@@ -55,7 +55,7 @@ Set rows are skipped because their parts are already counted. Ducat totals count
 
 ## Review what to keep
 
-Before selling, check the item's reservation information. Depending on your settings and goals, WFHelper can reserve copies for mastery, pinned crafting goals, full sets, spare copies, or manual locks.
+Before selling, check the item's reservation information. Depending on your settings and goals, PlatHelper can reserve copies for mastery, pinned crafting goals, full sets, spare copies, or manual locks.
 
 Hover a reservation indicator to see why copies are being kept. **Safe to sell** uses your current rules and inventory snapshot; check it against your plans before selling.
 
@@ -79,4 +79,4 @@ Listings are created after review and confirmation. Complete the trade with the 
 - **A set appears alongside its parts:** this is a grouped view. The value estimate avoids counting the set twice.
 - **A quantity has not changed after a trade:** see [inventory refresh and imports](/docs/getting-started#choose-an-inventory-source).
 
-For setup and capture problems, return to [Getting started](/docs/getting-started#if-setup-gets-stuck). For an inventory mismatch that persists, report the app version, source type, item name, and expected quantity through [GitHub Issues](https://github.com/WFHelper/wfhelper/issues).
+For setup and capture problems, return to [Getting started](/docs/getting-started#if-setup-gets-stuck). For an inventory mismatch that persists, report the app version, source type, item name, and expected quantity through [GitHub Issues](https://github.com/Raddne/PlatHelper/issues).

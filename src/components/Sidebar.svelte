@@ -50,10 +50,6 @@
   } from "../lib/sidebarDrop.js";
 
   $: showDevTools = $devMode;
-  // Feedback goes to the upstream WFHelper team, which cannot act on reports
-  // about this fork. Hidden until PlatHelper has its own channel; flip to
-  // bring the button back (and un-skip e2e/feedback.spec.ts).
-  const FEEDBACK_ENABLED: boolean = false;
   let feedbackOpen = false;
   let customizeOpen = false;
 
@@ -794,31 +790,29 @@
       </svg>
       <span>{$tr("presets.customizeButton")}</span>
     </button>
-    {#if FEEDBACK_ENABLED}
-      <button
-        type="button"
-        data-feedback-open
-        class="nav-btn relative flex w-full cursor-pointer items-center gap-3 rounded-md border-0 bg-transparent px-3.5 py-2.5 font-display text-base font-medium tracking-wide text-text-muted transition-colors duration-150 hover:bg-bg-hover hover:text-text-primary"
-        title={$tr("feedback.title")}
-        aria-label={$tr("feedback.title")}
-        on:click={() => (feedbackOpen = true)}
+    <button
+      type="button"
+      data-feedback-open
+      class="nav-btn relative flex w-full cursor-pointer items-center gap-3 rounded-md border-0 bg-transparent px-3.5 py-2.5 font-display text-base font-medium tracking-wide text-text-muted transition-colors duration-150 hover:bg-bg-hover hover:text-text-primary"
+      title={$tr("feedback.title")}
+      aria-label={$tr("feedback.title")}
+      on:click={() => (feedbackOpen = true)}
+    >
+      <svg
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="1.75"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+        class="h-6 w-6 shrink-0"
+        aria-hidden="true"
       >
-        <svg
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          stroke-width="1.75"
-          stroke-linecap="round"
-          stroke-linejoin="round"
-          class="h-6 w-6 shrink-0"
-          aria-hidden="true"
-        >
-          <path d="M21 15a3 3 0 01-3 3H8l-5 4V6a3 3 0 013-3h12a3 3 0 013 3z" />
-          <path d="M8 10h8M8 14h5" />
-        </svg>
-        <span>{$tr("feedback.title")}</span>
-      </button>
-    {/if}
+        <path d="M21 15a3 3 0 01-3 3H8l-5 4V6a3 3 0 013-3h12a3 3 0 013 3z" />
+        <path d="M8 10h8M8 14h5" />
+      </svg>
+      <span>{$tr("feedback.title")}</span>
+    </button>
   </div>
 </nav>
 

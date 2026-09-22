@@ -1,11 +1,10 @@
 # Feature guides
 
-The Markdown files in this folder are the source of the guides on
-https://wfhelper.com/docs/. The site is generated from them by a private build
-that also holds the screenshots, so nothing here needs the site checkout: write
-the guide, keep it valid against the rules below, and
-`pnpm run test -- tests/main/docsGuides.test.ts` checks the same rules the
-generator enforces. This README is not published.
+The Markdown files in this folder are the guides opened by the in-app Help
+buttons (`src/components/DocsLink.svelte`), rendered on GitHub. Write the
+guide, keep it valid against the rules below, and
+`pnpm run test -- tests/main/docsGuides.test.ts` checks those rules. This
+README is not published.
 
 ## When to edit
 

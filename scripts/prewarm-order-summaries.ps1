@@ -13,7 +13,7 @@ param(
     [Parameter(Mandatory=$true)]
     [string]$ApiKey,
 
-    [string]$WorkerUrl = "https://api.wfhelper.com",
+    [string]$WorkerUrl = "https://plathelper-api.cinxia.app",
     [ValidateSet("catalog", "hotset")]
     [string]$Source = "catalog",
     [string]$HotsetFile = "",

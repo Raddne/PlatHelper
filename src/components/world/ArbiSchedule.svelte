@@ -276,7 +276,7 @@
     }
 
     const footer = cardEl("wfh-arbicard-footer");
-    footer.appendChild(cardEl("wfh-arbicard-url", "wfhelper.com"));
+    footer.appendChild(cardEl("wfh-arbicard-url", "github.com/Raddne/PlatHelper"));
     footer.appendChild(cardEl("wfh-arbicard-brand", $tr("arbisched.brand")));
     card.appendChild(footer);
 

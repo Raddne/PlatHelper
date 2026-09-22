@@ -10,7 +10,7 @@ import {
   setLayoutViewport,
 } from "./electronTestHarness";
 
-test("documentation links open the overview and the matching guides", async () => {
+test("documentation links open the matching guides", async () => {
   const parts = [
     "BratonPrimeBarrel",
     "BratonPrimeReceiver",
@@ -51,13 +51,6 @@ test("documentation links open the overview and the matching guides", async () =
     await inventoryHelp.click();
     await page.screenshot({ path: test.info().outputPath("inventory-help.png") });
 
-    await page.locator('#sidebar [data-view="settings"]').click();
-    const overview = page.locator('[data-docs-link="overview"]');
-    await overview.scrollIntoViewIfNeeded();
-    await expect(overview).toHaveAccessibleName("Documentation");
-    await overview.click();
-    await page.screenshot({ path: test.info().outputPath("settings-docs.png") });
-
     await page.evaluate(() => {
       localStorage.removeItem("setup-completed-v2");
       localStorage.setItem("app-language", "de");
@@ -70,9 +63,8 @@ test("documentation links open the overview and the matching guides", async () =
     await page.screenshot({ path: test.info().outputPath("setup-help-de.png") });
 
     const expected = [
-      "https://wfhelper.com/docs/inventory",
-      "https://wfhelper.com/docs/",
-      "https://wfhelper.com/docs/getting-started",
+      "https://github.com/Raddne/PlatHelper/blob/main/docs/features/inventory.md",
+      "https://github.com/Raddne/PlatHelper/blob/main/docs/features/getting-started.md",
     ];
     await expect
       .poll(() =>

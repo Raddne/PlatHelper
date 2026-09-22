@@ -9,11 +9,7 @@ const OPEN_EXTERNAL_ALLOWED_HOSTS: readonly string[] = Object.freeze([
   "svesk.github.io",
   "wiki.warframe.com",
   "www.warframe.com",
-  "wfhelper.com",
-  "www.wfhelper.com",
   "discord.gg",
-  "patreon.com",
-  "www.patreon.com",
   "browse.wf",
   "arbi.guide",
 ]);
