@@ -16,9 +16,9 @@ and settings carry over.
 
 ## Installation
 
-Head over to [Releases](https://github.com/Raddne/PlatHelper/releases)
-
 ### Windows
+
+Head over to [Releases](https://github.com/Raddne/PlatHelper/releases)
 
 Pick one:
 - Download and run and setup.exe, follow the guided installation
