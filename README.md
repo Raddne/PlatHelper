@@ -18,6 +18,8 @@ and settings carry over.
 
 Head over to [Releases](https://github.com/Raddne/PlatHelper/releases)
 
+### Windows
+
 Pick one:
 - Download and run and setup.exe, follow the guided installation
 - Download the portable.zip and extract the files within to a directory of your choosing
