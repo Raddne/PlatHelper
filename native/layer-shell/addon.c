@@ -639,7 +639,7 @@ static const struct wl_buffer_listener buffer_listener = {.release = on_buffer_r
 
 static int alloc_slot(struct buffer_slot *slot, int width, int height) {
   size_t size = (size_t)width * (size_t)height * 4;
-  int fd = memfd_create("wfhelper-layer", MFD_CLOEXEC);
+  int fd = memfd_create("plathelper-layer", MFD_CLOEXEC);
   if (fd < 0) return 0;
   if (ftruncate(fd, (off_t)size) < 0) {
     close(fd);
@@ -791,7 +791,7 @@ static napi_value Create(napi_env env, napi_callback_info info) {
   // reach this window.
   wl_surface_add_listener(win->surface, &surface_listener, win);
   win->layer = zwlr_layer_shell_v1_get_layer_surface(
-      layer_shell, win->surface, target, ZWLR_LAYER_SHELL_V1_LAYER_OVERLAY, "wfhelper");
+      layer_shell, win->surface, target, ZWLR_LAYER_SHELL_V1_LAYER_OVERLAY, "plathelper");
   zwlr_layer_surface_v1_add_listener(win->layer, &layer_listener, win);
   zwlr_layer_surface_v1_set_size(win->layer, (uint32_t)width, (uint32_t)height);
   zwlr_layer_surface_v1_set_anchor(win->layer, (uint32_t)anchor);
