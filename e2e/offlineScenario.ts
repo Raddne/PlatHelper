@@ -4,6 +4,10 @@ import path from "node:path";
 
 import { expect, type ElectronApplication, type Page } from "@playwright/test";
 
+import { BACKEND_URL } from "../config/shared/backendConfig";
+
+const BACKEND_HOST_PATTERN = BACKEND_URL.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
 interface ScenarioResponse {
   pattern: string;
   status: number;
@@ -128,8 +132,7 @@ export function createOfflineScenario(name: "world-darvo" | "world-unavailable" 
       { pattern: "^https://assets\\.wfhelper\\.com/", status: 404, body: {} },
       { pattern: "^https://browse\\.wf/arbys\\.txt$", status: 503, body: {} },
       {
-        pattern:
-          "^https://api\\.wfhelper\\.com/v1/(?:snapshot|baro-history|bootstrap|wfm-items|adversary-vendors|nightwave-offerings)(?:\\?|$)",
+        pattern: `^${BACKEND_HOST_PATTERN}/v1/(?:snapshot|baro-history|bootstrap|wfm-items|adversary-vendors|nightwave-offerings)(?:\\?|$)`,
         status: 503,
         body: { error: "fixture_unavailable" },
       },
