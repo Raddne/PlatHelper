@@ -22,6 +22,16 @@ Pick one:
 - Download and run and setup.exe, follow the guided installation
 - Download the portable.zip and extract the files within to a directory of your choosing
 
+### Linux
+
+On Ubuntu, Debian, Mint, Fedora or openSUSE, install (or update) with one command:
+
+```bash
+curl -fsSL https://github.com/Raddne/PlatHelper/releases/latest/download/install-linux.sh | sudo sh
+```
+
+It picks the `.deb` or `.rpm` from the latest release, checks its checksum and installs it. Start PlatHelper from your app menu or with `plathelper` (as your normal user, not with sudo). You can also install a downloaded package yourself with `sudo apt install ./PlatHelper-<version>.deb` or `sudo dnf install ./PlatHelper-<version>.rpm`, or use the `.AppImage` on any other distribution. See [Linux setup](docs/features/getting-started.md#linux-setup) for Steam and screen-capture settings.
+
 ## Live Scraper
 
 ![Live Scraper with stock, wishlist and the listings panel](.github/screenshots/scraper.png)

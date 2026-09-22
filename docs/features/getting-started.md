@@ -14,7 +14,7 @@ screenshotCaption: The setup wizard. You can change these choices later in Setti
 
 1. Download PlatHelper from [GitHub Releases](https://github.com/Raddne/PlatHelper/releases).
 2. On Windows, download the release's `PlatHelper-<version>-Setup.exe` and run it. The installer is unsigned, so Windows SmartScreen may show a warning. Check that the file came from the project's release page before choosing **More info**, then **Run anyway**.
-3. On Linux, download the `.AppImage`, mark it executable in your file manager's Properties, and open it. See [Linux setup](#linux-setup) below for screen capture and Steam settings.
+3. On Linux (Ubuntu, Debian, Mint, Fedora, openSUSE), run `curl -fsSL https://github.com/Raddne/PlatHelper/releases/latest/download/install-linux.sh | sudo sh` in a terminal, then start PlatHelper from your app menu or with `plathelper`. On other distributions, download the `.AppImage`, mark it executable in your file manager's Properties, and open it. See [Linux setup](#linux-setup) below for screen capture and Steam settings.
 4. Choose your language, app size, and theme in the setup wizard, then select **Next**.
 
 You do not need a PlatHelper account. A warframe.market sign-in is only needed for account features such as managing your listings.

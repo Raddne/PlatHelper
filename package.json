@@ -16,7 +16,7 @@
     "dev": "pnpm run build:main && concurrently -k \"pnpm:dev:main\" \"pnpm:dev:preloads\" \"pnpm:dev:renderer\" \"pnpm:dev:electron\"",
     "verify:onnx-models": "node scripts/verify-onnx-models.mjs",
     "dist": "pnpm run verify:onnx-models && pnpm run build && electron-builder",
-    "dist:linux": "pnpm run verify:onnx-models && pnpm run build && node scripts/build-layer-shell.mjs --require && electron-builder --linux AppImage",
+    "dist:linux": "pnpm run verify:onnx-models && pnpm run build && node scripts/build-layer-shell.mjs --require && electron-builder --linux",
     "build:layer-shell": "node scripts/build-layer-shell.mjs",
     "dist:win": "pnpm run verify:onnx-models && pnpm run build && electron-builder --win nsis",
     "dist:win:portable": "pnpm run verify:onnx-models && pnpm run build && electron-builder --win zip",
@@ -211,8 +211,12 @@
     "linux": {
       "icon": "assets/logo.png",
       "target": [
-        "AppImage"
+        "AppImage",
+        "deb",
+        "rpm"
       ],
+      "maintainer": "Raddne <Raddne@users.noreply.github.com>",
+      "synopsis": "Warframe companion: inventory, relic and riven scanning, market orders",
       "category": "Utility",
       "syncDesktopName": true,
       "artifactName": "${productName}-${version}.${ext}"

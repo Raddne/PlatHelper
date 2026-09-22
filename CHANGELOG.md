@@ -4,6 +4,12 @@ Patch notes for every PlatHelper release. The release workflow copies the sectio
 
 Keep every bullet on one line: GitHub shows a line break inside release notes as a line break.
 
+## v0.2.0
+
+- **PlatHelper now runs on Linux.** Every release ships an `.AppImage`, a `.deb` (Ubuntu, Debian, Mint) and an `.rpm` (Fedora, openSUSE).
+- One-command install and update on Linux: `curl -fsSL https://github.com/Raddne/PlatHelper/releases/latest/download/install-linux.sh | sudo sh` (see the README).
+- The in-app updater works on Linux too, for the AppImage and the installed packages.
+
 ## v0.1.9
 
 - Price data now comes from PlatHelper's own backend instead of the upstream project's server.

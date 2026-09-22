@@ -1,10 +1,11 @@
 name: Release
 
 # Push a tag like v0.1.1 (or create a release with a new tag in the GitHub UI) and
-# this builds the Windows installer plus a portable zip and publishes them. The
-# version needs a "## v<version>" section in CHANGELOG.md first: those bullet
-# points become the patch notes on top of the release. "Run workflow" does the
-# same for a version typed in by hand, creating the tag on the chosen branch.
+# this builds the Windows installer, a portable zip, the Linux AppImage, .deb and
+# .rpm plus the Linux install script, and publishes them. The version needs a
+# "## v<version>" section in CHANGELOG.md first: those bullet points become the
+# patch notes on top of the release. "Run workflow" does the same for a version
+# typed in by hand, creating the tag on the chosen branch.
 on:
   push:
     tags:
@@ -23,11 +24,19 @@ concurrency:
   group: release-${{ github.event.inputs.version || github.ref_name }}
   cancel-in-progress: false
 
+env:
+  # Start of every release file name, from the artifactName patterns in package.json.
+  ASSET_PREFIX: PlatHelper
+
 jobs:
-  release-windows:
-    runs-on: windows-latest
-    # Normally well under 15 min; a stalled runner should go red, not sit for 6 hours.
-    timeout-minutes: 30
+  # Before anything slow: a bad version or a release without patch notes stops
+  # here, not after two builds.
+  prepare:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      tag: ${{ steps.version.outputs.tag }}
 
     steps:
       - name: Checkout
@@ -35,7 +44,6 @@ jobs:
 
       - name: Resolve version
         id: version
-        shell: bash
         env:
           INPUT_VERSION: ${{ github.event.inputs.version }}
         run: |
@@ -48,11 +56,18 @@ jobs:
           echo "version=$version" >> "$GITHUB_OUTPUT"
           echo "tag=v$version" >> "$GITHUB_OUTPUT"
 
-      # Before anything slow: a release without patch notes is not a release.
       - name: Patch notes from CHANGELOG.md
-        shell: bash
-        # Written outside the checkout: `pnpm version` below refuses a dirty work tree.
-        run: node scripts/release-notes.mjs "${{ steps.version.outputs.version }}" > "$RUNNER_TEMP/release-notes.md"
+        run: node scripts/release-notes.mjs "${{ steps.version.outputs.version }}" > /dev/null
+
+  build-windows:
+    needs: prepare
+    runs-on: windows-latest
+    # Normally well under 15 min; a stalled runner should go red, not sit for 6 hours.
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
@@ -68,7 +83,7 @@ jobs:
       # wedged Windows runners.
       - name: Set version from tag
         shell: bash
-        run: pnpm version "${{ steps.version.outputs.version }}" --no-git-tag-version --allow-same-version
+        run: pnpm version "${{ needs.prepare.outputs.version }}" --no-git-tag-version --allow-same-version
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
@@ -106,54 +121,150 @@ jobs:
           path: test-results/
           if-no-files-found: ignore
 
-      # Draft first and published last, so nobody (and no auto-updater) ever sees
-      # a release that is still missing its installer.
+      - name: Keep release assets
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-windows
+          if-no-files-found: error
+          retention-days: 3
+          path: |
+            release/latest.yml
+            release/*-Setup.exe
+            release/*-Setup.exe.blockmap
+            release/*-portable.zip
+
+  # latest-linux.yml is what electron-updater reads inside a running AppImage or an
+  # installed .deb/.rpm; scripts/install-linux.sh reads it too.
+  build-linux:
+    needs: prepare
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Set version from tag
+        run: pnpm version "${{ needs.prepare.outputs.version }}" --no-git-tag-version --allow-same-version
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # wayland-scanner and the protocol XML are build-time only; without them
+      # build-layer-shell skips and the packages ship without the Wayland overlay addon.
+      # rpmbuild makes the .rpm.
+      - name: Install Linux build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwayland-dev libwayland-bin wayland-protocols rpm
+
+      - name: Build Linux AppImage, deb and rpm
+        run: |
+          pnpm run verify:onnx-models
+          pnpm run build
+          node scripts/build-layer-shell.mjs --require
+          pnpm exec electron-builder --linux --publish never
+
+      - name: Verify packaged Linux runtime
+        run: |
+          pnpm exec playwright install-deps chromium
+          VERSION=$(node -p "require('./package.json').version")
+          xvfb-run -a pnpm run test:packaged "release/$ASSET_PREFIX-$VERSION.AppImage"
+
+      - name: Preserve failed acceptance evidence
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-release-acceptance
+          path: test-results/
+          if-no-files-found: ignore
+
+      - name: Keep release assets
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-linux
+          if-no-files-found: error
+          retention-days: 3
+          path: |
+            release/latest-linux.yml
+            release/*.AppImage
+            release/*.deb
+            release/*.rpm
+
+  # Draft first and published last, and only once both platforms built, so
+  # nobody (and no auto-updater) ever sees a release missing one of its files.
+  publish:
+    needs: [prepare, build-windows, build-linux]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Collect release assets
+        uses: actions/download-artifact@v4
+        with:
+          pattern: release-*
+          path: release
+          merge-multiple: true
+
       - name: Publish release
-        shell: pwsh
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          TAG: ${{ steps.version.outputs.tag }}
+          TAG: ${{ needs.prepare.outputs.tag }}
+          VERSION: ${{ needs.prepare.outputs.version }}
         run: |
-          $pkg = Get-Content package.json | ConvertFrom-Json
-          $productName = $pkg.build.productName
-          $version = $pkg.version
-          $notesFile = Join-Path $env:RUNNER_TEMP "release-notes.md"
-          $bodyFile = Join-Path $env:RUNNER_TEMP "release-body.md"
-          $paths = @(
-            "release/latest.yml",
-            "release/$productName-$version-Setup.exe",
-            "release/$productName-$version-Setup.exe.blockmap",
-            "release/$productName-$version-portable.zip"
+          node scripts/release-notes.mjs "$VERSION" > "$RUNNER_TEMP/release-notes.md"
+          PATHS=(
+            "release/latest.yml"
+            "release/$ASSET_PREFIX-$VERSION-Setup.exe"
+            "release/$ASSET_PREFIX-$VERSION-Setup.exe.blockmap"
+            "release/$ASSET_PREFIX-$VERSION-portable.zip"
+            "release/latest-linux.yml"
+            "release/$ASSET_PREFIX-$VERSION.AppImage"
+            "release/$ASSET_PREFIX-$VERSION.deb"
+            "release/$ASSET_PREFIX-$VERSION.rpm"
           )
-          foreach ($path in $paths) {
-            if (-not (Test-Path $path)) { throw "Missing release asset: $path" }
-          }
+          for path in "${PATHS[@]}"; do
+            if [ ! -f "$path" ]; then
+              echo "::error::Missing release asset: $path"
+              exit 1
+            fi
+          done
 
-          gh release view $env:TAG --repo $env:GITHUB_REPOSITORY *> $null
-          if ($LASTEXITCODE -ne 0) {
-            gh release create $env:TAG `
-              --repo $env:GITHUB_REPOSITORY `
-              --target $env:GITHUB_SHA `
-              --title "PlatHelper $env:TAG" `
-              --draft `
-              --notes-file $notesFile `
+          if ! gh release view "$TAG" --repo "$GITHUB_REPOSITORY" > /dev/null 2>&1; then
+            gh release create "$TAG" \
+              --repo "$GITHUB_REPOSITORY" \
+              --target "$GITHUB_SHA" \
+              --title "PlatHelper $TAG" \
+              --draft \
+              --notes-file "$RUNNER_TEMP/release-notes.md" \
               --generate-notes
-            if ($LASTEXITCODE -ne 0) { throw "Failed to create release $env:TAG" }
-          } else {
+          else
             # A release made by hand in the UI: keep its text, but never let it go
             # out without the patch notes on top.
-            $body = gh release view $env:TAG --repo $env:GITHUB_REPOSITORY --json body --jq .body
-            $notes = (Get-Content $notesFile -Raw).Trim()
-            if (-not "$body".Contains($notes)) {
-              Set-Content -Path $bodyFile -Value ($notes + "`n`n" + "$body".Trim()) -Encoding utf8
-              gh release edit $env:TAG --repo $env:GITHUB_REPOSITORY --notes-file $bodyFile
-              if ($LASTEXITCODE -ne 0) { throw "Failed to add patch notes to $env:TAG" }
-            }
-          }
+            body=$(gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json body --jq .body)
+            notes=$(cat "$RUNNER_TEMP/release-notes.md")
+            if [[ "$body" != *"$notes"* ]]; then
+              printf '%s\n\n%s\n' "$notes" "$body" > "$RUNNER_TEMP/release-body.md"
+              gh release edit "$TAG" --repo "$GITHUB_REPOSITORY" --notes-file "$RUNNER_TEMP/release-body.md"
+            fi
+          fi
 
-          gh release upload $env:TAG $paths --clobber --repo $env:GITHUB_REPOSITORY
-          if ($LASTEXITCODE -ne 0) { throw "Failed to upload release assets" }
+          # The one-line Linux install fetches this from releases/latest/download.
+          cp scripts/install-linux.sh release/install-linux.sh
+          PATHS+=("release/install-linux.sh")
 
-          gh release edit $env:TAG --repo $env:GITHUB_REPOSITORY --draft=false --latest
-          if ($LASTEXITCODE -ne 0) { throw "Failed to publish release $env:TAG" }
-          Write-Host "Published $env:TAG"
+          gh release upload "$TAG" "${PATHS[@]}" --clobber --repo "$GITHUB_REPOSITORY"
+          gh release edit "$TAG" --repo "$GITHUB_REPOSITORY" --draft=false --latest
+          echo "Published $TAG"
