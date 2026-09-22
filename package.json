@@ -3,7 +3,7 @@
   "version": "0.1.9",
   "description": "Warframe companion: inventory, foundry, relic and riven scanning, market orders.",
   "main": ".electron-build/main.js",
-  "desktopName": "wfhelper.desktop",
+  "desktopName": "plathelper.desktop",
   "engines": {
     "node": ">=22.12",
     "pnpm": ">=11"
