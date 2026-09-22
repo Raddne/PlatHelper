@@ -17,7 +17,9 @@ let
 
   app = pkgs.stdenv.mkDerivation (finalAttrs: {
     pname = "plathelper";
-    version = "0.2.0";
+    # single source of truth: package.json's version, so `nix run
+    # github:Raddne/PlatHelper` always matches the tagged release.
+    version = (builtins.fromJSON (builtins.readFile ./package.json)).version;
     src = ./.;
 
     __structuredAttrs = true;
