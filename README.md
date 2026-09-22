@@ -22,7 +22,7 @@ Head over to [Releases](https://github.com/Raddne/PlatHelper/releases)
 
 Pick one:
 - Download and run and setup.exe, follow the guided installation
-- Download the portable.zip and extract the files within to a directory of your choosing
+- Download the portable.zip and extract the files within to a directory of your choosing. Launch via PlatHelper.exe
 
 ### Linux
 
