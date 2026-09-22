@@ -8,7 +8,7 @@ Keep every bullet on one line: GitHub shows a line break inside release notes as
 
 - **PlatHelper now runs on Linux.** Every release ships an `.AppImage`, a `.deb` (Ubuntu, Debian, Mint) and an `.rpm` (Fedora, openSUSE).
 - One-command install and update on Linux: `curl -fsSL https://github.com/Raddne/PlatHelper/releases/latest/download/install-linux.sh | sudo sh` (see the README).
-- The in-app updater works on Linux too, for the AppImage and the installed packages.
+- Updating on Linux: the AppImage updates itself from inside the app; for the `.deb` and `.rpm`, run the install command again.
 
 ## v0.1.9
 
