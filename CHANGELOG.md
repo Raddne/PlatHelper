@@ -4,6 +4,11 @@ Patch notes for every PlatHelper release. The release workflow copies the sectio
 
 Keep every bullet on one line: GitHub shows a line break inside release notes as a line break.
 
+## v0.2.2
+
+- Linux: PlatHelper now tells a sandboxed start (appimage-run, steam-run, Flatpak; the usual case on NixOS) apart from a real `kernel.yama.ptrace_scope` block and shows "WF unreachable from sandbox" with the fix: start PlatHelper outside the sandbox.
+- Docs: the Linux guide explains why reading Steam's Proton container normally needs no setup, and lists the sysctl only as the fallback.
+
 ## v0.2.1
 
 - Linux: a blocked game-memory read (`kernel.yama.ptrace_scope`, the kernel default on NixOS, Ubuntu, Debian and Arch) now shows "WF memory blocked (ptrace_scope)" with the sysctl to set, instead of wrongly claiming that Warframe runs as administrator.
