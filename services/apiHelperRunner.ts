@@ -123,6 +123,7 @@ export function nextHelperPollDelayMs(
     reason === "game-not-running" ||
     reason === "access-denied" ||
     reason === "ptrace-denied" ||
+    reason === "sandboxed" ||
     reason === "not-logged-in"
   ) {
     return Math.min(LOCAL_FAILURE_RETRY_MS, intervalMs);
@@ -280,10 +281,13 @@ export function getStatus(): HelperStatus {
 }
 
 /** Linux never has an "elevated" game: /proc/<pid>/mem refuses non-descendants
- *  under Yama ptrace_scope=1, the kernel default. Null means EE.log must decide
- *  between the login screen and a missed token. */
+ *  under Yama ptrace_scope=1, the kernel default, unless the reader owns the
+ *  game's user namespace (a plain install reading Steam's container). A reader
+ *  that is sandboxed itself never does. Null means EE.log must decide between
+ *  the login screen and a missed token. */
 export function linuxAuthzReason(reason: string): HelperRunReason | null {
   if (reason === "process-not-found") return "game-not-running";
+  if (reason.startsWith("sandbox-")) return "sandboxed";
   if (reason.startsWith("mem-open-")) return "ptrace-denied";
   return null;
 }
@@ -303,6 +307,15 @@ async function runOnceLinux(): Promise<boolean> {
     const reason = result ? linuxAuthzReason(result.reason) : null;
     if (reason === "game-not-running") {
       log.warn("Warframe is not running - start the game and log in first.");
+      return settleRun(false, reason);
+    }
+    if (reason === "sandboxed") {
+      log.error(
+        `Cannot read game memory (${result?.reason}): PlatHelper runs inside a sandbox ` +
+          "(bubblewrap, e.g. appimage-run or steam-run) with no access to the game's " +
+          "process. Start PlatHelper outside the sandbox, or set kernel.yama.ptrace_scope=0 " +
+          "(docs/features/getting-started.md, Linux setup).",
+      );
       return settleRun(false, reason);
     }
     if (reason === "ptrace-denied") {

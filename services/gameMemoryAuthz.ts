@@ -15,6 +15,8 @@ const MAX_NONCE_DIGITS = 24;
 // start-end perms offset dev inode [pathname]
 const MAPS_LINE = /^([0-9a-f]+)-([0-9a-f]+) (\S{4}) \S+ \S+ +\S+(?:\s+(.*))?$/;
 const MAX_REGION_BYTES = 4 * 1024 * 1024 * 1024; // reserve guard, never a real heap
+// The initial user namespace maps every uid onto itself.
+const INIT_UID_MAP = /^\s*0\s+0\s+4294967295\s*$/;
 
 interface AuthzScanDiagnostics {
   truncated: number;
@@ -175,9 +177,41 @@ function findWarframePid(): number | null {
   return null;
 }
 
+/** Yama lets the owner of a user namespace read processes inside it, which is
+ *  how a plain install reads a game in Steam's container. A PlatHelper that is
+ *  itself sandboxed (bubblewrap: appimage-run, steam-run, Flatpak) sits in a
+ *  sibling namespace with no rights over the game's, so the open fails even at
+ *  the default ptrace_scope; that case gets its own advice. */
+export function classifyMemOpenFailure(
+  code: string,
+  selfUidMap: string | null,
+  selfUserNs: string | null,
+  gameUserNs: string | null,
+): string {
+  const inInitNs = selfUidMap === null || INIT_UID_MAP.test(selfUidMap);
+  if (!inInitNs && selfUserNs !== null && selfUserNs !== gameUserNs) return `sandbox-${code}`;
+  return `mem-open-${code}`;
+}
+
+function readTextOrNull(path: string): string | null {
+  try {
+    return fs.readFileSync(path, "utf8");
+  } catch {
+    return null;
+  }
+}
+
+function readlinkOrNull(path: string): string | null {
+  try {
+    return fs.readlinkSync(path);
+  } catch {
+    return null;
+  }
+}
+
 interface AuthzResult {
   authz: string | null;
-  // "ok-Nx", "process-not-found", "mem-open-EACCES", "crumbs-not-found"
+  // "ok-Nx", "process-not-found", "mem-open-EACCES", "sandbox-EACCES", "crumbs-not-found"
   reason: string;
 }
 
@@ -191,7 +225,14 @@ export async function readGameAuthz(): Promise<AuthzResult> {
   try {
     fh = await fs.promises.open(`/proc/${pid}/mem`, "r");
   } catch (e) {
-    return { authz: null, reason: `mem-open-${(e as NodeJS.ErrnoException).code}` };
+    const code = (e as NodeJS.ErrnoException).code ?? "unknown";
+    const reason = classifyMemOpenFailure(
+      code,
+      readTextOrNull("/proc/self/uid_map"),
+      readlinkOrNull("/proc/self/ns/user"),
+      readlinkOrNull(`/proc/${pid}/ns/user`),
+    );
+    return { authz: null, reason };
   }
 
   const counts = new Map<string, number>();

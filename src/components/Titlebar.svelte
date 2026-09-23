@@ -49,6 +49,7 @@
     if (!status.exeFound) return { key: "titlebar.status.helperNotFound" };
     if (status.lastRunReason === "access-denied") return { key: "titlebar.status.accessDenied" };
     if (status.lastRunReason === "ptrace-denied") return { key: "titlebar.status.ptraceDenied" };
+    if (status.lastRunReason === "sandboxed") return { key: "titlebar.status.sandboxed" };
     if (status.lastRunReason === "not-logged-in") return { key: "titlebar.status.waitingLogin" };
     if (status.lastRunReason === "token-not-found") return { key: "titlebar.status.tokenNotFound" };
     if (status.lastRunReason === "game-not-running") {
@@ -61,6 +62,7 @@
     if (!status?.exeFound) return "titlebar.tooltip.helperNotFound";
     if (status.lastRunReason === "access-denied") return "titlebar.tooltip.accessDenied";
     if (status.lastRunReason === "ptrace-denied") return "titlebar.tooltip.ptraceDenied";
+    if (status.lastRunReason === "sandboxed") return "titlebar.tooltip.sandboxed";
     if (status.lastRunReason === "not-logged-in") return "titlebar.tooltip.notLoggedIn";
     if (status.lastRunReason === "token-not-found") return "titlebar.tooltip.tokenNotFound";
     if (status.lastRunReason === "game-not-running") return "titlebar.tooltip.gameNotRunning";

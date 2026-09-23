@@ -435,6 +435,10 @@
                   <p class="mt-1 text-xs font-semibold leading-snug text-warning">
                     {$tr("setup.waiting.ptraceDenied")}
                   </p>
+                {:else if runnerStatus?.lastRunReason === "sandboxed"}
+                  <p class="mt-1 text-xs font-semibold leading-snug text-warning">
+                    {$tr("setup.waiting.sandboxed")}
+                  </p>
                 {:else if runnerStatus?.lastRunReason === "not-logged-in"}
                   <p class="mt-1 text-xs leading-snug text-text-secondary">
                     {$tr("setup.waiting.notLoggedIn")}

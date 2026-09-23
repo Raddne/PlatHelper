@@ -39,6 +39,10 @@ describe("linuxAuthzReason", () => {
     expect(linuxAuthzReason("mem-open-EPERM")).toBe("ptrace-denied");
   });
 
+  it("tells a sandboxed reader apart from a ptrace_scope block", () => {
+    expect(linuxAuthzReason("sandbox-EACCES")).toBe("sandboxed");
+  });
+
   it("maps a missing process and leaves token misses to EE.log", () => {
     expect(linuxAuthzReason("process-not-found")).toBe("game-not-running");
     expect(linuxAuthzReason("crumbs-not-found")).toBeNull();
@@ -57,6 +61,7 @@ describe("nextHelperPollDelayMs", () => {
     expect(nextHelperPollDelayMs(false, "game-not-running", INTERVAL)).toBe(90_000);
     expect(nextHelperPollDelayMs(false, "access-denied", INTERVAL)).toBe(90_000);
     expect(nextHelperPollDelayMs(false, "ptrace-denied", INTERVAL)).toBe(90_000);
+    expect(nextHelperPollDelayMs(false, "sandboxed", INTERVAL)).toBe(90_000);
     expect(nextHelperPollDelayMs(false, "not-logged-in", INTERVAL)).toBe(90_000);
   });
 
@@ -84,6 +89,7 @@ describe("shouldRetryAfterGameLogin", () => {
     expect(shouldRetryAfterGameLogin(false, false, "api-failed")).toBe(false);
     expect(shouldRetryAfterGameLogin(false, false, "access-denied")).toBe(false);
     expect(shouldRetryAfterGameLogin(false, false, "ptrace-denied")).toBe(false);
+    expect(shouldRetryAfterGameLogin(false, false, "sandboxed")).toBe(false);
     expect(shouldRetryAfterGameLogin(false, true, null)).toBe(false);
   });
 

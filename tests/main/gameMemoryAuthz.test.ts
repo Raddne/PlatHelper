@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 
 import {
   bestAuthz,
+  classifyMemOpenFailure,
   createAuthzScanDiagnostics,
   parseAuthzAt,
   scanBufferForAuthz,
@@ -11,6 +12,30 @@ import {
 const ACC = "0123456789abcdef01234567"; // 24 hex
 const VALID = `?accountId=${ACC}&nonce=1712345678901`;
 const NEEDLE_AT = (buf: Buffer) => buf.indexOf("?accountId=");
+
+describe("classifyMemOpenFailure", () => {
+  const INIT_MAP = "         0          0 4294967295\n";
+  const BWRAP_MAP = "      1000       1000          1\n";
+  const HOST_NS = "user:[4026531837]";
+  const GAME_NS = "user:[4026532711]";
+
+  it("blames ptrace_scope when PlatHelper runs in the initial user namespace", () => {
+    expect(classifyMemOpenFailure("EACCES", INIT_MAP, HOST_NS, GAME_NS)).toBe("mem-open-EACCES");
+    expect(classifyMemOpenFailure("EACCES", INIT_MAP, HOST_NS, HOST_NS)).toBe("mem-open-EACCES");
+  });
+
+  it("reports a sandboxed PlatHelper that cannot reach the game's namespace", () => {
+    expect(classifyMemOpenFailure("EACCES", BWRAP_MAP, HOST_NS, GAME_NS)).toBe("sandbox-EACCES");
+    // The game's namespace link may itself be unreadable from inside the sandbox.
+    expect(classifyMemOpenFailure("EPERM", BWRAP_MAP, HOST_NS, null)).toBe("sandbox-EPERM");
+  });
+
+  it("stays with ptrace_scope when both share one namespace or nothing is known", () => {
+    expect(classifyMemOpenFailure("EACCES", BWRAP_MAP, GAME_NS, GAME_NS)).toBe("mem-open-EACCES");
+    expect(classifyMemOpenFailure("EACCES", null, null, null)).toBe("mem-open-EACCES");
+    expect(classifyMemOpenFailure("EACCES", BWRAP_MAP, null, GAME_NS)).toBe("mem-open-EACCES");
+  });
+});
 
 describe("parseAuthzAt", () => {
   it("extracts a well-formed auth string", () => {
