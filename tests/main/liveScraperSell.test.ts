@@ -71,6 +71,15 @@ describe("live scraper sell pricing", () => {
     expect(result.price).toBe(40);
   });
 
+  it("creates the order hidden when asked and records that on the row", async () => {
+    await progressStockItem(stockItem(), MARKET, null, [], OFF, true);
+    expect(mocks.dispatchOrder).toHaveBeenCalledWith(expect.objectContaining({ hidden: true }));
+    expect(mocks.updateStockItem).toHaveBeenCalledWith(
+      "stock-1",
+      expect.objectContaining({ wfmHidden: true }),
+    );
+  });
+
   it("lists a fixed amount above the lowest listing when asked to", async () => {
     const result = await progressStockItem(stockItem(), MARKET, null, [], {
       ...OFF,

@@ -9,6 +9,7 @@ import {
   listStockRivens,
   updateStockRiven,
 } from "./liveScraperRivenStock";
+import { syncRivenRowVisibility } from "./liveScraperListingVisibility";
 import { planRivenAdoption } from "../config/shared/liveScraperRivenAdopt";
 import { titleFromSlug } from "../config/shared/wfm";
 import type { WfmContract } from "../config/shared/wfmContracts";
@@ -18,7 +19,8 @@ const log = withScope("liveScraperRivenAdopt");
 const PAGE_LIMIT = 100;
 const MAX_PAGES = 20;
 
-async function fetchAllMyAuctions(): Promise<WfmContract[]> {
+/** Every auction on the signed-in account, hidden ones included. Throws when a page fails. */
+export async function fetchAllMyAuctions(): Promise<WfmContract[]> {
   const all: WfmContract[] = [];
   for (let page = 1; page <= MAX_PAGES; page++) {
     const result = await getMyContracts({ page, limit: PAGE_LIMIT });
@@ -42,6 +44,7 @@ function weaponNameForSlug(slug: string): string {
 /** Throws when the auctions cannot be fetched, so a failed fetch never looks
  *  like "no auctions left" and drops every adopted row. */
 export async function syncAdoptedRivenAuctions(): Promise<void> {
+  const fetchedAt = Date.now();
   const auctions = await fetchAllMyAuctions();
   const plan = planRivenAdoption(listStockRivens(), auctions, rivenData.getRivenFamilySlug);
 
@@ -77,4 +80,5 @@ export async function syncAdoptedRivenAuctions(): Promise<void> {
     deleteStockRiven(id);
     log.info(`[Adopt] riven auction gone (sold or closed) - dropped stock row ${id}`);
   }
+  syncRivenRowVisibility(auctions, fetchedAt);
 }

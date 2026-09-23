@@ -48,6 +48,9 @@ export interface StockRiven {
   /** An auction the user already had on warframe.market: never recreated when
    *  it disappears (it was sold or closed), and its row goes with it. */
   adopted?: boolean | undefined;
+  /** Last known warframe.market visibility of the auction (true = hidden); a new
+   *  auction is created the same way. Undefined until known. */
+  wfmHidden?: boolean | undefined;
   status: StockEntryStatus;
   createdAt: number;
   updatedAt: number;
@@ -134,6 +137,7 @@ function normalizeStockRiven(raw: unknown): StockRiven | null {
     auctionId: typeof e.auctionId === "string" && e.auctionId ? e.auctionId : null,
     isHidden: bool(e.isHidden, false),
     adopted: e.adopted === true ? true : undefined,
+    wfmHidden: typeof e.wfmHidden === "boolean" ? e.wfmHidden : undefined,
     status: normalizeStatus(e.status),
     createdAt: num(e.createdAt, now),
     updatedAt: num(e.updatedAt, now),

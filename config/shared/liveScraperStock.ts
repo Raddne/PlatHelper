@@ -38,6 +38,9 @@ export interface StockItem {
    *  re-priced like any other but never deleted by the scraper, and never
    *  re-created once it is gone. */
   adopted?: boolean | undefined;
+  /** Last known warframe.market visibility of the listing (true = hidden); a new
+   *  listing is created the same way. Undefined until known. */
+  wfmHidden?: boolean | undefined;
   status: StockEntryStatus;
   createdAt: number;
   updatedAt: number;
@@ -56,6 +59,9 @@ export interface WishlistItem {
   maxPrice: number | null;
   minPrice: number | null;
   isHidden: boolean;
+  /** Last known warframe.market visibility of the listing (true = hidden); a new
+   *  listing is created the same way. Undefined until known. */
+  wfmHidden?: boolean | undefined;
   status: StockEntryStatus;
   createdAt: number;
   updatedAt: number;
@@ -147,6 +153,7 @@ function normalizeStockItem(raw: unknown): StockItem | null {
     minPrice: numOrNull(e.minPrice),
     isHidden: bool(e.isHidden, false),
     adopted: e.adopted === true ? true : undefined,
+    wfmHidden: typeof e.wfmHidden === "boolean" ? e.wfmHidden : undefined,
     status: normalizeStatus(e.status),
     createdAt: num(e.createdAt, now),
     updatedAt: num(e.updatedAt, now),
@@ -170,6 +177,7 @@ function normalizeWishlistItem(raw: unknown): WishlistItem | null {
     maxPrice: numOrNull(e.maxPrice),
     minPrice: numOrNull(e.minPrice),
     isHidden: bool(e.isHidden, false),
+    wfmHidden: typeof e.wfmHidden === "boolean" ? e.wfmHidden : undefined,
     status: normalizeStatus(e.status),
     createdAt: num(e.createdAt, now),
     updatedAt: num(e.updatedAt, now),

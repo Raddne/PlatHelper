@@ -184,14 +184,17 @@ export interface BuyProgressResult {
   price: number | null;
   error?: string;
   orderLimitReached?: boolean;
+  /** Order visibility after the call; undefined when no order is left. */
+  visible?: boolean;
 }
 
 /** Applies the caller's knapsack verdict (ops may already have "Skip"+"Delete"
  *  added for a rejected candidate - see liveScraperEngine.ts) and dispatches
- *  the WFM order mutation. */
+ *  the WFM order mutation. `hiddenOnWfm` creates a new order hidden. */
 export async function dispatchBuyingItem(
   pricing: BuyPricing,
   quantity: number,
+  hiddenOnWfm = false,
 ): Promise<BuyProgressResult> {
   const dispatch = await dispatchOrder({
     orderType: "buy",
@@ -202,6 +205,7 @@ export async function dispatchBuyingItem(
     itemId: pricing.catalogId,
     existingOrder: pricing.existingOrder,
     ops: pricing.ops,
+    hidden: hiddenOnWfm,
   });
   return {
     itemName: pricing.itemName,
@@ -210,5 +214,6 @@ export async function dispatchBuyingItem(
     price: pricing.postPrice,
     error: dispatch.error,
     orderLimitReached: dispatch.orderLimitReached,
+    ...(dispatch.visible !== undefined ? { visible: dispatch.visible } : {}),
   };
 }

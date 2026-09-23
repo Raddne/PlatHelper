@@ -79,6 +79,14 @@ export interface RivenWtsSettings {
   maxResults: number;
 }
 
+/** The three Listings tabs, each of which can be hidden on warframe.market as a whole. */
+export type ListingsTab = "wtb" | "wts" | "rivens";
+
+/** Per tab: true keeps its warframe.market listings hidden - new ones are
+ *  created hidden too. Mirrors what is live on WFM, so only the main process
+ *  changes it (services/liveScraperWfmVisibility.ts), never a settings save. */
+type HiddenOnWfm = Record<ListingsTab, boolean>;
+
 export interface SyndicateWtsSettings {
   syndicates: string[];
   maxRankForType: string[];
@@ -104,6 +112,7 @@ export interface LiveScraperSettings {
   syndicate: {
     wts: SyndicateWtsSettings;
   };
+  hiddenOnWfm: HiddenOnWfm;
 }
 
 function defaultGeneral(): LiveScraperGeneralSettings {
@@ -162,6 +171,10 @@ function defaultSyndicateWts(): SyndicateWtsSettings {
   };
 }
 
+function defaultHiddenOnWfm(): HiddenOnWfm {
+  return { wtb: false, wts: false, rivens: false };
+}
+
 export function defaultLiveScraperSettings(): LiveScraperSettings {
   return {
     version: 1,
@@ -169,6 +182,7 @@ export function defaultLiveScraperSettings(): LiveScraperSettings {
     items: { general: defaultItemGeneral(), wtb: defaultItemWtb(), wts: defaultItemWts() },
     rivens: { general: defaultRivenGeneral(), wts: defaultRivenWts() },
     syndicate: { wts: defaultSyndicateWts() },
+    hiddenOnWfm: defaultHiddenOnWfm(),
   };
 }
 
@@ -314,6 +328,16 @@ function normalizeSyndicateWts(raw: unknown): SyndicateWtsSettings {
   };
 }
 
+function normalizeHiddenOnWfm(raw: unknown): HiddenOnWfm {
+  const e = (raw ?? {}) as Record<string, unknown>;
+  const d = defaultHiddenOnWfm();
+  return {
+    wtb: bool(e.wtb, d.wtb),
+    wts: bool(e.wts, d.wts),
+    rivens: bool(e.rivens, d.rivens),
+  };
+}
+
 export function normalizeLiveScraperSettings(raw: unknown): LiveScraperSettings {
   if (!raw || typeof raw !== "object") return defaultLiveScraperSettings();
   const e = raw as Record<string, unknown>;
@@ -334,5 +358,6 @@ export function normalizeLiveScraperSettings(raw: unknown): LiveScraperSettings 
       wts: normalizeRivenWts(rivens.wts),
     },
     syndicate: { wts: normalizeSyndicateWts(syndicate.wts) },
+    hiddenOnWfm: normalizeHiddenOnWfm(e.hiddenOnWfm),
   };
 }

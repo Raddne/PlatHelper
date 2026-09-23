@@ -32,6 +32,8 @@ export interface LiveScraperWtbListing {
   /** closedAvg - postPrice - 1 at last pricing; null when not computable. */
   potentialProfit: number | null;
   quantity: number;
+  /** Hidden on warframe.market; undefined while unknown. */
+  hidden?: boolean | undefined;
   updatedAt: number;
 }
 

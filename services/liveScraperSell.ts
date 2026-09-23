@@ -38,13 +38,15 @@ interface StockProgressResult {
 
 /** Prices and dispatches one stock item's sell order for this tick. Always
  *  persists the resulting status/listPrice back to the stock row, except
- *  when the item was skipped before a price was even computed. */
+ *  when the item was skipped before a price was even computed. `hiddenOnWfm`
+ *  creates a new order hidden on warframe.market. */
 export async function progressStockItem(
   item: StockItem,
   marketInfo: ItemMarketInfo,
   closedAvg: number | null,
   mySellOrders: readonly NormalisedOrder[],
   wts: ItemWtsSettings,
+  hiddenOnWfm = false,
 ): Promise<StockProgressResult> {
   const catalogItem = await wfmCatalog.lookupBySlug(item.wfmUrl);
   if (!catalogItem?.id) {
@@ -192,10 +194,15 @@ export async function progressStockItem(
     itemId: catalogItem.id,
     existingOrder: existing,
     ops,
+    hidden: hiddenOnWfm,
   });
 
   if (dispatch.action !== "skipped" || !dispatch.error) {
-    updateStockItem(item.id, { status, listPrice: postPrice });
+    updateStockItem(item.id, {
+      status,
+      listPrice: postPrice,
+      ...(dispatch.action === "created" ? { wfmHidden: hiddenOnWfm } : {}),
+    });
   }
 
   return {

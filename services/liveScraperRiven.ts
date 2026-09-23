@@ -97,10 +97,13 @@ async function dispatchRivenAuction(
   riven: StockRiven,
   postPrice: number,
   shouldDelete: boolean,
+  hidden = false,
 ): Promise<{
   action: "created" | "updated" | "deleted" | "skipped";
   auctionId: string | null;
   error?: string;
+  /** Auction visibility after the call; undefined when unknown or gone. */
+  visible?: boolean;
 }> {
   if (shouldDelete) {
     if (!riven.auctionId) return { action: "skipped", auctionId: null };
@@ -122,8 +125,16 @@ async function dispatchRivenAuction(
       startingPrice: postPrice,
       minReputation: 0,
       description: "",
+      // The PUT replaces the whole entry, visibility included.
+      visible: !hidden,
     });
-    if (result.ok) return { action: "updated", auctionId: result.auctionId ?? riven.auctionId };
+    if (result.ok) {
+      return {
+        action: "updated",
+        auctionId: result.auctionId ?? riven.auctionId,
+        visible: !hidden,
+      };
+    }
     if (riven.adopted) {
       // The user's own auction: never replaced by a new one. If it is really
       // gone, the next adoption sync drops the row.
@@ -178,15 +189,34 @@ async function dispatchRivenAuction(
     log.warn(`[LiveScraperRiven] create auction for "${riven.rivenName}" failed:`, result.error);
     return { action: "skipped", auctionId: null, error: result.error };
   }
-  return { action: "created", auctionId: result.auctionId ?? null };
+  const auctionId = result.auctionId ?? null;
+  // The create call has no visibility field, so a hidden riven's new auction is
+  // hidden right after. Should that fail, the next price update retries it.
+  let visible = true;
+  if (hidden && auctionId) {
+    const hide = await updateRivenAuction({
+      auctionId,
+      buyoutPrice: postPrice,
+      startingPrice: postPrice,
+      minReputation: 0,
+      description: "",
+      visible: false,
+    });
+    if (hide.ok) visible = false;
+    else log.warn(`[LiveScraperRiven] could not hide new auction ${auctionId}:`, hide.error);
+  }
+  return { action: "created", auctionId, visible };
 }
 
 /** Prices and dispatches one stock riven's auction for this tick. Always
- *  persists the resulting status/listPrice/auctionId back to the row. */
+ *  persists the resulting status/listPrice/auctionId back to the row.
+ *  `isHidden` is read right before each auction call: every update resends
+ *  the visibility, so a stale value would undo a switch from the panel. */
 export async function progressStockRiven(
   riven: StockRiven,
   wts: RivenWtsSettings,
   ownName: string | null,
+  isHidden: () => boolean = () => false,
 ): Promise<RivenProgressResult> {
   const weaponSlug = rivenData.getRivenFamilySlug(riven.weaponName);
   if (!weaponSlug) {
@@ -227,8 +257,9 @@ export async function progressStockRiven(
   const { prices, ownAuctionListed } = await fetchCompetingPrices(riven, weaponSlug, ownName);
   // An adopted auction was confirmed live by the adoption sync a moment ago; a
   // search that misses it (private, hidden, beyond the result cap) must not
-  // lead to a second auction for the same riven.
-  if (!ownAuctionListed && !riven.adopted) {
+  // lead to a second auction for the same riven. A hidden auction is never in
+  // the search at all; there an update answering "gone" is the cue.
+  if (!ownAuctionListed && !riven.adopted && !isHidden()) {
     log.info(
       `[LiveScraperRiven] auction ${riven.auctionId} is no longer listed, creating a new one`,
     );
@@ -260,14 +291,19 @@ export async function progressStockRiven(
 
   postPrice = Math.max(postPrice, 1);
 
-  const dispatch = await dispatchRivenAuction(riven, postPrice, false);
+  const dispatch = await dispatchRivenAuction(riven, postPrice, false, isHidden());
   // The auctionId always gets persisted, even on failure - a cleared id from
   // dispatchRivenAuction's self-heal must stick so the next tick creates a
   // fresh auction instead of retrying a dead one forever. Price/status only
   // update on an actual success, so a failed attempt doesn't claim "live" at
   // a price nothing was ever posted at.
   if (dispatch.action !== "skipped" || !dispatch.error) {
-    updateStockRiven(riven.id, { status, listPrice: postPrice, auctionId: dispatch.auctionId });
+    updateStockRiven(riven.id, {
+      status,
+      listPrice: postPrice,
+      auctionId: dispatch.auctionId,
+      ...(dispatch.visible !== undefined ? { wfmHidden: !dispatch.visible } : {}),
+    });
   } else if (dispatch.auctionId !== riven.auctionId) {
     updateStockRiven(riven.id, { auctionId: dispatch.auctionId });
   }
@@ -319,11 +355,22 @@ export async function quoteLowestRivenPrice(
 export async function listStockRivenAt(
   riven: StockRiven,
   price: number,
+  hiddenOnWfm = false,
 ): Promise<{ ok: true; auctionId: string | null } | { ok: false; error: string }> {
-  const dispatch = await dispatchRivenAuction({ ...riven, auctionId: null }, price, false);
+  const dispatch = await dispatchRivenAuction(
+    { ...riven, auctionId: null },
+    price,
+    false,
+    hiddenOnWfm,
+  );
   if (dispatch.action !== "created") {
     return { ok: false, error: dispatch.error ?? "auction was not created" };
   }
-  updateStockRiven(riven.id, { status: "live", listPrice: price, auctionId: dispatch.auctionId });
+  updateStockRiven(riven.id, {
+    status: "live",
+    listPrice: price,
+    auctionId: dispatch.auctionId,
+    ...(dispatch.visible !== undefined ? { wfmHidden: !dispatch.visible } : {}),
+  });
   return { ok: true, auctionId: dispatch.auctionId };
 }

@@ -48,6 +48,13 @@ import { isThresholdDisabled } from "../config/shared/liveScraperPricing";
 import { isBlacklisted } from "../config/shared/liveScraperStock";
 import { rotateBatch } from "../config/shared/rotateBatch";
 import { syncAdoptedRivenAuctions } from "./liveScraperRivenAdopt";
+import {
+  rowCreateHidden,
+  scanCreateHidden,
+  scanHidden,
+  setScanHidden,
+  syncOrderRowVisibility,
+} from "./liveScraperListingVisibility";
 import type { StockItem, WishlistItem } from "../config/shared/liveScraperStock";
 import type {
   LiveScraperEngineStatus,
@@ -249,6 +256,7 @@ function collectInterestingItems(): InterestingEntry[] {
 async function processWtbCandidates(
   candidates: readonly ItemStatSnapshot[],
   myBuyOrders: readonly NormalisedOrder[],
+  ordersFetchedAt: number,
   ownName: string | null,
   wtb: ItemWtbSettings,
   onProgress?: (message: string) => void,
@@ -315,8 +323,17 @@ async function processWtbCandidates(
     onProgress?.(
       `Dispatching WTB order ${dispatched + 1}/${pricings.length} (${pricing.itemName})...`,
     );
-    const result = await dispatchBuyingItem(pricing, wtb.buyQuantity);
+    const result = await dispatchBuyingItem(
+      pricing,
+      wtb.buyQuantity,
+      scanCreateHidden(pricing.catalogId),
+    );
     dispatched += 1;
+    if (result.visible !== undefined) {
+      // A new order's state is exact; an existing one's is as of the snapshot.
+      const observedAt = result.action === "created" ? undefined : ordersFetchedAt;
+      setScanHidden(pricing.catalogId, !result.visible, observedAt);
+    }
     recordWtbListing(pricing, result, wtb.buyQuantity);
     if (result.orderLimitReached) orderLimitReached = true;
     if (result.action === "created" || result.action === "updated" || result.action === "deleted") {
@@ -370,7 +387,9 @@ async function maybeProcessRivenPass(
   let mutations = 0;
   for (const riven of rivens) {
     if (!_running) break;
-    const result = await progressStockRiven(riven, settings.rivens.wts, ownName);
+    const result = await progressStockRiven(riven, settings.rivens.wts, ownName, () =>
+      rowCreateHidden("riven", riven.id),
+    );
     if (result.action === "created" || result.action === "updated" || result.action === "deleted") {
       mutations += 1;
     }
@@ -397,6 +416,7 @@ async function tick(): Promise<void> {
     const settings = getLiveScraperSettings();
     let cleanupSummary: string | null = null;
     let cleanupOrdersSnapshot: { buy: NormalisedOrder[]; sell: NormalisedOrder[] } | null = null;
+    let ordersFetchedAt = 0;
     if (settings.general.stockMode === "riven") {
       _lastMessage = "Engine mode is Rivens-only; item processing skipped this tick.";
     } else {
@@ -410,6 +430,7 @@ async function tick(): Promise<void> {
           // WTB pricing/dispatch below - can each take a real, visible amount
           // of time.
           emitProgress("Cleaning up orders...");
+          ordersFetchedAt = Date.now();
           const mine = await getMyOrders();
           const result = await runOrderCleanup(settings, mine, _justStarted, () => _running);
           const deletedIds = new Set(result.deletedIds);
@@ -434,6 +455,7 @@ async function tick(): Promise<void> {
       if (settings.general.tradeModes.includes("sell")) {
         if (!cleanupOrdersSnapshot) {
           try {
+            ordersFetchedAt = Date.now();
             const mine = await getMyOrders();
             cleanupOrdersSnapshot = { buy: mine.buy, sell: mine.sell };
           } catch (err) {
@@ -444,6 +466,9 @@ async function tick(): Promise<void> {
           }
         }
         if (cleanupOrdersSnapshot) syncAdoptedSellOrders(cleanupOrdersSnapshot.sell);
+      }
+      if (cleanupOrdersSnapshot) {
+        await syncOrderRowVisibility(cleanupOrdersSnapshot, ordersFetchedAt);
       }
 
       const entries = collectInterestingItems();
@@ -475,9 +500,11 @@ async function tick(): Promise<void> {
             mySellOrders = cleanupOrdersSnapshot.sell;
           } else {
             try {
+              ordersFetchedAt = Date.now();
               const mine = await getMyOrders();
               myBuyOrders = mine.buy;
               mySellOrders = mine.sell;
+              await syncOrderRowVisibility(mine, ordersFetchedAt);
             } catch (err) {
               log.warn("[Tick] failed to fetch my orders; buying/selling skipped this tick:", err);
             }
@@ -512,6 +539,7 @@ async function tick(): Promise<void> {
               marketInfo,
               closedAvg,
               myBuyOrders,
+              rowCreateHidden("wish", item.id),
             );
             if (
               result.action === "created" ||
@@ -532,6 +560,7 @@ async function tick(): Promise<void> {
               closedAvg,
               mySellOrders,
               settings.items.wts,
+              rowCreateHidden("stock", item.id),
             );
             if (
               result.action === "created" ||
@@ -557,6 +586,7 @@ async function tick(): Promise<void> {
           const wtbResult = await processWtbCandidates(
             batch,
             myBuyOrders,
+            ordersFetchedAt,
             ownName,
             settings.items.wtb,
             emitProgress,
@@ -661,6 +691,9 @@ export function getLiveScraperEngineStatus(): LiveScraperEngineStatus {
     lastMessage: _lastMessage,
     lastError: _lastError,
     scheduler: getWfmSchedulerHealth(),
-    wtbListings: [..._wtbListings.values()],
+    wtbListings: [..._wtbListings.values()].map((listing) => ({
+      ...listing,
+      hidden: scanHidden(listing.wfmId),
+    })),
   };
 }

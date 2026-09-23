@@ -73,8 +73,13 @@ import type {
   MarketAlertSaveResult,
   MarketAlertTestFireResult,
 } from "../../config/shared/marketAlertTypes.js";
-import type { LiveScraperSettings, SubTypeLike } from "../../config/shared/liveScraperSettings.js";
+import type {
+  ListingsTab,
+  LiveScraperSettings,
+  SubTypeLike,
+} from "../../config/shared/liveScraperSettings.js";
 import type { StockItem, WishlistItem } from "../../config/shared/liveScraperStock.js";
+import type { VisibilitySelection } from "../../config/shared/liveScraperWfmVisibility.js";
 import type { StockRiven, StockRivenStat } from "../../config/shared/liveScraperRivenStock.js";
 import type { LiveScraperEngineStatus } from "../../config/shared/liveScraperEngine.js";
 import type { OverlaySettings, OverlayWindowKey } from "../../config/runtime/overlaySettings.js";
@@ -616,6 +621,12 @@ export interface IpcInvokeMap {
   liveScraperRivenQuickList: {
     args: [riven: IpcInvokeMap["liveScraperRivenStockCreate"]["args"][0], price: number];
     return: { ok: true; price: number } | { ok: false; error: string };
+  };
+  liveScraperSetHiddenOnWfm: {
+    args: [tab: ListingsTab, hidden: boolean, selection: VisibilitySelection | null];
+    return:
+      | { ok: true; switched: number; failed: number; total: number }
+      | { ok: false; error: string };
   };
   liveScraperStart: {
     args: [];

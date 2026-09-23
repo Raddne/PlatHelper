@@ -33,6 +33,9 @@ interface DispatchOrderParams {
   itemId: string;
   existingOrder: NormalisedOrder | null;
   ops: Set<string>;
+  /** Create the order hidden on warframe.market. An existing order keeps
+   *  whatever visibility it has. */
+  hidden?: boolean;
 }
 
 export interface DispatchOrderResult {
@@ -45,10 +48,13 @@ export interface DispatchOrderResult {
    *  further creates for the rest of that pass once this comes back true,
    *  since every subsequent one would fail identically. */
   orderLimitReached?: boolean;
+  /** The order's visibility once the call is done; undefined when none is left. */
+  visible?: boolean;
 }
 
 export async function dispatchOrder(params: DispatchOrderParams): Promise<DispatchOrderResult> {
   const { ops, existingOrder, orderType, postPrice, quantity, modRank, subtype, itemId } = params;
+  const hidden = params.hidden === true;
 
   try {
     if (ops.has("Create") && !ops.has("Delete")) {
@@ -58,12 +64,12 @@ export async function dispatchOrder(params: DispatchOrderParams): Promise<Dispat
           orderType,
           platinum: postPrice,
           quantity,
-          visible: true,
+          visible: !hidden,
           modRank,
           subtype,
         });
         markOrderOwned(order.id);
-        return { action: "created", orderId: order.id };
+        return { action: "created", orderId: order.id, visible: !hidden };
       } catch (err) {
         if (isOrderLimitError(err)) {
           log.warn(
@@ -88,8 +94,9 @@ export async function dispatchOrder(params: DispatchOrderParams): Promise<Dispat
           error: "Update requested with no existing order",
         };
       }
+      const visible = existingOrder.visible;
       if (existingOrder.platinum === postPrice && existingOrder.quantity === quantity) {
-        return { action: "skipped", orderId: existingOrder.id };
+        return { action: "skipped", orderId: existingOrder.id, visible };
       }
       const order = await updateOrder(existingOrder.id, {
         platinum: postPrice,
@@ -97,7 +104,7 @@ export async function dispatchOrder(params: DispatchOrderParams): Promise<Dispat
         modRank,
         subtype,
       });
-      return { action: "updated", orderId: order.id };
+      return { action: "updated", orderId: order.id, visible };
     }
 
     if (ops.has("Update") && ops.has("Delete")) {
@@ -113,6 +120,11 @@ export async function dispatchOrder(params: DispatchOrderParams): Promise<Dispat
   } catch (err) {
     const message = normalizeErrorMessage(err);
     log.error(`[LiveScraperOrderDispatch] ${orderType} order for ${itemId} failed:`, message);
-    return { action: "skipped", orderId: existingOrder?.id ?? null, error: message };
+    return {
+      action: "skipped",
+      orderId: existingOrder?.id ?? null,
+      error: message,
+      ...(existingOrder ? { visible: existingOrder.visible } : {}),
+    };
   }
 }

@@ -41,12 +41,14 @@ interface WishlistProgressResult {
 
 /** Prices and dispatches one wishlist item's buy order for this tick. Always
  *  persists the resulting status/listPrice back to the wishlist row, even
- *  when the order dispatch itself was skipped or failed. */
+ *  when the order dispatch itself was skipped or failed. `hiddenOnWfm`
+ *  creates a new order hidden on warframe.market. */
 export async function progressWishlistItem(
   item: WishlistItem,
   marketInfo: ItemMarketInfo,
   closedAvg: number | null,
   myBuyOrders: readonly NormalisedOrder[],
+  hiddenOnWfm = false,
 ): Promise<WishlistProgressResult> {
   const catalogItem = await wfmCatalog.lookupBySlug(item.wfmUrl);
   if (!catalogItem?.id) {
@@ -138,10 +140,15 @@ export async function progressWishlistItem(
     itemId: catalogItem.id,
     existingOrder: existing,
     ops,
+    hidden: hiddenOnWfm,
   });
 
   if (dispatch.action !== "skipped" || !dispatch.error) {
-    updateWishlistItem(item.id, { status, listPrice: postPrice });
+    updateWishlistItem(item.id, {
+      status,
+      listPrice: postPrice,
+      ...(dispatch.action === "created" ? { wfmHidden: hiddenOnWfm } : {}),
+    });
   }
 
   return {

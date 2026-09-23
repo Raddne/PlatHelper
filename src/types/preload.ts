@@ -199,6 +199,11 @@ export interface PreloadAPI {
     riven: IpcInvokeMap["liveScraperRivenQuickList"]["args"][0],
     price: IpcInvokeMap["liveScraperRivenQuickList"]["args"][1],
   ) => Promise<IpcInvokeMap["liveScraperRivenQuickList"]["return"]>;
+  liveScraperSetHiddenOnWfm: (
+    tab: IpcInvokeMap["liveScraperSetHiddenOnWfm"]["args"][0],
+    hidden: IpcInvokeMap["liveScraperSetHiddenOnWfm"]["args"][1],
+    selection: IpcInvokeMap["liveScraperSetHiddenOnWfm"]["args"][2],
+  ) => Promise<IpcInvokeMap["liveScraperSetHiddenOnWfm"]["return"]>;
   liveScraperStart: () => Promise<IpcInvokeMap["liveScraperStart"]["return"]>;
   liveScraperStop: () => Promise<IpcInvokeMap["liveScraperStop"]["return"]>;
   liveScraperStatus: () => Promise<IpcInvokeMap["liveScraperStatus"]["return"]>;

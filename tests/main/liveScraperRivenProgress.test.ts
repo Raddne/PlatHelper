@@ -4,6 +4,7 @@ const h = vi.hoisted(() => ({
   listings: [] as Array<Record<string, unknown>>,
   created: [] as number[],
   updated: [] as number[],
+  updatedVisible: [] as Array<boolean | undefined>,
   updateResult: { ok: true } as { ok: boolean; error?: string; auctionId?: string },
   patches: [] as Array<Record<string, unknown>>,
 }));
@@ -21,8 +22,9 @@ vi.mock("../../services/wfmRivenSearch", () => ({
     h.created.push(opts.buyoutPrice);
     return { ok: true, auctionId: "new-auction" };
   },
-  updateRivenAuction: async (opts: { buyoutPrice: number }) => {
+  updateRivenAuction: async (opts: { buyoutPrice: number; visible?: boolean }) => {
     h.updated.push(opts.buyoutPrice);
+    h.updatedVisible.push(opts.visible);
     return h.updateResult;
   },
   deleteRivenAuction: async () => ({ ok: true }),
@@ -67,6 +69,7 @@ describe("progressStockRiven", () => {
     h.listings = [3000, 3888, 4500, 4500, 4500, 7500].map((price, i) => listing(`a${i}`, price));
     h.created.length = 0;
     h.updated.length = 0;
+    h.updatedVisible.length = 0;
     h.patches.length = 0;
     h.updateResult = { ok: true };
   });
@@ -90,6 +93,44 @@ describe("progressStockRiven", () => {
       "me",
     );
     expect(result).toMatchObject({ action: "updated", price: 3000, auctionId: "mine" });
+    expect(h.created).toEqual([]);
+    expect(h.updatedVisible).toEqual([true]);
+  });
+
+  it("keeps a hidden auction hidden when it re-prices it", async () => {
+    const result = await progressStockRiven(
+      riven({ auctionId: "mine", listPrice: 3800 }),
+      { ...WTS, maxResults: 1 },
+      "me",
+      () => true,
+    );
+    expect(result).toMatchObject({ action: "updated", auctionId: "mine" });
+    expect(h.updatedVisible).toEqual([false]);
+  });
+
+  it("creates a hidden riven's auction and hides it right away", async () => {
+    const result = await progressStockRiven(riven({}), WTS, "me", () => true);
+    expect(result).toMatchObject({ action: "created", auctionId: "new-auction" });
+    expect(h.created).toEqual([4077]);
+    expect(h.updatedVisible).toEqual([false]);
+    expect(h.patches.at(-1)).toMatchObject({ wfmHidden: true });
+  });
+
+  it("records a new auction as visible when hiding it failed", async () => {
+    h.updateResult = { ok: false, error: "rate limited" };
+    await progressStockRiven(riven({}), WTS, "me", () => true);
+    expect(h.patches.at(-1)).toMatchObject({ auctionId: "new-auction", wfmHidden: false });
+  });
+
+  it("does not take a hidden auction missing from the public search for a lost one", async () => {
+    // Complete search without the own auction: hidden auctions never show up there.
+    const result = await progressStockRiven(
+      riven({ auctionId: "mine", listPrice: 4077 }),
+      WTS,
+      "me",
+      () => true,
+    );
+    expect(result).toMatchObject({ action: "skipped", auctionId: "mine" });
     expect(h.created).toEqual([]);
   });
 
@@ -178,7 +219,9 @@ describe("quick list from the Rivens tab", () => {
     const result = await listStockRivenAt(riven({}), 3000);
     expect(result).toEqual({ ok: true, auctionId: "new-auction" });
     expect(h.created).toEqual([3000]);
-    expect(h.patches).toEqual([{ status: "live", listPrice: 3000, auctionId: "new-auction" }]);
+    expect(h.patches).toEqual([
+      { status: "live", listPrice: 3000, auctionId: "new-auction", wfmHidden: false },
+    ]);
   });
 
   it("builds the search terms from the stat tags", () => {

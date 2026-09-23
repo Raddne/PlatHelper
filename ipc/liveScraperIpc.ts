@@ -8,6 +8,7 @@ import * as liveScraperRivenStock from "../services/liveScraperRivenStock";
 import * as liveScraperListingRemoval from "../services/liveScraperListingRemoval";
 import * as liveScraperEngine from "../services/liveScraperEngine";
 import * as liveScraperRiven from "../services/liveScraperRiven";
+import * as liveScraperWfmVisibility from "../services/liveScraperWfmVisibility";
 import { normalizeErrorMessage } from "../config/shared/errors";
 import * as wfmSession from "../services/wfmSession";
 import type {
@@ -16,6 +17,7 @@ import type {
 } from "../config/shared/liveScraperStock";
 import type { CreateStockRivenInput } from "../config/shared/liveScraperRivenStock";
 import type { SubTypeLike } from "../config/shared/liveScraperSettings";
+import type { VisibilitySelection } from "../config/shared/liveScraperWfmVisibility";
 import {
   LIVE_SCRAPER_CHANGED,
   LIVE_SCRAPER_GET_SETTINGS,
@@ -27,6 +29,7 @@ import {
   LIVE_SCRAPER_RIVEN_QUOTE,
   LIVE_SCRAPER_RIVEN_SEARCH_URL,
   LIVE_SCRAPER_RIVEN_STOCK_UPDATE,
+  LIVE_SCRAPER_SET_HIDDEN_ON_WFM,
   LIVE_SCRAPER_START,
   LIVE_SCRAPER_STATUS,
   LIVE_SCRAPER_STOCK_CREATE,
@@ -128,6 +131,28 @@ function parseStockRivenInput(payload: unknown): CreateStockRivenInput | null {
     stats,
     bought,
   };
+}
+
+const MAX_SELECTED = 10_000;
+
+function parseIdList(raw: unknown): string[] | null {
+  if (!Array.isArray(raw) || raw.length > MAX_SELECTED) return null;
+  const ids: string[] = [];
+  for (const entry of raw) {
+    const id = toNonEmptyString(entry, 128);
+    if (!id) return null;
+    ids.push(id);
+  }
+  return ids;
+}
+
+/** null = the whole tab; undefined = malformed. */
+function parseVisibilitySelection(raw: unknown): VisibilitySelection | null | undefined {
+  if (raw == null) return null;
+  if (!isObject(raw)) return undefined;
+  const rowIds = parseIdList(raw.rowIds);
+  const scanIds = parseIdList(raw.scanIds);
+  return rowIds && scanIds ? { rowIds, scanIds } : undefined;
 }
 
 function register(): void {
@@ -310,7 +335,11 @@ function register(): void {
       if (existing?.auctionId) return { ok: false as const, error: "already listed" };
       const row = existing ?? liveScraperRivenStock.createStockRiven(input);
       try {
-        const result = await liveScraperRiven.listStockRivenAt(row, platinum);
+        const result = await liveScraperRiven.listStockRivenAt(
+          row,
+          platinum,
+          liveScraperSettings.getLiveScraperSettings().hiddenOnWfm.rivens,
+        );
         if (!result.ok && !existing) liveScraperRivenStock.deleteStockRiven(row.id);
         pushLiveScraperChanged();
         return result.ok ? { ok: true as const, price: platinum } : result;
@@ -344,6 +373,30 @@ function register(): void {
       if (!rivenId) return { ok: false as const, error: "invalid payload" };
       const result = await liveScraperListingRemoval.removeStockRiven(rivenId);
       if (result.ok) pushLiveScraperChanged();
+      return result;
+    },
+  );
+
+  // Hides or shows the marked listings of one Listings tab, or all of them.
+  handleAuthorized(
+    LIVE_SCRAPER_SET_HIDDEN_ON_WFM,
+    assertMainRendererSender,
+    async (_event, tab: unknown, hidden: unknown, selection: unknown) => {
+      const picked = parseVisibilitySelection(selection);
+      if (
+        (tab !== "wtb" && tab !== "wts" && tab !== "rivens") ||
+        typeof hidden !== "boolean" ||
+        picked === undefined
+      ) {
+        return { ok: false as const, error: "invalid payload" };
+      }
+      const result = await liveScraperWfmVisibility.setListingsHiddenOnWfm(
+        tab,
+        hidden,
+        picked,
+        pushLiveScraperChanged,
+      );
+      pushLiveScraperChanged();
       return result;
     },
   );

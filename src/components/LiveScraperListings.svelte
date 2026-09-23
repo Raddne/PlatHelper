@@ -17,6 +17,7 @@
   } from "../../config/shared/liveScraperStock.js";
   import type { StockRiven } from "../../config/shared/liveScraperRivenStock.js";
   import type { LiveScraperWtbListing } from "../../config/shared/liveScraperEngine.js";
+  import type { VisibilitySelection } from "../../config/shared/liveScraperWfmVisibility.js";
 
   interface Props {
     stock: StockItem[];
@@ -74,6 +75,8 @@
     listPrice: number | null;
     potentialProfit: number | null;
     status: AnyStatus;
+    /** Hidden on warframe.market; undefined while unknown. */
+    hidden: boolean | undefined;
     updatedAt: number;
   }
 
@@ -99,6 +102,7 @@
       listPrice: w.listPrice,
       potentialProfit: null,
       status: w.status,
+      hidden: w.wfmHidden,
       updatedAt: w.updatedAt,
     })),
     ...wtbListings
@@ -115,6 +119,7 @@
         listPrice: l.listPrice,
         potentialProfit: l.potentialProfit,
         status: l.status,
+        hidden: l.hidden,
         updatedAt: l.updatedAt,
       }))
       .sort(
@@ -195,6 +200,116 @@
     if (event.shiftKey && !(event.target as HTMLElement | null)?.closest("input")) {
       event.preventDefault();
     }
+  }
+
+  // Hidden or visible on warframe.market: the marked rows, or with none marked
+  // the whole tab (whatever the search box shows), whose switch also decides
+  // how the engine creates its new listings.
+  type VisibilityResult =
+    | { ok: true; switched: number; failed: number; total: number }
+    | { ok: false; error: string };
+
+  let tabHidden = $derived($liveScraperSettings.hiddenOnWfm[$tab]);
+  let visibilityBusy = $state<Tab | null>(null);
+  let visibilityNotice = $state<{ tab: Tab; failed: boolean; text: string } | null>(null);
+
+  function markedSelection(): VisibilitySelection | null {
+    const picked = selection.selected;
+    if (picked.size === 0) return null;
+    if ($tab !== "wtb") return { rowIds: [...picked], scanIds: [] };
+    const rows = wtbRows.filter((row) => picked.has(row.key));
+    return {
+      rowIds: rows.flatMap((row) => (row.wishlistId ? [row.wishlistId] : [])),
+      scanIds: rows.flatMap((row) => (!row.wishlistId && row.scanWfmId ? [row.scanWfmId] : [])),
+    };
+  }
+
+  // Which option shows as set: the tab's switch, or with rows marked their
+  // common state (none when they differ).
+  let shownHidden = $derived.by<boolean | null>(() => {
+    const picked = selection.selected;
+    if (picked.size === 0) return tabHidden;
+    const states =
+      $tab === "wtb"
+        ? wtbRows.filter((row) => picked.has(row.key)).map((row) => row.hidden)
+        : $tab === "wts"
+          ? stock.filter((item) => picked.has(item.id)).map((item) => item.wfmHidden)
+          : stockRivens.filter((riven) => picked.has(riven.id)).map((riven) => riven.wfmHidden);
+    const effective = states.map((state) => state ?? tabHidden);
+    if (effective.every((state) => state)) return true;
+    return effective.every((state) => !state) ? false : null;
+  });
+
+  function visibilityText(result: VisibilityResult, hide: boolean, marked: boolean): string {
+    if (!result.ok) return $t("liveScraper.listings.visibilityError", { error: result.error });
+    if (result.failed > 0) {
+      return $t("liveScraper.listings.visibilityPartial", {
+        failed: result.failed,
+        count: result.switched + result.failed,
+      });
+    }
+    if (result.total === 0) {
+      if (marked) {
+        return hide
+          ? $t("liveScraper.listings.visibilityNoneMarkedHidden")
+          : $t("liveScraper.listings.visibilityNoneMarkedShown");
+      }
+      return hide
+        ? $t("liveScraper.listings.visibilityNoneHidden")
+        : $t("liveScraper.listings.visibilityNoneShown");
+    }
+    const count = result.total;
+    if (marked) {
+      return hide
+        ? $t("liveScraper.listings.visibilityHiddenMarked", { count })
+        : $t("liveScraper.listings.visibilityShownMarked", { count });
+    }
+    return hide
+      ? $t("liveScraper.listings.visibilityHidden", { count })
+      : $t("liveScraper.listings.visibilityShown", { count });
+  }
+
+  function visibilityHint(hide: boolean): string {
+    const count = selection.selected.size;
+    if (count > 0) {
+      return hide
+        ? $t("liveScraper.listings.wfmHiddenMarkedHint", { count })
+        : $t("liveScraper.listings.wfmVisibleMarkedHint", { count });
+    }
+    return hide
+      ? $t("liveScraper.listings.wfmHiddenHint")
+      : $t("liveScraper.listings.wfmVisibleHint");
+  }
+
+  // Clicking the state already set runs it again, which is the retry after a
+  // partial failure.
+  async function setWfmVisibility(hide: boolean): Promise<void> {
+    if (visibilityBusy) return;
+    const target = $tab;
+    const marked = markedSelection();
+    visibilityBusy = target;
+    visibilityNotice = null;
+    try {
+      const result = await invoke("liveScraperSetHiddenOnWfm", target, hide, marked);
+      visibilityNotice = {
+        tab: target,
+        failed: !result.ok || result.failed > 0,
+        text: visibilityText(result, hide, marked != null),
+      };
+    } catch (err) {
+      visibilityNotice = {
+        tab: target,
+        failed: true,
+        text: visibilityText({ ok: false, error: String(err) }, hide, marked != null),
+      };
+    } finally {
+      visibilityBusy = null;
+    }
+  }
+
+  /** A live listing nobody can see gets the warning edge instead of the live one. */
+  function rowTone(status: AnyStatus, hidden: boolean): Tone {
+    return hidden && status === "live" ? "warn" : TONES[status];
   }
 
   function plat(value: number | null): string {
@@ -777,10 +892,23 @@
   </p>
 {/snippet}
 
-{#snippet statusBadge(status: AnyStatus)}
-  <span class="ls-status" data-tone={TONES[status]}
-    >{$t(`liveScraper.listings.status.${status}`)}</span
-  >
+{#snippet statusBadge(status: AnyStatus, hidden: boolean)}
+  {#if hidden && status === "live"}
+    <span class="ls-status" data-tone="warn" data-ls-status-hidden
+      >{$t("liveScraper.listings.statusHiddenOnWfm")}</span
+    >
+  {:else}
+    <span class="ls-status" data-tone={TONES[status]}
+      >{$t(`liveScraper.listings.status.${status}`)}</span
+    >
+    {#if hidden}
+      <span
+        class="ls-row-hidden"
+        title={$t("liveScraper.listings.rowHiddenHint")}
+        data-ls-status-hidden>{$t("liveScraper.listings.hiddenMark")}</span
+      >
+    {/if}
+  {/if}
 {/snippet}
 
 <section
@@ -797,9 +925,39 @@
         onclick={() => tab.set(entry)}
       >
         {$t(`liveScraper.listings.tabs.${entry}`)} ({counts[entry]})
+        {#if $liveScraperSettings.hiddenOnWfm[entry]}
+          <span
+            class="ls-tab-hidden"
+            title={$t("liveScraper.listings.hiddenMarkHint")}
+            data-ls-tab-hidden={entry}>{$t("liveScraper.listings.hiddenMark")}</span
+          >
+        {/if}
       </button>
     {/each}
     <span class="ls-tools">
+      <span
+        class="ls-visibility"
+        role="group"
+        aria-label={$t("liveScraper.listings.wfmVisibility")}
+        data-ls-wfm-visibility={$tab}
+      >
+        <span class="ls-visibility-label">{$t("liveScraper.listings.wfmVisibility")}</span>
+        {#each [false, true] as hide (hide)}
+          <button
+            type="button"
+            class="ls-visibility-option"
+            class:active={shownHidden === hide}
+            class:hide
+            aria-pressed={shownHidden === hide}
+            data-ls-wfm-visibility-option={hide ? "hidden" : "visible"}
+            disabled={visibilityBusy != null}
+            title={visibilityHint(hide)}
+            onclick={() => void setWfmVisibility(hide)}
+          >
+            {hide ? $t("liveScraper.listings.wfmHidden") : $t("liveScraper.listings.wfmVisible")}
+          </button>
+        {/each}
+      </span>
       {#if selection.selected.size > 0}
         <span class="ls-selected-count" data-ls-selected-count>
           {$t("liveScraper.listings.selectedCount", { count: selection.selected.size })}
@@ -815,6 +973,21 @@
       />
     </span>
   </div>
+
+  {#if visibilityBusy === $tab}
+    <p class="ls-notice" role="status" data-ls-wfm-visibility-notice>
+      {$t("liveScraper.listings.visibilitySwitching")}
+    </p>
+  {:else if visibilityNotice?.tab === $tab}
+    <p
+      class="ls-notice"
+      class:failed={visibilityNotice.failed}
+      role={visibilityNotice.failed ? "alert" : "status"}
+      data-ls-wfm-visibility-notice
+    >
+      {visibilityNotice.text}
+    </p>
+  {/if}
 
   <div class="ls-scroll">
     {#if $tab === "wtb"}
@@ -842,8 +1015,9 @@
               {@const wish = row.wishlistId
                 ? wishlist.find((w) => w.id === row.wishlistId)
                 : undefined}
+              {@const rowHidden = row.listPrice != null && row.hidden === true}
               <tr
-                data-tone={TONES[row.status]}
+                data-tone={rowTone(row.status, rowHidden)}
                 data-ls-row={row.key}
                 class:selected={selection.selected.has(row.key)}
                 aria-selected={selection.selected.has(row.key)}
@@ -876,7 +1050,7 @@
                 >
                   {plat(row.potentialProfit)}
                 </td>
-                <td>{@render statusBadge(row.status)}</td>
+                <td>{@render statusBadge(row.status, rowHidden)}</td>
                 <td class="num ls-sub">{timeOf(row.updatedAt)}</td>
                 <td class="num">
                   {#if row.wishlistId}{@render removeButton(
@@ -913,8 +1087,9 @@
           <tbody>
             {#each shownStock as item (item.id)}
               {@const p = profit(item.listPrice, item.bought)}
+              {@const itemHidden = item.listPrice != null && item.wfmHidden === true}
               <tr
-                data-tone={TONES[item.status]}
+                data-tone={rowTone(item.status, itemHidden)}
                 data-ls-row={item.id}
                 class:selected={selection.selected.has(item.id)}
                 aria-selected={selection.selected.has(item.id)}
@@ -939,7 +1114,7 @@
                 <td class="num strong">{plat(item.listPrice)}</td>
                 <td class="num" class:pos={(p ?? 0) > 0} class:neg={(p ?? 0) < 0}>{plat(p)}</td>
                 <td class="num">{item.owned}</td>
-                <td>{@render statusBadge(item.status)}</td>
+                <td>{@render statusBadge(item.status, itemHidden)}</td>
                 <td class="num ls-sub">{timeOf(item.updatedAt)}</td>
                 <td class="num">{@render removeButton("stock", item.id, item.itemName)}</td>
               </tr>
@@ -970,8 +1145,9 @@
         <tbody>
           {#each shownRivens as riven (riven.id)}
             {@const p = profit(riven.listPrice, riven.bought)}
+            {@const rivenHidden = riven.auctionId != null && riven.wfmHidden === true}
             <tr
-              data-tone={TONES[riven.status]}
+              data-tone={rowTone(riven.status, rivenHidden)}
               data-ls-row={riven.id}
               class:selected={selection.selected.has(riven.id)}
               aria-selected={selection.selected.has(riven.id)}
@@ -1000,7 +1176,7 @@
               >
               <td class="num strong">{plat(riven.listPrice)}</td>
               <td class="num" class:pos={(p ?? 0) > 0} class:neg={(p ?? 0) < 0}>{plat(p)}</td>
-              <td>{@render statusBadge(riven.status)}</td>
+              <td>{@render statusBadge(riven.status, rivenHidden)}</td>
               <td class="num">{@render removeButton("riven", riven.id, riven.rivenName)}</td>
             </tr>
           {/each}
@@ -1149,6 +1325,68 @@
     align-items: center;
     gap: 0.75rem;
     padding-bottom: 0.35rem;
+  }
+  .ls-visibility {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    font-size: 0.75rem;
+  }
+  .ls-visibility-label {
+    color: var(--text-muted);
+  }
+  .ls-visibility-option {
+    border: 1px solid var(--border);
+    background: transparent;
+    padding: 0.25rem 0.55rem;
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+    transition:
+      background-color 0.12s ease,
+      color 0.12s ease;
+  }
+  .ls-visibility-option:first-of-type {
+    border-radius: 0.375rem 0 0 0.375rem;
+  }
+  .ls-visibility-option:last-of-type {
+    margin-left: -1px;
+    border-radius: 0 0.375rem 0.375rem 0;
+  }
+  .ls-visibility-option:hover:not(:disabled) {
+    background: var(--bg-hover);
+    color: var(--text-primary);
+  }
+  .ls-visibility-option.active {
+    border-color: var(--accent-dim);
+    background: var(--accent-glow);
+    color: var(--text-primary);
+  }
+  .ls-visibility-option.active.hide {
+    border-color: color-mix(in srgb, var(--warning) 55%, transparent);
+    background: color-mix(in srgb, var(--warning) 14%, transparent);
+    color: var(--warning);
+  }
+  .ls-visibility-option:disabled {
+    opacity: 0.6;
+  }
+  .ls-tab-hidden,
+  .ls-row-hidden {
+    margin-left: 0.3rem;
+    border-radius: 0.25rem;
+    padding: 0 0.3rem;
+    font-size: 0.625rem;
+    color: var(--warning);
+    background: color-mix(in srgb, var(--warning) 14%, transparent);
+  }
+  .ls-notice {
+    margin: 0;
+    padding: 0.4rem 1rem;
+    border-bottom: 1px solid var(--border);
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+  }
+  .ls-notice.failed {
+    color: var(--danger);
   }
   .ls-selected-count {
     font-size: 0.75rem;
