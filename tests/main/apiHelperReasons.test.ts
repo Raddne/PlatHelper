@@ -13,6 +13,7 @@ vi.mock("electron", () => ({
 import {
   fileContainsMarker,
   helperFailureReason,
+  linuxAuthzReason,
   nextHelperPollDelayMs,
   shouldRetryAfterGameLogin,
   shouldUseWindowsNativeFallback,
@@ -32,6 +33,19 @@ describe("helperFailureReason", () => {
   });
 });
 
+describe("linuxAuthzReason", () => {
+  it("reports a blocked /proc/<pid>/mem as ptrace-denied, never as an elevated game", () => {
+    expect(linuxAuthzReason("mem-open-EACCES")).toBe("ptrace-denied");
+    expect(linuxAuthzReason("mem-open-EPERM")).toBe("ptrace-denied");
+  });
+
+  it("maps a missing process and leaves token misses to EE.log", () => {
+    expect(linuxAuthzReason("process-not-found")).toBe("game-not-running");
+    expect(linuxAuthzReason("crumbs-not-found")).toBeNull();
+    expect(linuxAuthzReason("crumbs-ambiguous")).toBeNull();
+  });
+});
+
 describe("nextHelperPollDelayMs", () => {
   const INTERVAL = 600_000;
 
@@ -42,6 +56,7 @@ describe("nextHelperPollDelayMs", () => {
   it("retries fast when the run never reached the API", () => {
     expect(nextHelperPollDelayMs(false, "game-not-running", INTERVAL)).toBe(90_000);
     expect(nextHelperPollDelayMs(false, "access-denied", INTERVAL)).toBe(90_000);
+    expect(nextHelperPollDelayMs(false, "ptrace-denied", INTERVAL)).toBe(90_000);
     expect(nextHelperPollDelayMs(false, "not-logged-in", INTERVAL)).toBe(90_000);
   });
 
@@ -68,6 +83,7 @@ describe("shouldRetryAfterGameLogin", () => {
     expect(shouldRetryAfterGameLogin(false, false, "token-not-found")).toBe(true);
     expect(shouldRetryAfterGameLogin(false, false, "api-failed")).toBe(false);
     expect(shouldRetryAfterGameLogin(false, false, "access-denied")).toBe(false);
+    expect(shouldRetryAfterGameLogin(false, false, "ptrace-denied")).toBe(false);
     expect(shouldRetryAfterGameLogin(false, true, null)).toBe(false);
   });
 

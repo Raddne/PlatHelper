@@ -34,6 +34,8 @@ curl -fsSL https://github.com/Raddne/PlatHelper/releases/latest/download/install
 
 It picks the `.deb` or `.rpm` from the latest release, checks its checksum and installs it. Start PlatHelper from your app menu or with `plathelper` (as your normal user, not with sudo). You can also install a downloaded package yourself with `sudo apt install ./PlatHelper-<version>.deb` or `sudo dnf install ./PlatHelper-<version>.rpm`, or use the `.AppImage` on any other distribution. See [Linux setup](docs/features/getting-started.md#linux-setup) for Steam and screen-capture settings.
 
+Automatic inventory reads the login token from the running game's memory. Most distributions (NixOS, Ubuntu, Debian, Arch) ship the kernel default `kernel.yama.ptrace_scope = 1`, which only lets a program read its own child processes, so PlatHelper shows "WF memory blocked (ptrace_scope)" until you allow it. Temporarily: `sudo sysctl kernel.yama.ptrace_scope=0`. Permanently: on NixOS add `boot.kernel.sysctl."kernel.yama.ptrace_scope" = 0;` to your configuration; elsewhere put `kernel.yama.ptrace_scope = 0` into `/etc/sysctl.d/60-plathelper.conf` and run `sudo sysctl --system`. PlatHelper does not change this setting for you, because it applies to every program on the system.
+
 ## Live Scraper
 
 ![Live Scraper with stock, wishlist and the listings panel](.github/screenshots/scraper.png)

@@ -19,7 +19,7 @@ const ENGLISH_ONLY = ["common.whisperBuy", "common.whisperSell"];
 // Keys this fork added on top of upstream WFHelper. German stays English by
 // fallback; Simplified Chinese is translated at the owner's request.
 const FORK_ENGLISH_ONLY =
-  /^(liveScraper\.|presets\.|messages\.|rivenQuick\.|nav\.(liveScraper|messages|newGroupDefaultName|ungroup|renameGroupHint)$|common\.add$)/;
+  /^(liveScraper\.|presets\.|messages\.|rivenQuick\.|nav\.(liveScraper|messages|newGroupDefaultName|ungroup|renameGroupHint)$|common\.add$|(setup\.waiting|titlebar\.status|titlebar\.tooltip)\.ptraceDenied$)/;
 
 // Trade shorthand, grade letters and relic tier names read the same everywhere,
 // so the catalogues leave them out and the English fallback serves them. The

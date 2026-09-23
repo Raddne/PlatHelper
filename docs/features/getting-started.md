@@ -61,12 +61,23 @@ Run Warframe through Steam with Proton. For faster detection of overlay events, 
 
 The first capture in a session asks you to share a screen. Select the monitor showing Warframe and allow the request. If you dismiss it, the overlay cannot read the reward screen.
 
+### Allow reading game memory
+
+Automatic inventory reads the login token from the running game's memory. On most distributions (NixOS, Ubuntu, Debian, Arch, and others that keep the kernel default) `kernel.yama.ptrace_scope` is `1`, which only lets a program read its own child processes. PlatHelper then shows **WF memory blocked (ptrace_scope)** in the title bar and in the setup wizard. Nothing is running as administrator; the kernel setting is the cause.
+
+- Try it now, until the next reboot: `sudo sysctl kernel.yama.ptrace_scope=0`
+- Permanently on NixOS: add `boot.kernel.sysctl."kernel.yama.ptrace_scope" = 0;` to your configuration and rebuild.
+- Permanently elsewhere: write `kernel.yama.ptrace_scope = 0` into `/etc/sysctl.d/60-plathelper.conf`, then run `sudo sysctl --system`.
+
+PlatHelper retries on its own once the setting is in place. It does not change the setting for you, because it applies to every program on the system. The desktop or compositor (GNOME, KDE, niri, Hyprland) makes no difference here.
+
 Overlays work on X11, XWayland and native Wayland. On native Wayland they use the layer-shell protocol (KDE Plasma, Sway, Hyprland, niri, COSMIC); GNOME does not offer it, so PlatHelper uses XWayland there. SteamOS game mode is unsupported.
 
 ## If setup gets stuck
 
 - **Waiting for the game:** start Warframe and finish logging in. The launcher alone is not enough.
-- **Access denied:** the setup message may indicate that Warframe is running as administrator. Restart the game and its launcher without **Run as administrator**.
+- **Access denied (Windows):** the setup message may indicate that Warframe is running as administrator. Restart the game and its launcher without **Run as administrator**.
+- **WF memory blocked (Linux):** the kernel does not let PlatHelper read the game's memory. Follow [Allow reading game memory](#allow-reading-game-memory).
 - **Login token not found:** restart Warframe and try again. If the error persists, include the exact message when asking for help.
 - **JSON rejected:** choose an inventory export, rather than a stats or trade-history export.
 - **Items or quantities look old:** check the selected source and allow for the helper cooldown. Imported files need a newer export to reflect later changes.

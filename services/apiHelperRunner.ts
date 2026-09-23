@@ -22,7 +22,7 @@ const IS_WINDOWS = process.platform === "win32";
 // single `warframe-api-helper` ELF binary (works against the Proton game).
 const EXE_NAME = IS_WINDOWS ? "warframe-api-helper.exe" : "warframe-api-helper";
 const DEFAULT_POLL_INTERVAL_MS = 10 * 60 * 1000; // 10 minutes
-// Runs that failed before reaching DE's API (game closed, elevated, or not
+// Runs that failed before reaching DE's API (game closed, unreadable, or not
 // logged in) never consumed the cooldown, so they may retry much sooner.
 const LOCAL_FAILURE_RETRY_MS = 90 * 1000;
 // Hard kill the helper if it hasn't exited after this long. Normal runs are <5s.
@@ -119,7 +119,12 @@ export function nextHelperPollDelayMs(
   reason: HelperRunReason | null,
   intervalMs: number,
 ): number {
-  if (reason === "game-not-running" || reason === "access-denied" || reason === "not-logged-in") {
+  if (
+    reason === "game-not-running" ||
+    reason === "access-denied" ||
+    reason === "ptrace-denied" ||
+    reason === "not-logged-in"
+  ) {
     return Math.min(LOCAL_FAILURE_RETRY_MS, intervalMs);
   }
   return intervalMs;
@@ -274,7 +279,15 @@ export function getStatus(): HelperStatus {
   };
 }
 
-/** Run the helper without showing a console window. */
+/** Linux never has an "elevated" game: /proc/<pid>/mem refuses non-descendants
+ *  under Yama ptrace_scope=1, the kernel default. Null means EE.log must decide
+ *  between the login screen and a missed token. */
+export function linuxAuthzReason(reason: string): HelperRunReason | null {
+  if (reason === "process-not-found") return "game-not-running";
+  if (reason.startsWith("mem-open-")) return "ptrace-denied";
+  return null;
+}
+
 // Linux: skip the external ELF entirely - read the auth query from game memory
 // and reuse the same inventory fetch as Windows.
 async function runOnceLinux(): Promise<boolean> {
@@ -287,16 +300,18 @@ async function runOnceLinux(): Promise<boolean> {
   });
 
   if (!result?.authz) {
-    if (result?.reason === "process-not-found") {
+    const reason = result ? linuxAuthzReason(result.reason) : null;
+    if (reason === "game-not-running") {
       log.warn("Warframe is not running - start the game and log in first.");
-      return settleRun(false, "game-not-running");
+      return settleRun(false, reason);
     }
-    if (result?.reason.startsWith("mem-open-")) {
+    if (reason === "ptrace-denied") {
       log.error(
-        `Cannot read game memory (${result.reason}). Set kernel.yama.ptrace_scope=0, ` +
-          "or grant cap_sys_ptrace (see the Linux notes in the release).",
+        `Cannot read game memory (${result?.reason}): kernel.yama.ptrace_scope blocks ` +
+          "reading other processes. Set it to 0 as described in the Linux setup section " +
+          "of docs/features/getting-started.md.",
       );
-      return settleRun(false, "access-denied");
+      return settleRun(false, reason);
     }
     log.warn("Auth params not in game memory - are you logged in and in your Orbiter?");
     return settleRun(false, await classifyNotLoggedIn());

@@ -1,6 +1,7 @@
 export type HelperRunReason =
   | "game-not-running"
   | "access-denied"
+  | "ptrace-denied"
   | "not-logged-in"
   | "token-not-found"
   | "api-failed"
