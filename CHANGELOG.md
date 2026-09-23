@@ -4,6 +4,13 @@ Patch notes for every PlatHelper release. The release workflow copies the sectio
 
 Keep every bullet on one line: GitHub shows a line break inside release notes as a line break.
 
+## v0.2.3
+
+- **Live Scraper: hide or show your listings on warframe.market.** Every Listings tab (WTB, WTS, Rivens) has an "On WFM: Visible | Hidden" switch next to the search box. With rows marked it switches only those, otherwise the whole tab.
+- New listings follow the same state: a hidden row's next order or auction is created hidden, and switching a whole tab also sets how its new rows start.
+- The Status column shows "Hidden on WFM" for a listing other players cannot see, and it picks up changes you make in the Market tab or on warframe.market.
+- Pause still takes a listing down; hiding keeps it on warframe.market, just invisible to other players.
+
 ## v0.2.2
 
 - Linux: PlatHelper now tells a sandboxed start (appimage-run, steam-run, Flatpak; the usual case on NixOS) apart from a real `kernel.yama.ptrace_scope` block and shows "WF unreachable from sandbox" with the fix: start PlatHelper outside the sandbox.

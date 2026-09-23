@@ -1,6 +1,6 @@
 {
   "name": "plathelper",
-  "version": "0.2.2",
+  "version": "0.2.3",
   "description": "Warframe companion: inventory, foundry, relic and riven scanning, market orders.",
   "main": ".electron-build/main.js",
   "desktopName": "plathelper.desktop",
