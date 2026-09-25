@@ -10,6 +10,7 @@
     updateRivenGeneralSettings,
     updateRivenWtsSettings,
     updateSyndicateWtsSettings,
+    withTradeMode,
     type TradeMode,
   } from "../stores/liveScraperSettings.js";
 
@@ -29,17 +30,21 @@
     { id: "buy", labelKey: "liveScraper.settings.general.tradeModeBuy" },
     { id: "sell", labelKey: "liveScraper.settings.general.tradeModeSell" },
     { id: "wishlist", labelKey: "liveScraper.settings.general.tradeModeWishlist" },
-    { id: "syndicate", labelKey: "liveScraper.settings.tabs.syndicate" },
+    { id: "riven", labelKey: "liveScraper.settings.tabs.riven" },
   ];
+  // The blacklist holds items, so it never offers the riven switch.
+  type ItemTradeMode = Exclude<TradeMode, "riven">;
+  const ITEM_MODE_OPTIONS = TRADE_MODE_OPTIONS.filter(
+    (m): m is { id: ItemTradeMode; labelKey: MessageKey } => m.id !== "riven",
+  );
 
   // Draft rows for the two add-by-id editors (no item picker widget yet, so a
   // wfm id is typed by hand). Cleared after a successful add.
   let blacklistDraftId = $state("");
-  let blacklistDraftModes = $state<Record<TradeMode, boolean>>({
+  let blacklistDraftModes = $state<Record<ItemTradeMode, boolean>>({
     buy: false,
     sell: false,
     wishlist: false,
-    syndicate: false,
   });
   let buyListDraftId = $state("");
   let buyListDraftPrice = $state(0);
@@ -47,7 +52,7 @@
 
   function addBlacklistEntry(): void {
     const wfmId = blacklistDraftId.trim();
-    const disabledFor = (Object.keys(blacklistDraftModes) as TradeMode[]).filter(
+    const disabledFor = (Object.keys(blacklistDraftModes) as ItemTradeMode[]).filter(
       (m) => blacklistDraftModes[m],
     );
     if (!wfmId || disabledFor.length === 0) return;
@@ -56,7 +61,7 @@
       blacklist: [...g.blacklist, { wfmId, disabledFor }],
     }));
     blacklistDraftId = "";
-    blacklistDraftModes = { buy: false, sell: false, wishlist: false, syndicate: false };
+    blacklistDraftModes = { buy: false, sell: false, wishlist: false };
   }
 
   function removeBlacklistEntry(index: number): void {
@@ -182,41 +187,19 @@
             (v) => updateGeneralSettings((g) => ({ ...g, deleteConflictingOrders: v })),
           )}
 
-          <label class="grid gap-1">
-            <span class="text-sm text-text-primary"
-              >{$tr("liveScraper.settings.general.stockModeLabel")}</span
-            >
-            <select
-              class="w-full rounded-md border border-border bg-bg-deep px-2 py-1 text-sm text-text-primary"
-              value={$liveScraperSettings.general.stockMode}
-              onchange={(e) =>
-                updateGeneralSettings((g) => ({
-                  ...g,
-                  stockMode: e.currentTarget.value as typeof g.stockMode,
-                }))}
-            >
-              <option value="all">{$tr("liveScraper.settings.general.stockModeAll")}</option>
-              <option value="item">{$tr("liveScraper.settings.general.stockModeItem")}</option>
-              <option value="riven">{$tr("liveScraper.settings.general.stockModeRiven")}</option>
-            </select>
-          </label>
-
           <div class="mt-2 border-t border-border pt-3">
-            <p class="m-0 mb-2 text-sm font-medium text-text-primary">
+            <p class="m-0 mb-1 text-sm font-medium text-text-primary">
               {$tr("liveScraper.settings.general.tradeModesTitle")}
             </p>
-            <div class="flex flex-wrap gap-4">
+            <p class="m-0 mb-2 text-xs text-text-muted">
+              {$tr("liveScraper.settings.general.tradeModesHint")}
+            </p>
+            <div class="flex flex-wrap gap-4" data-live-scraper-trade-modes>
               {#each TRADE_MODE_OPTIONS as mode (mode.id)}
                 {@render checkboxField(
                   $tr(mode.labelKey),
                   $liveScraperSettings.general.tradeModes.includes(mode.id),
-                  (checked) =>
-                    updateGeneralSettings((g) => ({
-                      ...g,
-                      tradeModes: checked
-                        ? [...g.tradeModes, mode.id]
-                        : g.tradeModes.filter((m) => m !== mode.id),
-                    })),
+                  (checked) => updateGeneralSettings((g) => withTradeMode(g, mode.id, checked)),
                 )}
               {/each}
             </div>
@@ -257,7 +240,7 @@
                 class="min-w-0 flex-1 rounded-md border border-border bg-bg-deep px-2 py-1 text-sm text-text-primary"
                 bind:value={blacklistDraftId}
               />
-              {#each TRADE_MODE_OPTIONS.filter((m) => m.id !== "syndicate") as mode (mode.id)}
+              {#each ITEM_MODE_OPTIONS as mode (mode.id)}
                 <label class="flex items-center gap-1 text-xs text-text-secondary">
                   <input type="checkbox" bind:checked={blacklistDraftModes[mode.id]} />
                   {$tr(mode.labelKey)}

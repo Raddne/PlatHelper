@@ -8,7 +8,8 @@
  *  for every numeric setting in this feature — kept identical here for parity. */
 export const DISABLED = -1;
 
-export type TradeMode = "buy" | "sell" | "wishlist" | "syndicate";
+/** "riven" switches riven selling on; the other three are the item passes. */
+export type TradeMode = "buy" | "sell" | "wishlist" | "riven";
 type StockMode = "all" | "item" | "riven";
 
 export interface SubTypeLike {
@@ -34,6 +35,8 @@ export interface LiveScraperGeneralSettings {
   reportToWfm: boolean;
   autoDelete: boolean;
   autoTrade: boolean;
+  /** Derived from tradeModes and kept in the file, so a build that still reads
+   *  the old engine-mode switch sees the same choice. */
   stockMode: StockMode;
   tradeModes: TradeMode[];
   deleteConflictingOrders: boolean;
@@ -121,7 +124,7 @@ function defaultGeneral(): LiveScraperGeneralSettings {
     autoDelete: true,
     autoTrade: true,
     stockMode: "all",
-    tradeModes: ["buy", "sell", "wishlist"],
+    tradeModes: ["buy", "sell", "wishlist", "riven"],
     deleteConflictingOrders: false,
   };
 }
@@ -186,8 +189,28 @@ export function defaultLiveScraperSettings(): LiveScraperSettings {
   };
 }
 
-const TRADE_MODES: readonly TradeMode[] = ["buy", "sell", "wishlist", "syndicate"];
+const TRADE_MODES: readonly TradeMode[] = ["buy", "sell", "wishlist", "riven"];
 const STOCK_MODES: readonly StockMode[] = ["all", "item", "riven"];
+/** Stored by builds before the riven switch; it never did anything. */
+const RETIRED_TRADE_MODES: readonly string[] = ["syndicate"];
+
+function stockModeFor(tradeModes: readonly TradeMode[]): StockMode {
+  const rivens = tradeModes.includes("riven");
+  const items = tradeModes.some((mode) => mode !== "riven");
+  if (rivens) return items ? "all" : "riven";
+  return "item";
+}
+
+/** Switches one trade mode and keeps the derived stockMode in step. */
+export function withTradeMode(
+  general: LiveScraperGeneralSettings,
+  mode: TradeMode,
+  on: boolean,
+): LiveScraperGeneralSettings {
+  const others = general.tradeModes.filter((entry) => entry !== mode);
+  const tradeModes = on ? [...others, mode] : others;
+  return { ...general, tradeModes, stockMode: stockModeFor(tradeModes) };
+}
 
 function num(value: unknown, fallback: number): number {
   return typeof value === "number" && Number.isFinite(value) ? value : fallback;
@@ -203,8 +226,9 @@ function strArray(value: unknown, fallback: string[]): string[] {
 }
 function tradeModeArray(value: unknown, fallback: TradeMode[]): TradeMode[] {
   if (!Array.isArray(value)) return fallback;
-  const out = value.filter((v): v is TradeMode => TRADE_MODES.includes(v as TradeMode));
-  return out.length > 0 || value.length === 0 ? out : fallback;
+  const current = value.filter((v) => !RETIRED_TRADE_MODES.includes(v as string));
+  const out = current.filter((v): v is TradeMode => TRADE_MODES.includes(v as TradeMode));
+  return out.length > 0 || current.length === 0 ? out : fallback;
 }
 
 function normalizeSubType(raw: unknown): SubTypeLike | undefined {
@@ -247,18 +271,28 @@ function normalizeBuyList(raw: unknown): BuyListEntry[] {
   return out;
 }
 
+/** Older files chose rivens with stockMode alone ("all" or "riven" meant on,
+ *  "riven" also switched the item passes off); newer ones list "riven" among
+ *  the trade modes and write a stockMode that agrees. Both read the same. */
+function normalizeTradeModes(rawModes: unknown, rawStockMode: unknown): TradeMode[] {
+  const modes = tradeModeArray(rawModes, ["buy", "sell", "wishlist"]);
+  const stockMode = str(rawStockMode, "all");
+  const known = (STOCK_MODES as readonly string[]).includes(stockMode) ? stockMode : "all";
+  const rivens = modes.includes("riven") || known !== "item";
+  const items = known === "riven" ? [] : modes.filter((mode) => mode !== "riven");
+  return rivens ? [...items, "riven"] : items;
+}
+
 function normalizeGeneral(raw: unknown): LiveScraperGeneralSettings {
   const e = (raw ?? {}) as Record<string, unknown>;
   const d = defaultGeneral();
-  const stockMode = str(e.stockMode, d.stockMode);
+  const tradeModes = normalizeTradeModes(e.tradeModes, e.stockMode);
   return {
     reportToWfm: bool(e.reportToWfm, d.reportToWfm),
     autoDelete: bool(e.autoDelete, d.autoDelete),
     autoTrade: bool(e.autoTrade, d.autoTrade),
-    stockMode: (STOCK_MODES as readonly string[]).includes(stockMode)
-      ? (stockMode as StockMode)
-      : d.stockMode,
-    tradeModes: tradeModeArray(e.tradeModes, d.tradeModes),
+    stockMode: stockModeFor(tradeModes),
+    tradeModes,
     deleteConflictingOrders: bool(e.deleteConflictingOrders, d.deleteConflictingOrders),
   };
 }

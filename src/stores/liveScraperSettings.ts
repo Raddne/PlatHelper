@@ -14,6 +14,7 @@ import {
 } from "../../config/shared/liveScraperSettings.js";
 
 export type { TradeMode } from "../../config/shared/liveScraperSettings.js";
+export { withTradeMode } from "../../config/shared/liveScraperSettings.js";
 
 // Main process is authoritative (services/liveScraperSettings.ts, persisted via
 // jsonCache) since the engine itself reads these settings; this store is a thin
