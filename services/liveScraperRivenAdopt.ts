@@ -42,8 +42,9 @@ function weaponNameForSlug(slug: string): string {
 }
 
 /** Throws when the auctions cannot be fetched, so a failed fetch never looks
- *  like "no auctions left" and drops every adopted row. */
-export async function syncAdoptedRivenAuctions(): Promise<void> {
+ *  like "no auctions left" and drops every adopted row. Returns the ids of
+ *  every auction on the account, the riven pass's word on which are alive. */
+export async function syncAdoptedRivenAuctions(): Promise<Set<string>> {
   const fetchedAt = Date.now();
   const auctions = await fetchAllMyAuctions();
   const plan = planRivenAdoption(listStockRivens(), auctions, rivenData.getRivenFamilySlug);
@@ -81,4 +82,5 @@ export async function syncAdoptedRivenAuctions(): Promise<void> {
     log.info(`[Adopt] riven auction gone or no direct sell - dropped stock row ${id}`);
   }
   syncRivenRowVisibility(auctions, fetchedAt);
+  return new Set(auctions.map((auction) => auction.id));
 }

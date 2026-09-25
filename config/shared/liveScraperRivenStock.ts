@@ -159,3 +159,15 @@ export function normalizeLiveScraperRivenStockFile(raw: unknown): LiveScraperRiv
     : [];
   return { version: 1, stockRivens };
 }
+
+/** The riven's own name without the weapon in front: "Boar Sati-hexatis" and
+ *  "sati-hexatis" name the same riven. warframe.market stores only this part,
+ *  so it is what an auction and a stock row are matched on. */
+export function rivenNameSuffix(weaponName: string, rivenName: string): string {
+  const name = rivenName.trim();
+  const prefix = `${weaponName.trim()} `;
+  const suffix = name.toLowerCase().startsWith(prefix.toLowerCase())
+    ? name.slice(prefix.length)
+    : name;
+  return suffix.trim().toLowerCase();
+}

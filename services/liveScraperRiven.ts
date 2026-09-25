@@ -1,36 +1,39 @@
-// Phase 7: riven selling - progress_selling's riven analogue (docs/live-scraper/
-// quantframe-reference.md §B.4f). Prices from the average of the lowest
-// competing direct-sell auctions (config/shared/liveScraperRivenPricing.ts's
-// average_filtered_lowest_prices port), falls back to bought+minProfit+1 when
-// there are no competing auctions at all (kept LISTED at that price, not
-// deleted - a real deviation from item WTS's "no sellers -> abandon" branch),
-// applies the per-riven minimum-price override and the minimum-profit floor,
-// then dispatches to the WFM Auction API.
-//
-// No should_apply_max_price_drop damping is applied here at all, matching the
-// reference: riven prices always snap to the freshly recomputed average.
-//
-// Dispatch note: unlike items, there is no "list my auctions" endpoint in play
-// (services/wfmRivenSearch.ts has create/update/close only) - WFHelper owns
-// the create<->auctionId mapping itself via the StockRiven row's `auctionId`
-// field. Any update/delete failure (e.g. the auction already sold or was
-// removed on WFM's site) clears that field so the next tick just creates a
-// fresh one instead of retrying a dead id forever.
+// Phase 7: riven selling - progress_selling's riven analogue. Prices from the
+// lowest comparable fixed-price listings, applies the per-riven minimum price
+// and the minimum-profit floor, then dispatches to the WFM Auction API. Where
+// PlatHelper deviates from Quantframe: docs/live-scraper/quantframe-reference.md B.4f.
+
+// The engine owns the create<->auctionId mapping on the StockRiven row; the
+// adoption sync's account-wide auction list says whether that auction is still
+// alive. An update failure never drops the id: the auction is most likely still
+// up, and a fresh create next to it is a duplicate of the same riven.
 
 import { withScope } from "./logger";
 import * as rivenData from "./rivenData";
+import { getGoodRolls } from "./rivenBestAttributes";
 import {
-  searchSimilarRivens,
+  searchSimilarRivensOrThrow,
   createRivenAuction,
   updateRivenAuction,
   deleteRivenAuction,
 } from "./wfmRivenSearch";
 import { updateStockRiven } from "./liveScraperRivenStock";
+import { WfmApiError } from "./wfmTypes";
 import { isActiveOrderStatus } from "../config/shared/wfmOrders";
-import { averageFilteredLowestPrices } from "../config/shared/liveScraperRivenPricing";
+import {
+  averageFilteredLowestPrices,
+  comparableSearchTiers,
+  MIN_COMPARABLE_LISTINGS,
+  type ComparableTierName,
+  type KeyStatGroup,
+} from "../config/shared/liveScraperRivenPricing";
 import { isThresholdDisabled } from "../config/shared/liveScraperPricing";
 import { tagToWfmUrlName, polarityToWfm } from "../config/shared/wfmRivenVocabulary";
-import type { StockRiven, StockRivenStat } from "../config/shared/liveScraperRivenStock";
+import {
+  rivenNameSuffix,
+  type StockRiven,
+  type StockRivenStat,
+} from "../config/shared/liveScraperRivenStock";
 import type { StockEntryStatus } from "../config/shared/liveScraperStock";
 import type { RivenWtsSettings } from "../config/shared/liveScraperSettings";
 
@@ -42,6 +45,8 @@ interface RivenProgressResult {
   auctionId: string | null;
   price: number | null;
   error?: string;
+  /** True when warframe.market refused for rate limiting; the pass stops there. */
+  rateLimited?: boolean;
 }
 
 function statUrlNames(stats: readonly StockRivenStat[], positive: boolean): string[] {
@@ -51,41 +56,69 @@ function statUrlNames(stats: readonly StockRivenStat[], positive: boolean): stri
     .filter((v): v is string => !!v);
 }
 
-// One search page holds at most this many auctions; fewer means the result is complete.
+// One search page holds at most this many auctions, and the cheapest page is all a price needs.
 const SEARCH_PAGE_SIZE = 500;
 
-interface CompetingAuctions {
-  prices: number[];
-  /** False only when a complete result no longer contains the riven's own auction. */
-  ownAuctionListed: boolean;
+function isRateLimitError(err: unknown): boolean {
+  if (err instanceof WfmApiError && (err.code === "WFM_RATE_LIMITED" || err.status === 429)) {
+    return true;
+  }
+  return /rate limit/i.test(err instanceof Error ? err.message : String(err ?? ""));
 }
 
-async function fetchCompetingPrices(
-  riven: Pick<StockRiven, "stats" | "auctionId">,
+/** The weapon's good-roll groups as WFM url names. A group whose mandatory
+ *  stat has no WFM attribute is dropped rather than loosened. */
+function keyStatGroups(weaponName: string): KeyStatGroup[] {
+  const data = getGoodRolls(weaponName);
+  if (!data) return [];
+  const urlNames = (tags: readonly string[]) =>
+    tags.map(tagToWfmUrlName).filter((v): v is string => !!v);
+  return data.goodAttrs
+    .map((group) => ({ mandatory: urlNames(group.mandatory), optional: urlNames(group.optional) }))
+    .filter((group, i) => group.mandatory.length === data.goodAttrs[i]!.mandatory.length);
+}
+
+interface ComparablePrices {
+  /** Ascending buyout prices of other sellers' fixed-price listings. */
+  prices: number[];
+  tier: ComparableTierName | null;
+}
+
+/** The cheapest comparable fixed-price listings, from the tightest search
+ *  that holds MIN_COMPARABLE_LISTINGS of them. Throws when a search fails,
+ *  so an outage never reads as "nothing listed". */
+async function findComparablePrices(
+  weaponName: string,
   weaponSlug: string,
+  stats: readonly StockRivenStat[],
   ownName: string | null,
   onlineOnly = false,
-): Promise<CompetingAuctions> {
-  const listings = await searchSimilarRivens(weaponSlug, {
-    limit: 2000,
-    positiveStats: statUrlNames(riven.stats, true),
-    negativeStats: statUrlNames(riven.stats, false),
-  });
-  const prices = listings
-    .filter((l) => l.isDirectSell && l.buyoutPrice != null && l.buyoutPrice > 0)
-    // The engine deliberately does not filter by seller status: a riven is one of a
-    // kind, so an offline seller's auction is as much the going price as an online
-    // one's. Only the manual quick-list asks the user and may pass onlineOnly.
-    .filter((l) => !onlineOnly || isActiveOrderStatus(l.sellerStatus))
-    .filter((l) => !ownName || l.seller.toLowerCase() !== ownName.toLowerCase())
-    .map((l) => l.buyoutPrice as number)
-    .sort((a, b) => a - b);
-  // The search matches the riven's own stats, so its auction has to be in a
-  // complete result; if it is not, it was closed or sold outside the scraper.
-  const complete = listings.length > 0 && listings.length < SEARCH_PAGE_SIZE;
-  const ownAuctionListed =
-    !riven.auctionId || !complete || listings.some((l) => l.id === riven.auctionId);
-  return { prices, ownAuctionListed };
+): Promise<ComparablePrices> {
+  const tiers = comparableSearchTiers(
+    statUrlNames(stats, true),
+    statUrlNames(stats, false),
+    keyStatGroups(weaponName),
+  );
+  for (const tier of tiers) {
+    const listings = await searchSimilarRivensOrThrow(weaponSlug, {
+      limit: SEARCH_PAGE_SIZE,
+      positiveStats: tier.positive,
+      negativeStats: tier.negative,
+      directOnly: true,
+      ascOnly: true,
+    });
+    const prices = listings
+      .filter((l) => l.isDirectSell && l.buyoutPrice != null && l.buyoutPrice > 0)
+      // The engine deliberately does not filter by seller status: a riven is one of a
+      // kind, so an offline seller's auction is as much the going price as an online
+      // one's. Only the manual quick-list asks the user and may pass onlineOnly.
+      .filter((l) => !onlineOnly || isActiveOrderStatus(l.sellerStatus))
+      .filter((l) => !ownName || l.seller.toLowerCase() !== ownName.toLowerCase())
+      .map((l) => l.buyoutPrice as number)
+      .sort((a, b) => a - b);
+    if (prices.length >= MIN_COMPARABLE_LISTINGS) return { prices, tier: tier.name };
+  }
+  return { prices: [], tier: null };
 }
 
 /** warframe.market's answer for an auction id it no longer knows. */
@@ -108,7 +141,7 @@ async function dispatchRivenAuction(
   if (shouldDelete) {
     if (!riven.auctionId) return { action: "skipped", auctionId: null };
     const result = await deleteRivenAuction(riven.auctionId);
-    if (!result.ok) {
+    if (!result.ok && !isAuctionGoneError(result.error)) {
       log.warn(`[LiveScraperRiven] delete auction ${riven.auctionId} failed:`, result.error);
       return { action: "skipped", auctionId: riven.auctionId, error: result.error };
     }
@@ -135,19 +168,15 @@ async function dispatchRivenAuction(
         visible: !hidden,
       };
     }
-    if (riven.adopted) {
-      // The user's own auction: never replaced by a new one. If it is really
-      // gone, the next adoption sync drops the row.
-      return { action: "skipped", auctionId: riven.auctionId, error: result.error };
-    }
-    if (!isAuctionGoneError(result.error)) {
-      // Anything else (rate limit, network) may leave the auction alive, so a
-      // new one could duplicate it: drop the id and let the next pass decide.
+    if (riven.adopted || !isAuctionGoneError(result.error)) {
+      // A rate limit or network error leaves the auction up, and an adopted
+      // auction is never replaced; either way the id stays and the next pass
+      // retries. Dropping it here is what listed one riven twice.
       log.warn(
-        `[LiveScraperRiven] update auction ${riven.auctionId} failed, will recreate:`,
+        `[LiveScraperRiven] update auction ${riven.auctionId} failed, kept for retry:`,
         result.error,
       );
-      return { action: "skipped", auctionId: null, error: result.error };
+      return { action: "skipped", auctionId: riven.auctionId, error: result.error };
     }
     // Closed or sold on warframe.market: list it again right away instead of
     // leaving the riven unlisted for a whole update interval.
@@ -163,17 +192,10 @@ async function dispatchRivenAuction(
     value: s.value,
     positive: s.positive,
   }));
-  const rivenSuffix = (() => {
-    const prefix = `${riven.weaponName} `;
-    const suffix = riven.rivenName.startsWith(prefix)
-      ? riven.rivenName.slice(prefix.length)
-      : riven.rivenName;
-    return suffix.toLowerCase();
-  })();
 
   const result = await createRivenAuction({
     weaponSlug,
-    rivenName: rivenSuffix,
+    rivenName: rivenNameSuffix(riven.weaponName, riven.rivenName),
     attributes,
     rerolls: riven.rerolls,
     masteryLevel: riven.masteryReq,
@@ -208,15 +230,53 @@ async function dispatchRivenAuction(
   return { action: "created", auctionId, visible };
 }
 
+const NO_COMPARABLE = "no comparable fixed-price listing";
+
+/** Takes a riven off warframe.market for want of a comparable price. The row
+ *  stays as "No sellers" and is listed again once a price can be found. */
+async function unlistWithoutPrice(riven: StockRiven): Promise<RivenProgressResult> {
+  const base = { itemName: riven.rivenName, error: NO_COMPARABLE };
+  if (riven.adopted) {
+    // The user listed this auction at their own price; the engine only ever
+    // re-prices it and never takes it down.
+    if (riven.status !== "noSellers") updateStockRiven(riven.id, { status: "noSellers" });
+    return { ...base, action: "skipped", auctionId: riven.auctionId, price: riven.listPrice };
+  }
+  if (!riven.auctionId) {
+    if (riven.status !== "noSellers" || riven.listPrice != null) {
+      updateStockRiven(riven.id, { status: "noSellers", listPrice: null });
+    }
+    return { ...base, action: "skipped", auctionId: null, price: null };
+  }
+  const dispatch = await dispatchRivenAuction(riven, 1, true);
+  if (dispatch.action !== "deleted") {
+    // Still up; the next pass tries again.
+    return {
+      ...base,
+      action: "skipped",
+      auctionId: riven.auctionId,
+      price: riven.listPrice,
+      error: dispatch.error ?? NO_COMPARABLE,
+      rateLimited: isRateLimitError(dispatch.error),
+    };
+  }
+  log.info(`[LiveScraperRiven] "${riven.rivenName}" unlisted: ${NO_COMPARABLE}`);
+  updateStockRiven(riven.id, { status: "noSellers", listPrice: null, auctionId: null });
+  return { ...base, action: "deleted", auctionId: null, price: null };
+}
+
 /** Prices and dispatches one stock riven's auction for this tick. Always
  *  persists the resulting status/listPrice/auctionId back to the row.
  *  `isHidden` is read right before each auction call: every update resends
- *  the visibility, so a stale value would undo a switch from the panel. */
+ *  the visibility, so a stale value would undo a switch from the panel.
+ *  `liveAuctionIds` is the account's auction list from the adoption sync;
+ *  a row whose auction is missing from it gets a new one. */
 export async function progressStockRiven(
   riven: StockRiven,
   wts: RivenWtsSettings,
   ownName: string | null,
   isHidden: () => boolean = () => false,
+  liveAuctionIds: ReadonlySet<string> | null = null,
 ): Promise<RivenProgressResult> {
   const weaponSlug = rivenData.getRivenFamilySlug(riven.weaponName);
   if (!weaponSlug) {
@@ -254,31 +314,48 @@ export async function progressStockRiven(
     };
   }
 
-  const { prices, ownAuctionListed } = await fetchCompetingPrices(riven, weaponSlug, ownName);
-  // An adopted auction was confirmed live by the adoption sync a moment ago; a
-  // search that misses it (private, hidden, beyond the result cap) must not
-  // lead to a second auction for the same riven. A hidden auction is never in
-  // the search at all; there an update answering "gone" is the cue.
-  if (!ownAuctionListed && !riven.adopted && !isHidden()) {
+  if (riven.auctionId && liveAuctionIds && !liveAuctionIds.has(riven.auctionId)) {
+    if (riven.adopted) {
+      // The adoption sync drops such rows itself; never list one on our own.
+      return {
+        itemName: riven.rivenName,
+        action: "skipped",
+        auctionId: riven.auctionId,
+        price: riven.listPrice,
+        error: "adopted auction is gone",
+      };
+    }
     log.info(
-      `[LiveScraperRiven] auction ${riven.auctionId} is no longer listed, creating a new one`,
+      `[LiveScraperRiven] auction ${riven.auctionId} is no longer on the account, creating a new one`,
     );
+    updateStockRiven(riven.id, { auctionId: null, listPrice: null });
     riven = { ...riven, auctionId: null, listPrice: null };
   }
 
-  let status: StockEntryStatus = "live";
-  let postPrice: number;
-  if (prices.length === 0) {
-    status = "noSellers";
-    postPrice = riven.bought + wts.minProfit + 1;
-  } else {
-    postPrice = averageFilteredLowestPrices(prices, wts.maxResults, wts.thresholdPercentage);
-    if (postPrice < 0) {
-      status = "noSellers";
-      postPrice = riven.bought + wts.minProfit + 1;
-    }
+  let comparable: ComparablePrices;
+  try {
+    comparable = await findComparablePrices(riven.weaponName, weaponSlug, riven.stats, ownName);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    log.warn(`[LiveScraperRiven] search for "${riven.rivenName}" failed, left as is:`, message);
+    return {
+      itemName: riven.rivenName,
+      action: "skipped",
+      auctionId: riven.auctionId,
+      price: riven.listPrice,
+      error: `search failed: ${message}`,
+      rateLimited: isRateLimitError(err),
+    };
   }
 
+  let postPrice = averageFilteredLowestPrices(
+    comparable.prices,
+    wts.maxResults,
+    wts.thresholdPercentage,
+  );
+  if (postPrice < 0) return unlistWithoutPrice(riven);
+
+  let status: StockEntryStatus = "live";
   if (riven.minPrice != null && postPrice < riven.minPrice) {
     postPrice = riven.minPrice;
   }
@@ -292,11 +369,8 @@ export async function progressStockRiven(
   postPrice = Math.max(postPrice, 1);
 
   const dispatch = await dispatchRivenAuction(riven, postPrice, false, isHidden());
-  // The auctionId always gets persisted, even on failure - a cleared id from
-  // dispatchRivenAuction's self-heal must stick so the next tick creates a
-  // fresh auction instead of retrying a dead one forever. Price/status only
-  // update on an actual success, so a failed attempt doesn't claim "live" at
-  // a price nothing was ever posted at.
+  // Price/status only update on an actual success, so a failed attempt doesn't
+  // claim "live" at a price nothing was ever posted at.
   if (dispatch.action !== "skipped" || !dispatch.error) {
     updateStockRiven(riven.id, {
       status,
@@ -304,8 +378,12 @@ export async function progressStockRiven(
       auctionId: dispatch.auctionId,
       ...(dispatch.visible !== undefined ? { wfmHidden: !dispatch.visible } : {}),
     });
-  } else if (dispatch.auctionId !== riven.auctionId) {
-    updateStockRiven(riven.id, { auctionId: dispatch.auctionId });
+  }
+  if (dispatch.action !== "skipped") {
+    log.info(
+      `[LiveScraperRiven] "${riven.rivenName}" ${dispatch.action} at ${postPrice}p ` +
+        `(${comparable.tier} tier, ${comparable.prices.length} listings)`,
+    );
   }
 
   return {
@@ -314,6 +392,7 @@ export async function progressStockRiven(
     auctionId: dispatch.auctionId,
     price: postPrice,
     error: dispatch.error,
+    rateLimited: dispatch.error ? isRateLimitError(dispatch.error) : undefined,
   };
 }
 
@@ -331,8 +410,9 @@ export function rivenSearchTerms(
   };
 }
 
-/** Cheapest direct-sell auction with the same stats, for the Rivens tab's
- *  "list at the lowest price". Null price = nothing comparable is listed. */
+/** Cheapest comparable fixed-price listing, for the Rivens tab's "list at the
+ *  lowest price". Null price = nothing comparable is listed. Throws when the
+ *  search fails. */
 export async function quoteLowestRivenPrice(
   weaponName: string,
   stats: readonly StockRivenStat[],
@@ -341,12 +421,7 @@ export async function quoteLowestRivenPrice(
 ): Promise<{ ok: true; price: number | null; listings: number } | { ok: false; error: string }> {
   const weaponSlug = rivenData.getRivenFamilySlug(weaponName);
   if (!weaponSlug) return { ok: false, error: "unknown weapon" };
-  const { prices } = await fetchCompetingPrices(
-    { stats: [...stats], auctionId: null },
-    weaponSlug,
-    ownName,
-    onlineOnly,
-  );
+  const { prices } = await findComparablePrices(weaponName, weaponSlug, stats, ownName, onlineOnly);
   return { ok: true, price: prices[0] ?? null, listings: prices.length };
 }
 

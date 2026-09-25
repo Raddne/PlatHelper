@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { request } from "../../services/wfmClient";
-import { searchSimilarRivens } from "../../services/wfmRivenSearch";
+import { searchSimilarRivens, searchSimilarRivensOrThrow } from "../../services/wfmRivenSearch";
 
 vi.mock("../../services/wfmClient", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../../services/wfmClient")>();
@@ -37,5 +37,46 @@ describe("searchSimilarRivens stat filters", () => {
     const path = String(requestMock.mock.calls[0]?.[1]);
     expect(path).not.toContain("positive_stats");
     expect(path).not.toContain("negative_stats");
+  });
+
+  it("asks for fixed-price listings only and skips the price_desc page when pricing", async () => {
+    const auction = {
+      id: "a1",
+      owner: { ingame_name: "x" },
+      is_direct_sell: true,
+      buyout_price: 5,
+      starting_price: 5,
+      item: { attributes: [] },
+    };
+    requestMock.mockResolvedValue({ payload: { auctions: [auction] } });
+    const listings = await searchSimilarRivensOrThrow("boar", { directOnly: true, ascOnly: true });
+
+    expect(listings).toHaveLength(1);
+    expect(requestMock).toHaveBeenCalledTimes(1);
+    expect(String(requestMock.mock.calls[0]?.[1])).toContain("buyout_policy=direct");
+  });
+
+  it("still fetches both pages for a display search", async () => {
+    const auction = {
+      id: "a1",
+      owner: { ingame_name: "x" },
+      is_direct_sell: true,
+      buyout_price: 5,
+      starting_price: 5,
+      item: { attributes: [] },
+    };
+    requestMock.mockResolvedValue({ payload: { auctions: [auction] } });
+    await searchSimilarRivens("latron");
+
+    expect(requestMock).toHaveBeenCalledTimes(2);
+    expect(String(requestMock.mock.calls[0]?.[1])).not.toContain("buyout_policy");
+  });
+
+  it("throws for the engine and answers an empty list for display when the request fails", async () => {
+    requestMock.mockRejectedValue(new Error("rate limit hit"));
+    await expect(searchSimilarRivensOrThrow("boar_prime", { ascOnly: true })).rejects.toThrow(
+      /rate limit/,
+    );
+    expect(await searchSimilarRivens("kuva_bramma")).toEqual([]);
   });
 });

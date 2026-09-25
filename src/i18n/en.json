@@ -536,7 +536,7 @@
   "liveScraper.settings.item.wtsMaxPriceDropDesc": "Maximum platinum a sell order's price may drop in one cycle. -1 disables.",
   "liveScraper.settings.item.wtsMinListingsBelow": "Min listings below",
   "liveScraper.settings.item.wtsMinListingsBelowDesc": "Minimum competing sell orders below your price needed to override the max price drop. -1 disables.",
-  "liveScraper.settings.riven.description": "Rivens are sell-only and priced from live auction search results rather than orders.",
+  "liveScraper.settings.riven.description": "Rivens are sell-only and priced from other players' fixed-price listings: the identical roll when at least three are listed, otherwise the same positive stats, otherwise the stats that matter for the weapon. Bid auctions never count. A riven without a comparable listing is not listed.",
   "liveScraper.settings.riven.updateInterval": "Update interval (seconds)",
   "liveScraper.settings.riven.updateIntervalDesc": "How often the riven engine re-checks prices. -1 disables the cooldown (checks every cycle).",
   "liveScraper.settings.riven.minProfit": "Minimum profit",

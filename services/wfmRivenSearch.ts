@@ -104,15 +104,39 @@ export function rivenStatSearchParams(
   return params;
 }
 
-/** Split capped large result sets by polarity and sort direction for full coverage. */
+interface RivenSearchOptions {
+  limit?: number;
+  positiveStats?: string[];
+  negativeStats?: string[];
+  fullCoverage?: boolean;
+  /** Ask WFM for fixed-price listings only (buyout_policy=direct), so the
+   *  500-row page is not padded with bid auctions the price never uses. */
+  directOnly?: boolean;
+  /** Skip the price_desc page: a caller after the cheapest listings has no
+   *  use for the most expensive ones, and every request costs rate budget. */
+  ascOnly?: boolean;
+}
+
+/** Split capped large result sets by polarity and sort direction for full coverage.
+ *  A failed search is an empty list here; pricing uses the throwing variant. */
 export async function searchSimilarRivens(
   weaponSlug: string,
-  opts?: {
-    limit?: number;
-    positiveStats?: string[];
-    negativeStats?: string[];
-    fullCoverage?: boolean;
-  },
+  opts?: RivenSearchOptions,
+): Promise<WfmRivenListing[]> {
+  try {
+    return await searchSimilarRivensOrThrow(weaponSlug, opts);
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
+    log.warn(`[WfmRivenSearch] Search failed for "${weaponSlug}":`, msg);
+    return [];
+  }
+}
+
+/** Same search, but a failed request throws: the riven engine must tell "no
+ *  listing" from "no answer", or an outage re-prices and unlists every riven. */
+export async function searchSimilarRivensOrThrow(
+  weaponSlug: string,
+  opts?: RivenSearchOptions,
 ): Promise<WfmRivenListing[]> {
   const limit = opts?.limit ?? 6;
   const posStats = opts?.positiveStats ?? [];
@@ -120,11 +144,15 @@ export async function searchSimilarRivens(
   // Full coverage fans out into polarity x sort queries (up to 7 serialized WFM
   // requests); display callers only need the cheapest few hundred, so default off.
   const fullCoverage = opts?.fullCoverage === true;
+  const directOnly = opts?.directOnly === true;
+  const ascOnly = opts?.ascOnly === true;
 
   // Coverage is part of the cache key so a quick result can't satisfy a full one.
   const cacheKey = [
     weaponSlug,
     fullCoverage ? "full" : "quick",
+    directOnly ? "direct" : "any",
+    ascOnly ? "asc" : "both",
     ...posStats.sort(),
     "|",
     ...negStats.sort(),
@@ -136,8 +164,9 @@ export async function searchSimilarRivens(
     return cached.listings.slice(0, limit);
   }
 
-  try {
-    const statParams = rivenStatSearchParams(posStats, negStats);
+  {
+    const statParams =
+      rivenStatSearchParams(posStats, negStats) + (directOnly ? "&buyout_policy=direct" : "");
 
     const seenIds = new Set<string>();
     const allListings: WfmRivenListing[] = [];
@@ -159,7 +188,9 @@ export async function searchSimilarRivens(
     const quickAuctions = quickPayload?.auctions || [];
     addAuctions(quickAuctions);
 
-    if (fullCoverage && quickAuctions.length >= 490) {
+    if (ascOnly) {
+      // The cheapest page is all a price needs.
+    } else if (fullCoverage && quickAuctions.length >= 490) {
       // Likely more than 500 total - split by polarity and sort for full coverage.
       for (const pol of RIVEN_POLARITIES) {
         for (const sort of ["price_asc", "price_desc"] as const) {
@@ -187,10 +218,6 @@ export async function searchSimilarRivens(
 
     log.info(`[WfmRivenSearch] Found ${allListings.length} auctions for "${weaponSlug}"`);
     return allListings.slice(0, limit);
-  } catch (err: unknown) {
-    const msg = err instanceof Error ? err.message : String(err);
-    log.warn(`[WfmRivenSearch] Search failed for "${weaponSlug}":`, msg);
-    return [];
   }
 }
 

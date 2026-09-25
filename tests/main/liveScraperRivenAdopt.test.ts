@@ -82,6 +82,19 @@ describe("riven auction adoption", () => {
     expect(plan.link).toEqual([{ id: "r1", auctionId: "a1", listPrice: 900 }]);
   });
 
+  it("links a row named with its weapon to the auction that carries only the suffix", () => {
+    // Rows added from the game are named "Rubico Crita-visican"; the auction
+    // knows only "crita-visican". Left unlinked, the auction became a second
+    // row of the same riven and the row created a second auction.
+    const plan = planRivenAdoption(
+      [row({ rivenName: "Rubico Crita-visican" })],
+      [auction({ rivenSuffix: "crita-visican" })],
+      slugOf,
+    );
+    expect(plan.create).toEqual([]);
+    expect(plan.link).toEqual([{ id: "r1", auctionId: "a1", listPrice: 900 }]);
+  });
+
   it("drops an adopted row once its auction is gone, but never a hand-added one", () => {
     const stock = [
       row({ id: "adopted", auctionId: "sold", adopted: true }),

@@ -4,7 +4,7 @@
 // or closed by the user) is dropped again. Pure, so the matching rules are
 // testable without the stores.
 
-import type { StockRiven, StockRivenStat } from "./liveScraperRivenStock";
+import { rivenNameSuffix, type StockRiven, type StockRivenStat } from "./liveScraperRivenStock";
 import { TAG_TO_WFM_URL_NAME } from "./wfmRivenVocabulary";
 
 /** The subset of WfmContract (config/shared/wfmContracts.ts) this needs. */
@@ -98,7 +98,10 @@ export function planRivenAdoption(
         row.auctionId == null &&
         !linked.has(row.id) &&
         weaponSlugOf(row.weaponName) === auction.weaponUrlName &&
-        nameKey(row.rivenName) === nameKey(auction.rivenSuffix),
+        // A row named from the game carries the weapon ("Boar Sati-hexatis"),
+        // the auction only the suffix; comparing them raw left every such row
+        // unlinked and its auction adopted as a second row of the same riven.
+        rivenNameSuffix(row.weaponName, row.rivenName) === nameKey(auction.rivenSuffix),
     );
     if (unlisted) {
       linked.add(unlisted.id);

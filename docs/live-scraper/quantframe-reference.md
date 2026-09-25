@@ -451,6 +451,8 @@ top.retain(|&p| p <= threshold as i64)
 if top.is_empty() { return -1; }
 return top.sum() / top.len()                        // integer average of the surviving lowest auctions
 ```
+**Decision for the PlatHelper port (2026-09-25, after user testing): deviate from this block, do not replicate.** Real listings went out at 26p (the `bought + min_profit + 1` fallback on a 0p-bought riven whenever the exact-stat search found nothing, or failed) and at 9500p (a lone identical roll set the price alone). `services/liveScraperRiven.ts` now (1) counts only fixed-price listings (`buyout_policy=direct`, `is_direct_sell`), (2) prices from the tightest search holding at least `MIN_COMPARABLE_LISTINGS` of them: the identical roll, then the same positive stats with any negative, then the weapon's good-roll key stats (`config/shared/liveScraperRivenPricing.ts`; no whole-weapon tier), (3) closes the auction instead of listing when no tier qualifies (adopted user auctions excepted), and (4) treats a failed search as "unknown", not "no sellers". `average_filtered_lowest_prices` itself is unchanged apart from honouring `-1` as "no limit" for both arguments, as the settings form always promised.
+
 There is **no `should_apply_max_price_drop` damping** applied to riven pricing at all — riven prices always snap to the freshly recomputed average each pass (subject only to the `min_price` and `min_profit` clamps above).
 
 ### B.5 What happens with the computed price

@@ -374,22 +374,32 @@ async function maybeProcessRivenPass(
 
   _lastRivenPassAt = Date.now();
   // Pick up auctions the user already has on warframe.market before pricing.
+  // Without that list the pass cannot tell a live auction from a gone one, and
+  // guessing is what created a second auction per riven: skip the whole pass.
+  let liveAuctionIds: Set<string>;
   try {
     emitProgress("Checking riven auctions...");
-    await syncAdoptedRivenAuctions();
+    liveAuctionIds = await syncAdoptedRivenAuctions();
   } catch (err) {
-    log.warn("[Tick] failed to fetch my riven auctions; adoption skipped this pass:", err);
+    log.warn("[Tick] failed to fetch my riven auctions; riven pass skipped:", err);
+    return "Rivens: could not load your auctions, pass skipped.";
   }
   const rivens = listStockRivens().filter((r) => !r.isHidden || r.status !== "inactive");
   if (rivens.length === 0) return null;
 
   const ownName = _deps?.getOwnName() ?? null;
   let mutations = 0;
+  let processed = 0;
   for (const riven of rivens) {
     if (!_running) break;
-    const result = await progressStockRiven(riven, settings.rivens.wts, ownName, () =>
-      rowCreateHidden("riven", riven.id),
+    const result = await progressStockRiven(
+      riven,
+      settings.rivens.wts,
+      ownName,
+      () => rowCreateHidden("riven", riven.id),
+      liveAuctionIds,
     );
+    processed += 1;
     if (result.action === "created" || result.action === "updated" || result.action === "deleted") {
       mutations += 1;
     }
@@ -398,8 +408,16 @@ async function maybeProcessRivenPass(
         `price=${result.price ?? "-"} auction=${result.auctionId ?? "-"}` +
         (result.error ? ` error=${result.error}` : ""),
     );
+    if (result.rateLimited) {
+      // Every further call fails the same way until the gate lifts; the rest
+      // of the rivens keep their listings and get their turn next pass.
+      log.warn(
+        `[Tick ${_tickCount}] rate limited, riven pass stops after ${processed}/${rivens.length}`,
+      );
+      break;
+    }
   }
-  return `Rivens: processed ${rivens.length} - ${mutations} auction(s) created/updated/deleted.`;
+  return `Rivens: processed ${processed}/${rivens.length} - ${mutations} auction(s) created/updated/deleted.`;
 }
 
 async function tick(): Promise<void> {
