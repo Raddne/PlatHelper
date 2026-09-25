@@ -14,6 +14,8 @@ export interface AdoptableAuction {
   rivenSuffix: string | null;
   buyoutPlatinum: number | null;
   platinum: number;
+  /** False for a real auction that takes bids. */
+  isDirectSell: boolean;
   modRank: number | null;
   rerolls: number | null;
   masteryLevel: number | null;
@@ -38,7 +40,7 @@ interface RivenAdoptionPlan {
   /** A row the user added by hand that has no auction yet, and the live
    *  auction that is evidently the same riven. */
   link: { id: string; auctionId: string; listPrice: number }[];
-  /** Adopted rows with no live auction left. */
+  /** Adopted rows with no live direct-sell auction left. */
   remove: string[];
 }
 
@@ -77,9 +79,13 @@ export function planRivenAdoption(
   weaponSlugOf: (weaponName: string) => string,
 ): RivenAdoptionPlan {
   const plan: RivenAdoptionPlan = { create: [], link: [], remove: [] };
-  // Only direct-sell style riven auctions with a price the scraper can manage.
+  // Only direct sells with a price the scraper can manage. Re-pricing sends the
+  // same starting and buyout price, which turns a bid auction into a direct
+  // sell - warframe.market refuses that once bids exist, and without bids it
+  // would silently change what the user listed.
   const usable = auctions.filter(
-    (auction) => auction.weaponUrlName && auction.rivenSuffix && price(auction) > 0,
+    (auction) =>
+      auction.isDirectSell && auction.weaponUrlName && auction.rivenSuffix && price(auction) > 0,
   );
   const liveIds = new Set(usable.map((auction) => auction.id));
   const knownIds = new Set(stock.map((row) => row.auctionId).filter((id) => id != null));

@@ -15,6 +15,7 @@ function auction(overrides: Partial<AdoptableAuction> = {}): AdoptableAuction {
     rivenSuffix: "Crita-visican",
     buyoutPlatinum: 900,
     platinum: 900,
+    isDirectSell: true,
     modRank: 8,
     rerolls: 12,
     masteryLevel: 14,
@@ -100,5 +101,20 @@ describe("riven auction adoption", () => {
       slugOf,
     );
     expect(plan.create).toEqual([]);
+  });
+
+  it("never takes over an auction that accepts bids", () => {
+    // Re-pricing sends starting price = buyout, which warframe.market answers
+    // with cant_convert_to_order_bids_exists once somebody has bid.
+    const bidAuction = auction({ id: "bids", isDirectSell: false, buyoutPlatinum: 2000 });
+    const plan = planRivenAdoption([row({ auctionId: null })], [bidAuction], slugOf);
+    expect(plan.create).toEqual([]);
+    expect(plan.link).toEqual([]);
+  });
+
+  it("lets go of an adopted row whose auction is a bid auction", () => {
+    const stock = [row({ id: "adopted", auctionId: "bids", adopted: true })];
+    const bidAuction = auction({ id: "bids", isDirectSell: false });
+    expect(planRivenAdoption(stock, [bidAuction], slugOf).remove).toEqual(["adopted"]);
   });
 });

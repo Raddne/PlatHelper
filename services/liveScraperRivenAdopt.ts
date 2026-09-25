@@ -78,7 +78,7 @@ export async function syncAdoptedRivenAuctions(): Promise<void> {
   }
   for (const id of plan.remove) {
     deleteStockRiven(id);
-    log.info(`[Adopt] riven auction gone (sold or closed) - dropped stock row ${id}`);
+    log.info(`[Adopt] riven auction gone or no direct sell - dropped stock row ${id}`);
   }
   syncRivenRowVisibility(auctions, fetchedAt);
 }
