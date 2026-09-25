@@ -4,6 +4,11 @@ Patch notes for every PlatHelper release. The release workflow copies the sectio
 
 Keep every bullet on one line: GitHub shows a line break inside release notes as a line break.
 
+## v0.2.4
+
+- **Live Scraper settings: a Riven checkbox** sits next to Buy, Sell and Wishlist and replaces the Syndicate checkbox (Syndicate mode never did anything). Tick only Riven to sell your rivens and leave items alone; the "Engine mode" dropdown is gone, your earlier choice carries over.
+- **Fix: riven auctions with bids.** The Live Scraper picked up riven auctions that take bids from warframe.market and then failed every price update on them ("bids exist"). It now takes over direct-sell riven auctions only and leaves real auctions to you.
+
 ## v0.2.3
 
 - **Live Scraper: hide or show your listings on warframe.market.** Every Listings tab (WTB, WTS, Rivens) has an "On WFM: Visible | Hidden" switch next to the search box. With rows marked it switches only those, otherwise the whole tab.
