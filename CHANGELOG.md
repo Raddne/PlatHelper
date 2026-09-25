@@ -4,6 +4,14 @@ Patch notes for every PlatHelper release. The release workflow copies the sectio
 
 Keep every bullet on one line: GitHub shows a line break inside release notes as a line break.
 
+## v0.2.5
+
+- **Fix: riven prices.** The Live Scraper priced a riven only from listings with exactly its stats; with none found it fell back to your bought price plus the minimum profit, which listed rivens bought for 0p at 26p, and a lone overpriced identical roll set the price alone (a Boar riven went up at 9500p). It now prices from the identical roll when at least three fixed-price listings exist, otherwise from listings with the same positive stats, otherwise from listings with the stats that matter for the weapon (the good-roll data). Bid auctions never count, only fixed-price listings do.
+- **No comparable listing, no auction.** A riven without a comparable price is not listed: its auction is closed and the row shows "No sellers" until a price can be found. An auction you listed yourself is left as it is.
+- **Fix: duplicate riven auctions.** After a rate limit the scraper dropped the auction id, created a second auction for the same riven on the next pass, and adopted the first one as a second row, because a row named "Boar Sati-hexatis" was never matched to the auction named "sati-hexatis". Update failures now keep the id, the pass stops when warframe.market rate-limits it, the account's own auction list decides whether an auction is still up, and rows match their auctions by the riven name alone. Existing duplicates: delete the extra rows in Listings > Rivens, each delete closes its auction.
+- A failed search or a rate limit no longer counts as "nothing listed": the riven keeps its auction and price until the next pass.
+- Riven settings: -1 really disables the sample size and the price threshold now; before, it priced every riven as if nothing were listed.
+
 ## v0.2.4
 
 - **Live Scraper settings: a Riven checkbox** sits next to Buy, Sell and Wishlist and replaces the Syndicate checkbox (Syndicate mode never did anything). Tick only Riven to sell your rivens and leave items alone; the "Engine mode" dropdown is gone, your earlier choice carries over.
