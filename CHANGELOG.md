@@ -4,6 +4,18 @@ Patch notes for every PlatHelper release. The release workflow copies the sectio
 
 Keep every bullet on one line: GitHub shows a line break inside release notes as a line break.
 
+## v0.4.0
+
+- **Your sidebar changes with this update.** PlatHelper now starts with Dashboard, Inventory, Live Scraper, Messages and Settings only, and every existing install is switched to this new Default once. Nothing was removed: open Customize in the sidebar and apply "All functions" to get every tab back, or apply one of your own presets, which are all still there. Your tab order, names and groups are untouched.
+- **Live Scraper: trades update your lists.** A purchase the game confirms goes into your WTS list at the price you paid per piece, and takes the item off your wishlist; a sale lowers the owned count and removes the row at 0. A complete set bought as parts is entered as the set. Switch it per kind under Live Scraper settings > General > Completed trades (Items, Rivens); both are on by default.
+- A bought riven appears in the Rivens list after the next inventory sync, because the trade only names it and the stats come from your inventory. A sold riven is removed and its auction closed.
+- **Purchases with several different items** divide the platinum by each item's lowest in-game sell offer on warframe.market (evenly per piece when an item has no offer, or a riven is part of the trade). A window in the main app tells you how the price was divided; right-click a row in WTS to correct "Bought". Swaps without a clear platinum direction are not synced.
+- Only listings the Live Scraper placed itself are deleted by a trade; an order you placed by hand on warframe.market is never removed.
+- **Live Scraper: filters in the Listings table.** WTB and WTS filter by type (mod, arcane, set, part or blueprint, relic, misc) and status; WTB also by source and by whether you already own the item, WTS by where the row came from (trade, added by hand, taken over from warframe.market). Rows added by a trade carry a "Trade" badge.
+- **Riven filters** work like the warframe.market search: weapon, up to three positive stats, negative stat, polarity, rerolls, mastery rank and status.
+- You can sign in to warframe.market directly on the Live Scraper and Messages tabs; the Market tab is no longer needed for it.
+- Dashboard widgets no longer link to a tab that is switched off.
+
 ## v0.2.5
 
 - **Fix: riven prices.** The Live Scraper priced a riven only from listings with exactly its stats; with none found it fell back to your bought price plus the minimum profit, which listed rivens bought for 0p at 26p, and a lone overpriced identical roll set the price alone (a Boar riven went up at 9500p). It now prices from the identical roll when at least three fixed-price listings exist, otherwise from listings with the same positive stats, otherwise from listings with the stats that matter for the weapon (the good-roll data). Bid auctions never count, only fixed-price listings do.
