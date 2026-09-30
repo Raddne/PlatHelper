@@ -40,6 +40,11 @@ export interface LiveScraperGeneralSettings {
   stockMode: StockMode;
   tradeModes: TradeMode[];
   deleteConflictingOrders: boolean;
+  /** A trade the game confirmed updates the item stock lists: a purchase goes
+   *  into WTS at the price paid, a sale takes the item off. */
+  tradeSyncItems: boolean;
+  /** The same for unveiled rivens (services/liveScraperTradeSync.ts). */
+  tradeSyncRivens: boolean;
 }
 
 export interface ItemGeneralSettings {
@@ -126,6 +131,8 @@ function defaultGeneral(): LiveScraperGeneralSettings {
     stockMode: "all",
     tradeModes: ["buy", "sell", "wishlist", "riven"],
     deleteConflictingOrders: false,
+    tradeSyncItems: true,
+    tradeSyncRivens: true,
   };
 }
 
@@ -294,6 +301,8 @@ function normalizeGeneral(raw: unknown): LiveScraperGeneralSettings {
     stockMode: stockModeFor(tradeModes),
     tradeModes,
     deleteConflictingOrders: bool(e.deleteConflictingOrders, d.deleteConflictingOrders),
+    tradeSyncItems: bool(e.tradeSyncItems, d.tradeSyncItems),
+    tradeSyncRivens: bool(e.tradeSyncRivens, d.tradeSyncRivens),
   };
 }
 

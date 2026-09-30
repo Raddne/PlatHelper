@@ -5,6 +5,7 @@ import { withScope } from "../services/logger";
 import * as tradeTracker from "../services/tradeTracker";
 import * as tradeWfmMatcher from "../services/tradeWfmMatcher";
 import * as wfmSession from "../services/wfmSession";
+import * as liveScraperTradeSync from "../services/liveScraperTradeSync";
 import type { ParsedLogTrade } from "../services/eeLogMonitor";
 import { isTradeNotificationOverlayEnabled } from "../config/runtime/overlaySettings";
 import { TRADE_RECORDED } from "../config/shared/ipcChannels";
@@ -23,7 +24,8 @@ export function handleConfirmedTrade(trade: ParsedLogTrade): void {
     win.webContents.send(TRADE_RECORDED, { trade: event, wfmMatches: [] });
   }
 
-  void (async () => {
+  // Resolves to the listings the trade closed.
+  void (async (): Promise<TradeMatchPayload[]> => {
     // The in-game toast is what records history and raises the OS notification,
     // so with the toast switched off this path owns the desktop notification.
     const notify = (status: TradeNotificationStatus, match?: TradeMatchPayload | null) => {
@@ -42,14 +44,14 @@ export function handleConfirmedTrade(trade: ParsedLogTrade): void {
 
     if (!ctx.overlaySettings.autoCloseWfmOrders || !wfmSession.getToken()) {
       notify("detected");
-      return;
+      return [];
     }
 
     try {
       const matches = await tradeWfmMatcher.matchTradeToOrders(trade);
       if (matches.length === 0) {
         notify("no-match");
-        return;
+        return [];
       }
 
       const closed: TradeMatchPayload[] = [];
@@ -58,7 +60,7 @@ export function handleConfirmedTrade(trade: ParsedLogTrade): void {
       }
       if (closed.length === 0) {
         notify("close-failed", matches[0]);
-        return;
+        return [];
       }
 
       tradeTracker.markTradeWfmClosed(event.id);
@@ -71,11 +73,16 @@ export function handleConfirmedTrade(trade: ParsedLogTrade): void {
       }
 
       notify("closed", summarizeMatches(closed, event.platChange));
+      return closed;
     } catch (err) {
       // Not "no-match": nothing was compared, so the rep offer must not treat
       // this as proof the trade went through warframe.market.
       log.warn("[Trade] Auto-close error:", String(err));
       notify("match-failed");
+      return [];
     }
-  })();
+  })()
+    // Only once the auto-close is over, so a listing the trade settled is
+    // already gone when the stock sync looks for it.
+    .then((closed) => liveScraperTradeSync.syncConfirmedTrade(event, closed));
 }

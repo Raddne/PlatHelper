@@ -9,7 +9,7 @@ import {
   type Page,
 } from "@playwright/test";
 
-import { setLayoutViewport } from "./electronTestHarness";
+import { ALL_FUNCTIONS_STORAGE, setLayoutViewport } from "./electronTestHarness";
 import { mainWindow } from "./mainWindow";
 
 const ORDER_COUNT = 24;
@@ -71,10 +71,11 @@ test.describe("Market tab (fixture mode)", () => {
     // Fresh sandbox starts on the setup view; flag it done and reload.
     // Cold CI runners need the same generous boot timeouts as smoke.spec.
     await expect(page.locator("#app")).toBeVisible({ timeout: 90_000 });
-    await page.evaluate(() => {
+    await page.evaluate((seed) => {
+      for (const [key, value] of Object.entries(seed)) localStorage.setItem(key, value);
       localStorage.setItem("setup-completed-v2", "1");
       localStorage.setItem("app-language", "en");
-    });
+    }, ALL_FUNCTIONS_STORAGE);
     await page.reload();
     try {
       await expect(page.locator("#sidebar")).toBeVisible({ timeout: 90_000 });

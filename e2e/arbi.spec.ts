@@ -10,6 +10,7 @@ import {
   type Page,
 } from "@playwright/test";
 
+import { ALL_FUNCTIONS_STORAGE } from "./electronTestHarness";
 import { mainWindow } from "./mainWindow";
 
 // Extra windows and fixture timing make EE.log replay unreliable on CI, so this
@@ -96,10 +97,11 @@ describeArbi("Arbitration schedule + post-run overlay", () => {
     page = await mainWindow(app);
 
     // Fresh sandbox starts on the setup view; flag it done and reload.
-    await page.evaluate(() => {
+    await page.evaluate((seed) => {
+      for (const [key, value] of Object.entries(seed)) localStorage.setItem(key, value);
       localStorage.setItem("setup-completed-v2", "1");
       localStorage.setItem("app-language", "en");
-    });
+    }, ALL_FUNCTIONS_STORAGE);
     await page.reload();
     await expect(page.locator("#sidebar")).toBeVisible({ timeout: 20_000 });
   });

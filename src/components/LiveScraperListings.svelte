@@ -8,7 +8,26 @@
     pruneSelection,
     type RowSelection,
   } from "../lib/rowSelection.js";
+  import {
+    categoryLookup,
+    defaultListingFilters,
+    hasActiveFilters,
+    ownedLookup,
+    rivenFilter,
+    rivenRowState,
+    stockRowState,
+    wtbFilter,
+    wtbRowState,
+    wtsFilter,
+    type ListingFilters,
+  } from "../lib/liveScraper/listingFilters.js";
   import MarketStatsModal from "./market/MarketStatsModal.svelte";
+  import LiveScraperListingFilters from "./LiveScraperListingFilters.svelte";
+  import { parsedItems, wfmItems } from "../stores/data.js";
+  import {
+    liveScraperItemFacts,
+    loadLiveScraperItemFacts,
+  } from "../stores/liveScraperItemFacts.js";
   import { liveScraperSettings, updateItemGeneralSettings } from "../stores/liveScraperSettings.js";
   import type {
     StockItem,
@@ -59,6 +78,7 @@
     orderLimit: "bad",
     error: "bad",
   };
+  const STATUS_ORDER = Object.keys(TONES) as AnyStatus[];
 
   interface WtbRow {
     key: string;
@@ -77,6 +97,8 @@
     status: AnyStatus;
     /** Hidden on warframe.market; undefined while unknown. */
     hidden: boolean | undefined;
+    /** Paused by the user; scan candidates cannot be. */
+    paused: boolean;
     updatedAt: number;
   }
 
@@ -103,6 +125,7 @@
       potentialProfit: null,
       status: w.status,
       hidden: w.wfmHidden,
+      paused: w.isHidden,
       updatedAt: w.updatedAt,
     })),
     ...wtbListings
@@ -120,6 +143,7 @@
         potentialProfit: l.potentialProfit,
         status: l.status,
         hidden: l.hidden,
+        paused: false,
         updatedAt: l.updatedAt,
       }))
       .sort(
@@ -142,14 +166,39 @@
   const matches = (...texts: string[]): boolean =>
     needle === "" || texts.some((text) => text.toLowerCase().includes(needle));
 
+  // ---- Filters -------------------------------------------------------------
+  // Per tab, for as long as the panel lives, and combined with the search.
+  // Type and owned are memoized per item, so the 5 s row refresh re-reads a map
+  // instead of classifying thousands of scan rows again.
+  let filters = $state<ListingFilters>(defaultListingFilters());
+  let filtered = $derived(hasActiveFilters(filters, $tab));
+  let categoryOf = $derived(categoryLookup($liveScraperItemFacts));
+  // A loaded inventory answers alone; only without one does the stock list count,
+  // and only then may its refresh rebuild the lookup.
+  let ownedOf = $derived(
+    ownedLookup($parsedItems, $wfmItems, $parsedItems.length > 0 ? [] : stock),
+  );
+
+  $effect(() => {
+    // Asked again on each row refresh until the main process has a catalog.
+    if (wtbRows.length + stock.length > 0) loadLiveScraperItemFacts();
+  });
+
   // Several thousand rows with five buttons each would freeze the view, so the
   // table stops at MAX_ROWS and points at the search box for the rest.
   const MAX_ROWS = 300;
-  let matchedWtb = $derived(wtbRows.filter((row) => matches(row.itemName)));
-  let matchedStock = $derived(stock.filter((item) => matches(item.itemName)));
-  let matchedRivens = $derived(
-    stockRivens.filter((riven) => matches(riven.weaponName, riven.rivenName)),
-  );
+  let matchedWtb = $derived.by(() => {
+    const keep = wtbFilter(filters.wtb, categoryOf, ownedOf);
+    return wtbRows.filter((row) => keep(row) && matches(row.itemName));
+  });
+  let matchedStock = $derived.by(() => {
+    const keep = wtsFilter(filters.wts, categoryOf);
+    return stock.filter((item) => keep(item) && matches(item.itemName));
+  });
+  let matchedRivens = $derived.by(() => {
+    const keep = rivenFilter(filters.rivens);
+    return stockRivens.filter((riven) => keep(riven) && matches(riven.weaponName, riven.rivenName));
+  });
   let shownWtb = $derived(matchedWtb.slice(0, MAX_ROWS));
   let shownStock = $derived(matchedStock.slice(0, MAX_ROWS));
   let shownRivens = $derived(matchedRivens.slice(0, MAX_ROWS));
@@ -888,8 +937,16 @@
 
 {#snippet noMatches()}
   <p class="ls-empty" data-ls-no-matches>
-    {$t("liveScraper.listings.noMatches", { query: query.trim() })}
+    {filtered
+      ? $t("liveScraper.listings.filter.noMatches")
+      : $t("liveScraper.listings.noMatches", { query: query.trim() })}
   </p>
+{/snippet}
+
+{#snippet tradeBadge()}
+  <span class="ls-trade" title={$t("liveScraper.listings.tradeHint")} data-ls-origin-trade
+    >{$t("liveScraper.listings.trade")}</span
+  >
 {/snippet}
 
 {#snippet statusBadge(status: AnyStatus, hidden: boolean)}
@@ -974,6 +1031,17 @@
     </span>
   </div>
 
+  <LiveScraperListingFilters
+    tab={$tab}
+    bind:filters
+    {wtbRows}
+    {stock}
+    {stockRivens}
+    statusOrder={STATUS_ORDER}
+    shown={rowOrder.length}
+    total={counts[$tab]}
+  />
+
   {#if visibilityBusy === $tab}
     <p class="ls-notice" role="status" data-ls-wfm-visibility-notice>
       {$t("liveScraper.listings.visibilitySwitching")}
@@ -1015,7 +1083,7 @@
               {@const wish = row.wishlistId
                 ? wishlist.find((w) => w.id === row.wishlistId)
                 : undefined}
-              {@const rowHidden = row.listPrice != null && row.hidden === true}
+              {@const rowHidden = wtbRowState(row).hidden}
               <tr
                 data-tone={rowTone(row.status, rowHidden)}
                 data-ls-row={row.key}
@@ -1087,7 +1155,7 @@
           <tbody>
             {#each shownStock as item (item.id)}
               {@const p = profit(item.listPrice, item.bought)}
-              {@const itemHidden = item.listPrice != null && item.wfmHidden === true}
+              {@const itemHidden = stockRowState(item).hidden}
               <tr
                 data-tone={rowTone(item.status, itemHidden)}
                 data-ls-row={item.id}
@@ -1105,6 +1173,9 @@
                     <span class="ls-adopted" title={$t("liveScraper.listings.adoptedHint")}
                       >{$t("liveScraper.listings.adopted")}</span
                     >
+                  {/if}
+                  {#if item.origin === "trade"}
+                    {@render tradeBadge()}
                   {/if}
                 </td>
                 <td class="num">{plat(item.bought)}</td>
@@ -1145,7 +1216,7 @@
         <tbody>
           {#each shownRivens as riven (riven.id)}
             {@const p = profit(riven.listPrice, riven.bought)}
-            {@const rivenHidden = riven.auctionId != null && riven.wfmHidden === true}
+            {@const rivenHidden = rivenRowState(riven).hidden}
             <tr
               data-tone={rowTone(riven.status, rivenHidden)}
               data-ls-row={riven.id}
@@ -1161,6 +1232,9 @@
                   <span class="ls-adopted" title={$t("liveScraper.listings.adoptedHint")}
                     >{$t("liveScraper.listings.adopted")}</span
                   >
+                {/if}
+                {#if riven.origin === "trade"}
+                  {@render tradeBadge()}
                 {/if}
               </td>
               <td class="ls-sub attrs" title={statSummary(riven)}>{statSummary(riven)}</td>
@@ -1600,7 +1674,8 @@
     color: var(--danger);
     background: color-mix(in srgb, var(--danger) 14%, transparent);
   }
-  .ls-adopted {
+  .ls-adopted,
+  .ls-trade {
     margin-left: 0.35rem;
     border: 1px solid var(--border-strong);
     border-radius: 0.25rem;

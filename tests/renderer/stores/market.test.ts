@@ -1,5 +1,5 @@
 import { get } from "svelte/store";
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   applyClosedWfmListing,
@@ -115,5 +115,33 @@ describe("applyClosedWfmListing", () => {
 
     expect(get(marketOrders).sell).toHaveLength(2);
     expect(get(marketViewState).ordersLastFetch).toBe(1_000);
+  });
+});
+
+describe("marketSessionLoaded", () => {
+  // Module state: each case starts from a fresh import.
+  async function freshStore() {
+    vi.resetModules();
+    return import("../../../src/stores/market.js");
+  }
+
+  it("stays false on the placeholder session until something writes one", async () => {
+    const store = await freshStore();
+    expect(get(store.marketSessionLoaded)).toBe(false);
+    expect(get(store.marketSession).loggedIn).toBe(false);
+    store.marketSession.set({ loggedIn: true, userName: "Tenno", platform: "pc" });
+    expect(get(store.marketSessionLoaded)).toBe(true);
+    expect(get(store.marketSession).userName).toBe("Tenno");
+  });
+
+  it("counts a sign-out and a failed start-up read as known", async () => {
+    const cleared = await freshStore();
+    cleared.clearMarketAccountState();
+    expect(get(cleared.marketSessionLoaded)).toBe(true);
+
+    const failed = await freshStore();
+    failed.markMarketSessionLoaded();
+    expect(get(failed.marketSessionLoaded)).toBe(true);
+    expect(get(failed.marketSession).loggedIn).toBe(false);
   });
 });

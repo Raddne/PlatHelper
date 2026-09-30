@@ -1,7 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { get } from "svelte/store";
 
-import { SIDEBAR_VIEW_ORDER, type SidebarViewName } from "../../../src/lib/viewRegistry.js";
+import {
+  DEFAULT_VISIBLE_VIEWS,
+  SIDEBAR_VIEW_ORDER,
+  TOGGLEABLE_VIEWS,
+  type SidebarViewName,
+} from "../../../src/lib/viewRegistry.js";
 
 let store = new Map<string, string>();
 
@@ -314,10 +319,36 @@ describe("sidebarLabels", () => {
 });
 
 describe("hiddenTabs", () => {
+  it("shows only the default set when nothing is stored", async () => {
+    const { hiddenTabs } = await loadModule();
+    const shown = TOGGLEABLE_VIEWS.filter((view) => !get(hiddenTabs).has(view));
+    expect(shown).toEqual([...DEFAULT_VISIBLE_VIEWS]);
+    expect(store.size).toBe(0);
+  });
+
   it("reports a tab switched off in storage", async () => {
-    const { hiddenTabs } = await loadModule({ wf_tab_visible_market: "0" });
-    expect(get(hiddenTabs).has("market")).toBe(true);
-    expect(get(hiddenTabs).has("relics")).toBe(false);
+    const { hiddenTabs } = await loadModule({ wf_tab_visible_dashboard: "0" });
+    expect(get(hiddenTabs).has("dashboard")).toBe(true);
+    expect(get(hiddenTabs).has("messages")).toBe(false);
+  });
+
+  it("lets a stored switch show a view the default hides", async () => {
+    const { hiddenTabs } = await loadModule({ wf_tab_visible_market: "1" });
+    expect(get(hiddenTabs).has("market")).toBe(false);
+    expect(get(hiddenTabs).has("relics")).toBe(true);
+  });
+
+  it("opens a profile without inventory on World, else the Dashboard, else Inventory", async () => {
+    const fresh = await loadModule();
+    expect(fresh.noInventoryLandingView()).toBe("dashboard");
+
+    const world = await loadModule({ wf_tab_visible_world: "1" });
+    expect(world.noInventoryLandingView()).toBe("world");
+
+    const neither = await loadModule({ wf_tab_visible_dashboard: "0" });
+    expect(neither.noInventoryLandingView()).toBe("inventory");
+    neither.tabVisibility.dashboard.set(true);
+    expect(neither.noInventoryLandingView()).toBe("dashboard");
   });
 
   it("never hides the pinned views", async () => {

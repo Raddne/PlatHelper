@@ -2,6 +2,7 @@ import "./app.css";
 import App from "./App.svelte";
 import { send } from "./lib/ipc.js";
 import { accentGlowColor } from "./lib/theme/applyTheme.js";
+import { migrateSidebarDefaults } from "./stores/sidebarPresets.js";
 import { themeSettings } from "./stores/theme.js";
 import type { ThemeColors } from "./types/theme.js";
 import { THEME_COLOR_CSS_MAP } from "./types/theme.js";
@@ -62,6 +63,9 @@ themeSettings.subscribe((settings) => {
 
   send("overlay-theme-updated", vars);
 });
+
+// Before the first render, so an older profile never paints its old tab set.
+migrateSidebarDefaults();
 
 const app = new App({ target: root });
 

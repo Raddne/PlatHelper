@@ -174,4 +174,42 @@ test.describe("warframe.market messages", () => {
     await expect(row).toHaveCount(0);
     await expect(page.locator("[data-messages-error]")).toHaveCount(0);
   });
+
+  test("signing in from the card brings a signed-out view back without a restart", async () => {
+    await openView(page, "messages");
+    // A signed-out start: main's chat service reports offline. The fixture chat
+    // backend answers the refresh the card asks for once signed in.
+    await evaluateInMain(harness.app, ({ BrowserWindow }) => {
+      const main = BrowserWindow.getAllWindows().find((win) =>
+        win.webContents.getURL().includes("renderer/dist/index.html"),
+      );
+      main?.webContents.send("wfm-chat:event", {
+        type: "state",
+        state: { chats: [], unreadTotal: 0, connection: "offline", selfId: null },
+      });
+    });
+    const signedOut = page.locator("[data-messages-signed-out]");
+    await expect(signedOut.locator("[data-wfm-sign-in]")).toBeVisible();
+    await expect(page.locator("[data-messages-chat]")).toHaveCount(0);
+
+    // Stubbed at the IPC boundary; the typed values below are placeholders.
+    await evaluateInMain(harness.app, ({ ipcMain }) => {
+      ipcMain.removeHandler("wfm:signin");
+      ipcMain.handle("wfm:signin", () => ({
+        loggedIn: true,
+        userName: "E2E Tester",
+        platform: "pc",
+      }));
+    });
+    await signedOut.locator("#market-email").fill("fixture@example.test");
+    await signedOut.locator("#market-password").fill("fixture-password");
+    await signedOut.locator('button[type="submit"]').click();
+
+    await expect(page.locator("[data-messages-signed-out]")).toHaveCount(0);
+    await expect(page.locator('[data-messages-chat="chatA"]')).toBeVisible();
+    await expect(page.locator("[data-messages-connection]")).toHaveAttribute(
+      "data-messages-connection",
+      "online",
+    );
+  });
 });

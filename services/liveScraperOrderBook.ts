@@ -13,6 +13,7 @@ import {
   extractWfmOrderList,
   normalizeWfmOrderBookSide,
   isActiveOrderStatus,
+  type WfmOrderBookEntry,
 } from "../config/shared/wfmOrders";
 import type { SubTypeLike } from "../config/shared/liveScraperSettings";
 
@@ -47,6 +48,33 @@ function excludeOwn<T extends { userName: string }>(entries: T[], ownName: strin
   return entries.filter((entry) => entry.userName.toLowerCase() !== lower);
 }
 
+/** Both sides of one item variant's order book, the caller's own orders left
+ *  out; null when the response carries no order list. Throws on a failed fetch. */
+async function fetchCompetingOrders(
+  wfmUrl: string,
+  subType: SubTypeLike | undefined,
+  ownName: string | null,
+): Promise<{ sells: WfmOrderBookEntry[]; buys: WfmOrderBookEntry[] } | null> {
+  const raw = await wfmClient.requestV2("GET", `/orders/item/${encodeURIComponent(wfmUrl)}`, {
+    priority: "background",
+  });
+  const list = extractWfmOrderList(raw);
+  if (!list) return null;
+
+  const rankFilter = typeof subType?.rank === "number" ? subType.rank : null;
+  const subtypeFilter = typeof subType?.subtype === "string" ? subType.subtype : null;
+  return {
+    sells: excludeOwn(
+      normalizeWfmOrderBookSide(list, "sell", rankFilter, undefined, subtypeFilter),
+      ownName,
+    ),
+    buys: excludeOwn(
+      normalizeWfmOrderBookSide(list, "buy", rankFilter, undefined, subtypeFilter),
+      ownName,
+    ),
+  };
+}
+
 /** Fetches and filters the live order book for one item variant. A fresh REST
  *  call every time by design (matches Quantframe, which has no per-item order
  *  cache either - see docs §B.3); callers are responsible for pacing. */
@@ -56,23 +84,11 @@ export async function fetchItemMarketInfo(
   ownName: string | null,
 ): Promise<ItemMarketInfo> {
   try {
-    const raw = await wfmClient.requestV2("GET", `/orders/item/${encodeURIComponent(wfmUrl)}`, {
-      priority: "background",
-    });
-    const list = extractWfmOrderList(raw);
-    if (!list) return EMPTY_MARKET_INFO;
+    const book = await fetchCompetingOrders(wfmUrl, subType, ownName);
+    if (!book) return EMPTY_MARKET_INFO;
 
-    const rankFilter = typeof subType?.rank === "number" ? subType.rank : null;
-    const subtypeFilter = typeof subType?.subtype === "string" ? subType.subtype : null;
-
-    const sells = excludeOwn(
-      normalizeWfmOrderBookSide(list, "sell", rankFilter, undefined, subtypeFilter),
-      ownName,
-    ).filter((entry) => isActiveOrderStatus(entry.status));
-    const buys = excludeOwn(
-      normalizeWfmOrderBookSide(list, "buy", rankFilter, undefined, subtypeFilter),
-      ownName,
-    ).filter((entry) => isActiveOrderStatus(entry.status));
+    const sells = book.sells.filter((entry) => isActiveOrderStatus(entry.status));
+    const buys = book.buys.filter((entry) => isActiveOrderStatus(entry.status));
 
     return {
       // normalizeWfmOrderBookSide already sorts sell ascending / buy descending.
@@ -86,5 +102,22 @@ export async function fetchItemMarketInfo(
   } catch (err) {
     log.warn(`[WFM] order book fetch failed for ${wfmUrl}:`, normalizeErrorMessage(err));
     return EMPTY_MARKET_INFO;
+  }
+}
+
+/** Lowest sell price of a seller who is in game right now; null when there is
+ *  none or the fetch failed. Same request and pacing as fetchItemMarketInfo. */
+export async function fetchLowestInGameSellPrice(
+  wfmUrl: string,
+  subType: SubTypeLike | undefined,
+  ownName: string | null,
+): Promise<number | null> {
+  try {
+    const book = await fetchCompetingOrders(wfmUrl, subType, ownName);
+    // Sells come sorted ascending, so the first in-game seller is the cheapest.
+    return book?.sells.find((entry) => entry.status === "ingame")?.platinum ?? null;
+  } catch (err) {
+    log.warn(`[WFM] order book fetch failed for ${wfmUrl}:`, normalizeErrorMessage(err));
+    return null;
   }
 }

@@ -82,7 +82,7 @@
   import InventoryOrderBookPanel from "../components/inventory/InventoryOrderBookPanel.svelte";
   import RivenDetailModal from "../modals/RivenDetailModal.svelte";
   import RepriceOrdersModal from "../components/market/RepriceOrdersModal.svelte";
-  import ThemedInput from "../components/ThemedInput.svelte";
+  import WfmSignInCard from "../components/market/WfmSignInCard.svelte";
   import { sharedFilters } from "../stores/filters.js";
   import {
     applyOverlaySettingsResponse,
@@ -110,7 +110,7 @@
   import { marketDensity } from "../stores/uiDensity.js";
   import { getInventoryHydrationController } from "../stores/inventoryHydration.js";
   import { titleFromSlug } from "../../config/shared/wfm.js";
-  import { tr, type MessageKey } from "../lib/i18n.js";
+  import { tr } from "../lib/i18n.js";
   import type {
     MarketTab,
     OrderModalHint,
@@ -255,11 +255,6 @@
     };
   }
 
-  let email = "";
-  let password = "";
-  let loginErrorKey: MessageKey | null = null;
-  let loginErrorText = "";
-  let loginLoading = false;
   let ordersLoading = false;
   let ordersError = "";
   let contractsLoading = false;
@@ -276,9 +271,6 @@
 
   let pollTimer: ReturnType<typeof setInterval> | null = null;
   let unsubscribeWfmNotification: (() => void) | null = null;
-  // The sentence stays one key so a translator can move the link; omitting the
-  // param leaves "{link}" in place as the split point.
-  $: steamHintParts = $tr("market.signInSteamHint").split("{link}");
   onMount(async () => {
     hydration.resume();
     unsubscribeWfmNotification = on("wfm:notification", (notification) => {
@@ -357,30 +349,11 @@
     }
   }
 
-  async function login(event: SubmitEvent): Promise<void> {
-    event.preventDefault();
-    loginErrorKey = null;
-    loginErrorText = "";
-    loginLoading = true;
-    try {
-      const result = await invoke("wfmSignIn", { email, password });
-      if (!result.loggedIn) {
-        if (result.error) loginErrorText = result.error;
-        else loginErrorKey = "market.signInFailed";
-      } else {
-        marketSession.set(result);
-        password = "";
-        // Sign-out cleared the previous account, and the pill is on every tab.
-        await refreshWfmPresence();
-        await fetchOrders({ clearSelection: true });
-        if ($marketViewState.typeTab === "rivens") {
-          await fetchContracts();
-        }
-      }
-    } catch (error) {
-      loginErrorText = (error as Error).message;
-    } finally {
-      loginLoading = false;
+  // The card has already set the session and refreshed the presence pill.
+  async function afterSignIn(): Promise<void> {
+    await fetchOrders({ clearSelection: true });
+    if ($marketViewState.typeTab === "rivens") {
+      await fetchContracts();
     }
   }
 
@@ -817,69 +790,7 @@
       />
     </div>
     <div class="flex flex-col items-center gap-3 py-3">
-      <div class="w-[min(560px,100%)] rounded-xl border border-border bg-bg-surface p-4">
-        <div class="mb-2.5 text-accent">
-          <svg
-            viewBox="0 0 48 48"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="1.5"
-            class="h-10 w-10"
-          >
-            <circle cx="24" cy="14" r="8" />
-            <path d="M8 40c0-8.837 7.163-16 16-16s16 7.163 16 16" />
-          </svg>
-        </div>
-        <h2 class="m-0 font-display text-2xl font-bold">{$tr("market.wfmTitle")}</h2>
-        <p class="mt-1.5 mb-3.5 text-sm text-text-secondary">
-          <strong>{$tr("market.signInHint")}</strong><br />
-          {steamHintParts[0]}<button
-            type="button"
-            class="link-btn"
-            on:click={() =>
-              send("open-external", "https://warframe.market/profile/settings#password")}
-            >{$tr("market.wfmAccountSettings")}</button
-          >{steamHintParts[1] ?? ""}
-        </p>
-        <form autocomplete="on" on:submit={login}>
-          <div class="grid gap-1 mb-2">
-            <label for="market-email" class="text-sm font-medium text-text-secondary"
-              >{$tr("market.emailLabel")}</label
-            >
-            <ThemedInput
-              id="market-email"
-              type="email"
-              bind:value={email}
-              placeholder="you@example.com"
-              autocomplete="email"
-              required
-              className="w-full"
-            />
-          </div>
-          <div class="grid gap-1 mb-2">
-            <label for="market-password" class="text-sm font-medium text-text-secondary"
-              >{$tr("market.passwordLabel")}</label
-            >
-            <ThemedInput
-              id="market-password"
-              type="password"
-              bind:value={password}
-              placeholder="........"
-              autocomplete="current-password"
-              required
-              className="w-full"
-            />
-          </div>
-          {#if loginErrorKey || loginErrorText}
-            <div class="text-danger">
-              {loginErrorKey ? $tr(loginErrorKey) : loginErrorText}
-            </div>
-          {/if}
-          <button type="submit" class="btn-primary mt-1 w-full" disabled={loginLoading}>
-            {loginLoading ? $tr("market.signingIn") : $tr("market.signIn")}
-          </button>
-        </form>
-      </div>
+      <WfmSignInCard onSignedIn={afterSignIn} />
     </div>
   {:else}
     <div>

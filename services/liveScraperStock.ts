@@ -1,6 +1,7 @@
 import { createJsonCache } from "./jsonCache";
 import {
   normalizeLiveScraperStockFile,
+  subTypeKey,
   type CreateStockItemInput,
   type CreateWishlistItemInput,
   type LiveScraperStockFile,
@@ -72,6 +73,8 @@ export function createStockItem(input: CreateStockItemInput): StockItem {
       ...existing,
       owned: totalOwned,
       bought: totalOwned > 0 ? Math.round(totalCost / totalOwned) : existing.bought,
+      // A row that already names where it came from keeps that.
+      ...(input.origin && !existing.origin ? { origin: input.origin } : {}),
       updatedAt: now,
     };
     const stock = [...current.stock];
@@ -91,6 +94,7 @@ export function createStockItem(input: CreateStockItemInput): StockItem {
     listPrice: null,
     minPrice: null,
     isHidden: false,
+    ...(input.origin ? { origin: input.origin } : {}),
     status: "pending",
     createdAt: now,
     updatedAt: now,
@@ -174,11 +178,4 @@ export function deleteWishlistItem(id: string): boolean {
   if (next.length === current.wishlist.length) return false;
   commit({ ...current, wishlist: next });
   return true;
-}
-
-function subTypeKey(
-  subType: { rank?: number; variant?: string; subtype?: string } | undefined,
-): string {
-  if (!subType) return "";
-  return `${subType.rank ?? ""}|${subType.variant ?? ""}|${subType.subtype ?? ""}`;
 }

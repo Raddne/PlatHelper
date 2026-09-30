@@ -1,4 +1,5 @@
 import ctx from "./context";
+import { addInventoryListener } from "./inventoryIpc";
 import { assertMainRendererSender, handleAuthorized } from "./ipcSecurity";
 import { isObject } from "./ipcValidators";
 import { toNonEmptyString } from "../config/shared/stringValidation";
@@ -8,9 +9,12 @@ import * as liveScraperRivenStock from "../services/liveScraperRivenStock";
 import * as liveScraperListingRemoval from "../services/liveScraperListingRemoval";
 import * as liveScraperEngine from "../services/liveScraperEngine";
 import * as liveScraperRiven from "../services/liveScraperRiven";
+import * as liveScraperTradeSync from "../services/liveScraperTradeSync";
 import * as liveScraperWfmVisibility from "../services/liveScraperWfmVisibility";
 import { normalizeErrorMessage } from "../config/shared/errors";
+import * as wfmCatalog from "../services/wfmCatalog";
 import * as wfmSession from "../services/wfmSession";
+import { wfmItemCategory, type WfmItemCategory } from "../config/shared/wfmItemCategory";
 import type {
   CreateStockItemInput,
   CreateWishlistItemInput,
@@ -21,6 +25,7 @@ import type { VisibilitySelection } from "../config/shared/liveScraperWfmVisibil
 import {
   LIVE_SCRAPER_CHANGED,
   LIVE_SCRAPER_GET_SETTINGS,
+  LIVE_SCRAPER_ITEM_FACTS,
   LIVE_SCRAPER_RESET_SETTINGS,
   LIVE_SCRAPER_RIVEN_STOCK_CREATE,
   LIVE_SCRAPER_RIVEN_STOCK_DELETE,
@@ -37,6 +42,9 @@ import {
   LIVE_SCRAPER_STOCK_LIST,
   LIVE_SCRAPER_STOCK_UPDATE,
   LIVE_SCRAPER_STOP,
+  LIVE_SCRAPER_TRADE_NOTICE,
+  LIVE_SCRAPER_TRADE_NOTICE_ACK,
+  LIVE_SCRAPER_TRADE_NOTICES,
   LIVE_SCRAPER_UPDATE_SETTINGS,
   LIVE_SCRAPER_WISHLIST_CREATE,
   LIVE_SCRAPER_WISHLIST_DELETE,
@@ -48,6 +56,14 @@ function pushLiveScraperChanged(): void {
   const window = ctx.mainWindow;
   if (!window || window.isDestroyed()) return;
   window.webContents.send(LIVE_SCRAPER_CHANGED);
+}
+
+// A hidden window still gets it; the notice itself waits in the main process
+// until acknowledged, so one raised before the renderer is up is not lost.
+function pushTradeNotice(): void {
+  const window = ctx.mainWindow;
+  if (!window || window.isDestroyed()) return;
+  window.webContents.send(LIVE_SCRAPER_TRADE_NOTICE);
 }
 
 function parseSubType(raw: unknown): SubTypeLike | undefined {
@@ -160,6 +176,27 @@ function register(): void {
     onChanged: pushLiveScraperChanged,
     getOwnName: () => wfmSession.getInGameName(),
   });
+  liveScraperTradeSync.initLiveScraperTradeSync({
+    onChanged: pushLiveScraperChanged,
+    onNotice: pushTradeNotice,
+    getInventory: () => ctx.currentInventoryData,
+  });
+  // Every inventory read with new content. A riven bought in a trade gets its
+  // stats from here; the trade log only names it.
+  addInventoryListener((data) => liveScraperTradeSync.resolvePendingTradeRivens(data));
+
+  handleAuthorized(LIVE_SCRAPER_TRADE_NOTICES, assertMainRendererSender, () =>
+    liveScraperTradeSync.listTradeSyncNotices(),
+  );
+
+  handleAuthorized(
+    LIVE_SCRAPER_TRADE_NOTICE_ACK,
+    assertMainRendererSender,
+    (_event, id: unknown) => {
+      const noticeId = toNonEmptyString(id, 64);
+      return noticeId ? liveScraperTradeSync.acknowledgeTradeSyncNotice(noticeId) : false;
+    },
+  );
 
   handleAuthorized(LIVE_SCRAPER_GET_SETTINGS, assertMainRendererSender, () =>
     liveScraperSettings.getLiveScraperSettings(),
@@ -400,6 +437,29 @@ function register(): void {
       return result;
     },
   );
+
+  // Slug -> item type for the Listings filters, which the renderer reads once.
+  // A catalog that cannot load yet answers empty, and the renderer asks again.
+  handleAuthorized(LIVE_SCRAPER_ITEM_FACTS, assertMainRendererSender, async () => {
+    const categories: Record<string, WfmItemCategory> = {};
+    let items: wfmCatalog.CatalogItem[];
+    try {
+      items = await wfmCatalog.listAllItems();
+    } catch {
+      return categories;
+    }
+    for (const item of items) {
+      if (!item.url_name) continue;
+      categories[item.url_name] = wfmItemCategory({
+        tags: item.tags,
+        slug: item.url_name,
+        gameRef: item.gameRef,
+        name: item.item_name,
+        maxRank: item.maxRank,
+      });
+    }
+    return categories;
+  });
 
   handleAuthorized(LIVE_SCRAPER_START, assertMainRendererSender, () => {
     const status = liveScraperEngine.startLiveScraperEngine();

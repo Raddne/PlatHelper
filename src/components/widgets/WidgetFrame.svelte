@@ -15,6 +15,7 @@
   import { currentView } from "../../stores/app.js";
   import { dashboardLayout, setWidgetSetting, widgetSettings } from "../../stores/dashboard.js";
   import { editMode } from "../../stores/layout.js";
+  import { hiddenTabs } from "../../stores/sidebarTabs.js";
   import { themeSettings } from "../../stores/theme.js";
 
   interface Props {
@@ -51,6 +52,9 @@
   const labelKey = $derived(descriptor?.labelKey ?? "common.unknown");
   const homeView = $derived(WIDGET_HOME_VIEWS[widgetId] ?? "inventory");
   const homeLabel = $derived($tr(VIEW_LABEL_KEYS[homeView]));
+  // A hidden home tab would only bounce the click back to Inventory, so its
+  // links are left out rather than offered.
+  const homeReachable = $derived(!$hiddenTabs.has(homeView));
   const settingNames = $derived(Object.keys(descriptor?.settings ?? {}));
   const settings = $derived(widgetSettings($dashboardLayout, widgetId));
   const editing = $derived($editMode === "dashboard");
@@ -98,30 +102,32 @@
           </svg>
         </button>
       {/if}
-      <button
-        type="button"
-        class="cursor-pointer rounded border border-border px-1.5 py-0.5 text-xs text-text-secondary transition-colors hover:border-accent hover:text-accent"
-        data-widget-open={widgetId}
-        title={$tr("dashboard.openTab", { label: homeLabel })}
-        aria-label={$tr("dashboard.openTab", { label: homeLabel })}
-        onclick={() => currentView.set(homeView)}
-      >
-        <svg
-          viewBox="0 0 16 16"
-          width="12"
-          height="12"
-          fill="none"
-          stroke="currentColor"
-          stroke-width="1.5"
-          stroke-linecap="round"
-          stroke-linejoin="round"
-          aria-hidden="true"
+      {#if homeReachable}
+        <button
+          type="button"
+          class="cursor-pointer rounded border border-border px-1.5 py-0.5 text-xs text-text-secondary transition-colors hover:border-accent hover:text-accent"
+          data-widget-open={widgetId}
+          title={$tr("dashboard.openTab", { label: homeLabel })}
+          aria-label={$tr("dashboard.openTab", { label: homeLabel })}
+          onclick={() => currentView.set(homeView)}
         >
-          <path d="M9.5 2.5h4v4" />
-          <path d="M13.5 2.5 8 8" />
-          <path d="M12.5 9.5V13H3V3.5h3.5" />
-        </svg>
-      </button>
+          <svg
+            viewBox="0 0 16 16"
+            width="12"
+            height="12"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.5"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            aria-hidden="true"
+          >
+            <path d="M9.5 2.5h4v4" />
+            <path d="M13.5 2.5 8 8" />
+            <path d="M12.5 9.5V13H3V3.5h3.5" />
+          </svg>
+        </button>
+      {/if}
     </div>
   </header>
 
@@ -178,14 +184,16 @@
       data-widget-empty={attribute === "empty" ? widgetId : undefined}
     >
       <p class="m-0">{text}</p>
-      <button
-        type="button"
-        class="cursor-pointer border-0 bg-transparent p-0 text-xs text-accent underline-offset-2 hover:underline"
-        data-widget-open-empty={widgetId}
-        onclick={() => currentView.set(homeView)}
-      >
-        {$tr("dashboard.openTab", { label: homeLabel })}
-      </button>
+      {#if homeReachable}
+        <button
+          type="button"
+          class="cursor-pointer border-0 bg-transparent p-0 text-xs text-accent underline-offset-2 hover:underline"
+          data-widget-open-empty={widgetId}
+          onclick={() => currentView.set(homeView)}
+        >
+          {$tr("dashboard.openTab", { label: homeLabel })}
+        </button>
+      {/if}
     </div>
   {/snippet}
 
@@ -202,15 +210,21 @@
   {:else}
     {@render children()}
     {#if overflow > 0}
-      <button
-        type="button"
-        class="cursor-pointer self-end border-0 bg-transparent p-0 text-[0.68rem] text-text-muted underline-offset-2 hover:text-accent hover:underline"
-        data-widget-more
-        title={$tr("dashboard.openTab", { label: homeLabel })}
-        onclick={() => currentView.set(homeView)}
-      >
-        {$tr("common.moreCount", { count: String(overflow) })}
-      </button>
+      {#if homeReachable}
+        <button
+          type="button"
+          class="cursor-pointer self-end border-0 bg-transparent p-0 text-[0.68rem] text-text-muted underline-offset-2 hover:text-accent hover:underline"
+          data-widget-more
+          title={$tr("dashboard.openTab", { label: homeLabel })}
+          onclick={() => currentView.set(homeView)}
+        >
+          {$tr("common.moreCount", { count: String(overflow) })}
+        </button>
+      {:else}
+        <span class="self-end text-[0.68rem] text-text-muted" data-widget-more>
+          {$tr("common.moreCount", { count: String(overflow) })}
+        </span>
+      {/if}
     {/if}
   {/if}
 </section>

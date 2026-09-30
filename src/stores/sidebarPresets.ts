@@ -1,17 +1,23 @@
 import { get, writable, type Readable } from "svelte/store";
 
-import { readStoredJson, writeStorage } from "../lib/persistence.js";
-import { TOGGLEABLE_VIEWS } from "../lib/viewRegistry.js";
+import { readStorage, readStoredJson, writeStorage } from "../lib/persistence.js";
+import { DEFAULT_VISIBLE_VIEWS, TOGGLEABLE_VIEWS } from "../lib/viewRegistry.js";
 import type { ToggleableView } from "../types/views.js";
-import { sidebarOrder, tabVisibility } from "./sidebarTabs.js";
+import { SETUP_COMPLETED_KEY } from "./app.js";
+import { sidebarOrder, tabVisibility, tabVisibilityKey } from "./sidebarTabs.js";
 
 const STORAGE_KEY = "wf_sidebar_presets_v1";
 const MAX_PRESETS = 20;
 export const PRESET_NAME_MAX = 60;
 
-/** Sentinel id for the built-in, non-deletable "every function" preset. It is
- *  never written to storage; the file only ever holds user-created presets. */
+/** Sentinel ids for the two built-in, non-deletable presets: "default" is the
+ *  fresh-profile set, "all" every function (the default before 0.4.0). Neither
+ *  is ever written to storage; the file only holds user-created presets, and a
+ *  stored preset can never take either id. */
 export const DEFAULT_PRESET_ID = "default";
+export const ALL_PRESET_ID = "all";
+
+const BUILT_IN_PRESET_IDS = new Set<string>([DEFAULT_PRESET_ID, ALL_PRESET_ID]);
 
 export interface SidebarPreset {
   id: string;
@@ -32,10 +38,12 @@ function emptyFile(): PresetsFile {
   return { version: 1, presets: [], activePresetId: DEFAULT_PRESET_ID };
 }
 
-/** The always-available "everything" preset. Kept out of the stored list so a
- *  cleared/corrupted file can never lose the safe fallback. */
-function defaultPreset(): SidebarPreset {
-  return { id: DEFAULT_PRESET_ID, name: "", order: [...TOGGLEABLE_VIEWS] };
+/** The always-available built-ins. Kept out of the stored list so a
+ *  cleared/corrupted file can never lose the safe fallbacks. */
+function builtInPreset(id: string): SidebarPreset | null {
+  if (id === DEFAULT_PRESET_ID) return { id, name: "", order: [...DEFAULT_VISIBLE_VIEWS] };
+  if (id === ALL_PRESET_ID) return { id, name: "", order: [...TOGGLEABLE_VIEWS] };
+  return null;
 }
 
 function normalizeOrder(raw: unknown): ToggleableView[] {
@@ -56,7 +64,7 @@ function normalizeOrder(raw: unknown): ToggleableView[] {
 function normalizePreset(raw: unknown): SidebarPreset | null {
   if (!raw || typeof raw !== "object") return null;
   const entry = raw as Record<string, unknown>;
-  if (typeof entry.id !== "string" || entry.id === "" || entry.id === DEFAULT_PRESET_ID)
+  if (typeof entry.id !== "string" || entry.id === "" || BUILT_IN_PRESET_IDS.has(entry.id))
     return null;
   const name = typeof entry.name === "string" ? entry.name.trim().slice(0, PRESET_NAME_MAX) : "";
   if (!name) return null;
@@ -79,7 +87,7 @@ function normalizeFile(raw: unknown): PresetsFile {
   }
   const activePresetId =
     typeof entry.activePresetId === "string" &&
-    (entry.activePresetId === DEFAULT_PRESET_ID || ids.has(entry.activePresetId))
+    (BUILT_IN_PRESET_IDS.has(entry.activePresetId) || ids.has(entry.activePresetId))
       ? entry.activePresetId
       : DEFAULT_PRESET_ID;
   return { version: 1, presets, activePresetId };
@@ -91,8 +99,8 @@ function load(): PresetsFile {
 
 const file = writable<PresetsFile>(load());
 
-/** Saved presets, newest addition last. The default preset is not part of this
- *  list; callers that need "everything the user can pick" should prepend it. */
+/** Saved presets, newest addition last. The built-in presets are not part of
+ *  this list; callers that need "everything the user can pick" should prepend them. */
 export const presets: Readable<SidebarPreset[]> = {
   subscribe(run) {
     return file.subscribe((value) => run(value.presets));
@@ -118,8 +126,7 @@ function newId(): string {
 }
 
 export function findPreset(id: string): SidebarPreset | null {
-  if (id === DEFAULT_PRESET_ID) return defaultPreset();
-  return get(file).presets.find((preset) => preset.id === id) ?? null;
+  return builtInPreset(id) ?? get(file).presets.find((preset) => preset.id === id) ?? null;
 }
 
 /** Creates a new preset and applies it immediately, matching the wizard's
@@ -138,7 +145,7 @@ export function createPreset(name: string, order: readonly ToggleableView[]): st
 
 export function updatePreset(id: string, name: string, order: readonly ToggleableView[]): boolean {
   const trimmed = name.trim().slice(0, PRESET_NAME_MAX);
-  if (!trimmed || id === DEFAULT_PRESET_ID) return false;
+  if (!trimmed || BUILT_IN_PRESET_IDS.has(id)) return false;
   const current = get(file);
   if (!current.presets.some((preset) => preset.id === id)) return false;
   commit({
@@ -152,7 +159,7 @@ export function updatePreset(id: string, name: string, order: readonly Toggleabl
 }
 
 export function deletePreset(id: string): void {
-  if (id === DEFAULT_PRESET_ID) return;
+  if (BUILT_IN_PRESET_IDS.has(id)) return;
   const current = get(file);
   commit({
     ...current,
@@ -173,4 +180,34 @@ export function applyPreset(id: string): boolean {
   const current = get(file);
   if (current.activePresetId !== id) commit({ ...current, activePresetId: id });
   return true;
+}
+
+/** "1" once this profile runs the current Default: moved over by the migration
+ *  below, or started out on a build that already had it. */
+const DEFAULTS_MARKER_KEY = "wf_sidebar_defaults_v2";
+
+// What an older build leaves behind: a finished setup, a visibility switch or a
+// preset file. A profile holding none of them is a fresh install.
+function hasOlderProfile(): boolean {
+  return (
+    readStorage(SETUP_COMPLETED_KEY) === "1" ||
+    readStorage(STORAGE_KEY) !== null ||
+    TOGGLEABLE_VIEWS.some((view) => readStorage(tabVisibilityKey(view)) !== null)
+  );
+}
+
+/** Moves an older profile onto Default once, before the sidebar first renders
+ *  (main.ts): every hideable view takes its Default visibility and Default turns
+ *  active. Presets, row order, labels, groups and width stay, so this skips
+ *  applyPreset. A fresh profile only gets the marker; its fallbacks are Default. */
+export function migrateSidebarDefaults(): void {
+  if (readStorage(DEFAULTS_MARKER_KEY) === "1") return;
+  if (hasOlderProfile()) {
+    const visible = new Set<ToggleableView>(DEFAULT_VISIBLE_VIEWS);
+    for (const view of TOGGLEABLE_VIEWS) tabVisibility[view].set(visible.has(view));
+    const current = get(file);
+    if (current.activePresetId !== DEFAULT_PRESET_ID)
+      commit({ ...current, activePresetId: DEFAULT_PRESET_ID });
+  }
+  writeStorage(DEFAULTS_MARKER_KEY, "1");
 }

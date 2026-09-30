@@ -27,6 +27,10 @@ export interface CatalogItem {
   icon: string | null;
   maxRank: number | null;
   gameRef: string | null;
+  /** warframe.market's own item tags ("mod", "set", "relic", ...). Only the
+   *  direct /v2/items listing carries them; the worker's /v1/wfm-items
+   *  projection drops them, so a catalog loaded from there has none. */
+  tags?: string[];
   subtypes?: string[];
   /** Only populated by lookupItemDetails (the bulk /items listing omits it) -
    *  confirmed live on GET /v2/item/{slug} as `tradingTax` (v1: `trading_tax`
@@ -66,6 +70,9 @@ function _normalise(raw: unknown): CatalogItem {
       : typeof source.game_ref === "string" && source.game_ref.trim().length > 0
         ? source.game_ref
         : null;
+  const tags: string[] = Array.isArray(source.tags)
+    ? source.tags.filter((tag: unknown): tag is string => typeof tag === "string" && tag !== "")
+    : [];
   return {
     id: source.id || null,
     url_name: slug,
@@ -74,6 +81,7 @@ function _normalise(raw: unknown): CatalogItem {
     icon: formatWfmAssetUrl(icon),
     maxRank,
     gameRef,
+    ...(tags.length > 0 ? { tags } : {}),
   };
 }
 

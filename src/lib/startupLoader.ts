@@ -10,7 +10,7 @@ import { configureRelicRuntimeCacheFingerprint, warmupPrimeRewardPriceCache } fr
 import { exportRankedHotset, importRankedHotset } from "./wfm/rankedHotset.js";
 import { refreshWfmPresence } from "./wfm/presence.js";
 import { tryLoadSnapshot } from "./wfm/snapshotLoader.js";
-import { marketSession } from "../stores/market.js";
+import { markMarketSessionLoaded, marketSession } from "../stores/market.js";
 import { log } from "./log.js";
 import { derived, get } from "svelte/store";
 import { writable } from "svelte/store";
@@ -163,6 +163,8 @@ export function initStartup(options: StartupOptions = {}): StartupHandle {
         await refreshWfmPresence();
       } catch (e) {
         log.warn("[Startup] wfmGetSession failed:", e);
+        // Unanswered, the Live Scraper would hold back its sign-in card forever.
+        if (!disposed) markMarketSessionLoaded();
       }
     })();
 

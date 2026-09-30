@@ -1,17 +1,24 @@
 <script lang="ts">
   import ModalShell from "../components/ModalShell.svelte";
-  import { tr } from "../lib/i18n.js";
+  import { tr, type MessageKey } from "../lib/i18n.js";
   import { confirmWithDialog } from "../lib/ipc.js";
   import {
     activePresetId,
     applyPreset,
     deletePreset,
     presets,
+    ALL_PRESET_ID,
     DEFAULT_PRESET_ID,
   } from "../stores/sidebarPresets.js";
   import PresetWizardModal from "./PresetWizardModal.svelte";
 
   let { onClose }: { onClose: () => void } = $props();
+
+  // Listed above the user presets; they can be applied but not edited or deleted.
+  const BUILT_IN_ROWS: ReadonlyArray<{ id: string; labelKey: MessageKey }> = [
+    { id: DEFAULT_PRESET_ID, labelKey: "presets.manager.defaultName" },
+    { id: ALL_PRESET_ID, labelKey: "presets.manager.allName" },
+  ];
 
   let wizardOpen = $state(false);
   let editingId = $state<string | undefined>(undefined);
@@ -60,28 +67,33 @@
       <p class="m-0 mb-3 text-xs text-text-secondary">{$tr("presets.manager.description")}</p>
 
       <ul class="m-0 grid list-none gap-1.5 p-0">
-        <li
-          class="flex items-center gap-2 rounded-[var(--radius-md)] border border-border px-2 py-1.5"
-          data-preset-row={DEFAULT_PRESET_ID}
-        >
-          <span class="min-w-0 flex-1 truncate text-sm text-text-primary">
-            {$tr("presets.manager.defaultName")}
-          </span>
-          {#if $activePresetId === DEFAULT_PRESET_ID}
-            <span class="rounded border border-accent px-1.5 py-0.5 text-[0.65rem] text-accent">
-              {$tr("presets.manager.active")}
-            </span>
-          {/if}
-          <button
-            type="button"
-            class="btn-secondary btn-sm"
-            data-preset-apply={DEFAULT_PRESET_ID}
-            disabled={$activePresetId === DEFAULT_PRESET_ID}
-            onclick={() => applyPreset(DEFAULT_PRESET_ID)}
+        {#each BUILT_IN_ROWS as builtIn (builtIn.id)}
+          <li
+            class="flex items-center gap-2 rounded-[var(--radius-md)] border border-border px-2 py-1.5"
+            data-preset-row={builtIn.id}
           >
-            {$tr("presets.manager.apply")}
-          </button>
-        </li>
+            <span class="min-w-0 flex-1 truncate text-sm text-text-primary">
+              {$tr(builtIn.labelKey)}
+            </span>
+            {#if $activePresetId === builtIn.id}
+              <span
+                class="rounded border border-accent px-1.5 py-0.5 text-[0.65rem] text-accent"
+                data-preset-active
+              >
+                {$tr("presets.manager.active")}
+              </span>
+            {/if}
+            <button
+              type="button"
+              class="btn-secondary btn-sm"
+              data-preset-apply={builtIn.id}
+              disabled={$activePresetId === builtIn.id}
+              onclick={() => applyPreset(builtIn.id)}
+            >
+              {$tr("presets.manager.apply")}
+            </button>
+          </li>
+        {/each}
 
         {#each $presets as preset (preset.id)}
           <li
@@ -92,7 +104,10 @@
               {preset.name}
             </span>
             {#if $activePresetId === preset.id}
-              <span class="rounded border border-accent px-1.5 py-0.5 text-[0.65rem] text-accent">
+              <span
+                class="rounded border border-accent px-1.5 py-0.5 text-[0.65rem] text-accent"
+                data-preset-active
+              >
                 {$tr("presets.manager.active")}
               </span>
             {/if}

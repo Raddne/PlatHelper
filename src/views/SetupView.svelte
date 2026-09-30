@@ -8,6 +8,7 @@
   import { getPlatform, invoke, on } from "../lib/ipc.js";
   import { APP_LOGO_URL } from "../lib/assetUrls.js";
   import { writeStorage } from "../lib/persistence.js";
+  import { noInventoryLandingView } from "../stores/sidebarTabs.js";
   import { shouldAutoStartTour, startTour } from "../stores/tour.js";
   import {
     hasInventoryShape,
@@ -265,16 +266,16 @@
     }
   }
 
-  function completeSetup(nextView: "inventory" | "world" = "inventory"): void {
+  function completeSetup(withInventory: boolean): void {
     writeStorage(SETUP_COMPLETED_KEY, "1");
     // legacy key: a downgrade to a pre-v2 build must not re-run setup either
     writeStorage("setup-completed", "1");
     // Arm the tour before navigating. currentView subscribers run synchronously
     // and the auto-focus-search guard reads tourActive, so navigating first would
     // let the search box steal focus as the tour paints its first step.
-    const autoStart = nextView === "inventory" && shouldAutoStartTour();
+    const autoStart = withInventory && shouldAutoStartTour();
     if (autoStart) startTour();
-    currentView.set(nextView);
+    currentView.set(withInventory ? "inventory" : noInventoryLandingView());
   }
 
   async function continueWithoutInventory(): Promise<void> {
@@ -286,7 +287,7 @@
       inventorySource = "none";
       pendingInventoryData = null;
       statusText.set(null);
-      completeSetup("world");
+      completeSetup(false);
     } catch {
       errorMessage = $tr("settings.inventorySourceChangeFailed");
       step = "error";
@@ -371,7 +372,7 @@
 
 <section class="view active">
   {#if step === "overlays"}
-    <OverlayPlacementStep onFinish={() => completeSetup("inventory")} />
+    <OverlayPlacementStep onFinish={() => completeSetup(true)} />
   {:else}
     <div
       class="mx-auto my-8 flex min-h-[620px] w-full max-w-[1080px] overflow-hidden rounded-xl border border-border bg-bg-surface"

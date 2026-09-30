@@ -11,13 +11,33 @@ import {
   type Page,
 } from "@playwright/test";
 
+import { VIEW_NAMES } from "../src/types/views";
 import { mainWindow } from "./mainWindow";
 import { collectElectronArtifacts } from "./electronArtifacts";
+
+/** The "All functions" preset in storage: every hideable view on, that preset
+ *  active, the default-sidebar migration marked done. Specs open any view from
+ *  the sidebar, so the harness seeds this unless a spec wants empty storage;
+ *  specs with their own launcher spread it into their seed. */
+export const ALL_FUNCTIONS_STORAGE: Readonly<Record<string, string>> = {
+  ...Object.fromEntries(
+    VIEW_NAMES.filter(
+      (view) => view !== "setup" && view !== "inventory" && view !== "settings",
+    ).map((view) => [`wf_tab_visible_${view}`, "1"]),
+  ),
+  wf_sidebar_presets_v1: JSON.stringify({ version: 1, presets: [], activePresetId: "all" }),
+  wf_sidebar_defaults_v2: "1",
+};
 
 interface ElectronTestHarnessOptions {
   entryPoint?: string;
   onApp?: (app: ElectronApplication) => void | Promise<void>;
+  /** Spread over the harness seed, so a key here wins. */
   storage?: Record<string, string>;
+  /** Seed nothing and skip the reload: the page is the app's first start on a
+   *  fresh profile, the setup wizard with no sidebar. `storage` and
+   *  `skipLanguageSeed` are ignored; a restart does not wait for the sidebar. */
+  emptyStorage?: boolean;
   inventory?: unknown;
   onPage?: (page: Page) => void | Promise<void>;
   /** Electron --lang switch, which is what navigator.language reports. */
@@ -101,20 +121,23 @@ async function startHarness(
     const page = await mainWindow(app);
     await options.onPage?.(page);
     await expect(page.locator("#app")).toBeVisible({ timeout: 90_000 });
-    if (seedStorage)
-      await page.evaluate(
-        (storage) => {
-          for (const [key, value] of Object.entries(storage)) localStorage.setItem(key, value);
-        },
-        {
-          "setup-completed-v2": "1",
-          "feature-tour-done": "1",
-          ...(options.skipLanguageSeed ? {} : { "app-language": "en" }),
-          ...options.storage,
-        },
-      );
-    await page.reload();
-    await expect(page.locator("#sidebar")).toBeVisible({ timeout: 90_000 });
+    if (!options.emptyStorage) {
+      if (seedStorage)
+        await page.evaluate(
+          (storage) => {
+            for (const [key, value] of Object.entries(storage)) localStorage.setItem(key, value);
+          },
+          {
+            "setup-completed-v2": "1",
+            "feature-tour-done": "1",
+            ...(options.skipLanguageSeed ? {} : { "app-language": "en" }),
+            ...ALL_FUNCTIONS_STORAGE,
+            ...options.storage,
+          },
+        );
+      await page.reload();
+      await expect(page.locator("#sidebar")).toBeVisible({ timeout: 90_000 });
+    }
 
     const harness = { app, page, sandboxDir, helperDir };
     harnessState.set(harness, { options, saveArtifacts });

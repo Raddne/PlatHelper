@@ -189,6 +189,31 @@
 
           <div class="mt-2 border-t border-border pt-3">
             <p class="m-0 mb-1 text-sm font-medium text-text-primary">
+              {$tr("liveScraper.settings.general.tradeSyncTitle")}
+            </p>
+            <p class="m-0 mb-2 text-xs text-text-muted">
+              {$tr("liveScraper.settings.general.tradeSyncHint")}
+            </p>
+            <div class="flex flex-wrap gap-4">
+              <div data-live-scraper-trade-sync="items">
+                {@render checkboxField(
+                  $tr("liveScraper.settings.general.tradeSyncItems"),
+                  $liveScraperSettings.general.tradeSyncItems,
+                  (v) => updateGeneralSettings((g) => ({ ...g, tradeSyncItems: v })),
+                )}
+              </div>
+              <div data-live-scraper-trade-sync="rivens">
+                {@render checkboxField(
+                  $tr("common.rivens"),
+                  $liveScraperSettings.general.tradeSyncRivens,
+                  (v) => updateGeneralSettings((g) => ({ ...g, tradeSyncRivens: v })),
+                )}
+              </div>
+            </div>
+          </div>
+
+          <div class="mt-2 border-t border-border pt-3">
+            <p class="m-0 mb-1 text-sm font-medium text-text-primary">
               {$tr("liveScraper.settings.general.tradeModesTitle")}
             </p>
             <p class="m-0 mb-2 text-xs text-text-muted">

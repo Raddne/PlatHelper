@@ -25,6 +25,7 @@
 
   import ModalHost from "./components/ModalHost.svelte";
   import BulkSellModal from "./components/workbench/BulkSellModal.svelte";
+  import LiveScraperTradeNoticeModal from "./modals/LiveScraperTradeNoticeModal.svelte";
 
   import { currentView, SETUP_COMPLETED_KEY, statusText } from "./stores/app.js";
   import { goBack, goForward } from "./stores/navigationHistory.js";
@@ -36,6 +37,7 @@
     popoutView,
   } from "./stores/popout.js";
   import { restoreWorkspaceOnLaunch } from "./stores/workspaces.js";
+  import { noInventoryLandingView } from "./stores/sidebarTabs.js";
   import { tourActive } from "./stores/tour.js";
   import { autoFocusSearch } from "./stores/preferences.js";
   import { activeItem, activeComponent, activeRelic } from "./stores/modals.js";
@@ -190,7 +192,7 @@
         invoke("getHelperStatus"),
       ]);
       if (inventoryStatus?.source === "none") {
-        if ($currentView === "inventory") currentView.set("world");
+        if ($currentView === "inventory") currentView.set(noInventoryLandingView());
         statusText.set(null);
         return;
       }
@@ -398,6 +400,9 @@
       {#if $bulkSellOpen}
         <BulkSellModal onClose={() => bulkSellOpen.set(false)} />
       {/if}
+      <!-- Main window only, whatever view is open: a pop-out would show the
+           same notice a second time. -->
+      <LiveScraperTradeNoticeModal />
     </ErrorBoundary>
 
     <ToastHost />

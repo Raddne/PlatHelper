@@ -17,6 +17,7 @@ import {
   listWishlistItems,
 } from "./liveScraperStock";
 import { deleteStockRiven, listStockRivens } from "./liveScraperRivenStock";
+import { isOwnedOrder } from "./liveScraperOwnedOrders";
 import { normalizeErrorMessage } from "../config/shared/errors";
 import type { SubTypeLike } from "../config/shared/liveScraperSettings";
 
@@ -24,10 +25,18 @@ const log = withScope("liveScraperListingRemoval");
 
 type RemovalResult = { ok: true } | { ok: false; error: string };
 
+interface RemovalOptions {
+  /** Set by automatic removals (a confirmed trade): only an order the scraper
+   *  placed itself may go, one the user placed stays up. A removal by hand
+   *  leaves it unset. */
+  ownedOrdersOnly?: boolean;
+}
+
 async function deleteLiveOrder(
   side: "buy" | "sell",
   wfmUrl: string,
   subType: SubTypeLike | undefined,
+  options: RemovalOptions,
 ): Promise<void> {
   // Signed out there is no order this session could reach - the row alone goes.
   if (!getInGameName()) return;
@@ -38,15 +47,22 @@ async function deleteLiveOrder(
   const subtype = typeof subType?.subtype === "string" ? subType.subtype : null;
   const existing = matchExistingOrder(mine[side], catalogItem.id, rank, subtype);
   if (!existing) return;
+  if (options.ownedOrdersOnly && !isOwnedOrder(existing.id)) {
+    log.info(`[Removal] ${side} order ${existing.id} for ${wfmUrl} is not the scraper's, left up`);
+    return;
+  }
   await deleteOrder(existing.id);
   log.info(`[Removal] deleted ${side} order ${existing.id} for ${wfmUrl}`);
 }
 
-export async function removeStockItem(id: string): Promise<RemovalResult> {
+export async function removeStockItem(
+  id: string,
+  options: RemovalOptions = {},
+): Promise<RemovalResult> {
   const item = listStockItems().find((entry) => entry.id === id);
   if (!item) return { ok: false, error: "not found" };
   try {
-    await deleteLiveOrder("sell", item.wfmUrl, item.subType);
+    await deleteLiveOrder("sell", item.wfmUrl, item.subType, options);
   } catch (err) {
     const error = normalizeErrorMessage(err);
     log.warn(`[Removal] sell order for ${item.wfmUrl} could not be deleted, row kept:`, error);
@@ -56,11 +72,14 @@ export async function removeStockItem(id: string): Promise<RemovalResult> {
   return { ok: true };
 }
 
-export async function removeWishlistItem(id: string): Promise<RemovalResult> {
+export async function removeWishlistItem(
+  id: string,
+  options: RemovalOptions = {},
+): Promise<RemovalResult> {
   const item = listWishlistItems().find((entry) => entry.id === id);
   if (!item) return { ok: false, error: "not found" };
   try {
-    await deleteLiveOrder("buy", item.wfmUrl, item.subType);
+    await deleteLiveOrder("buy", item.wfmUrl, item.subType, options);
   } catch (err) {
     const error = normalizeErrorMessage(err);
     log.warn(`[Removal] buy order for ${item.wfmUrl} could not be deleted, row kept:`, error);

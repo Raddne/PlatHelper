@@ -5,6 +5,7 @@
   import { confirmWithDialog, invoke, send } from "../lib/ipc.js";
   import { currentView } from "../stores/app.js";
   import { onWfmChatMessage, setWfmChatState, wfmChatState } from "../stores/wfmChat.js";
+  import WfmSignInCard from "../components/market/WfmSignInCard.svelte";
   import {
     WFM_CHAT_MAX_MESSAGE_LENGTH,
     type WfmChat,
@@ -194,12 +195,12 @@
     </div>
 
     {#if $wfmChatState.connection === "offline"}
-      <p
-        class="m-0 rounded-lg border border-border bg-bg-deep p-3 text-sm text-text-secondary"
-        data-messages-signed-out
-      >
-        {$tr("messages.signedOut")}
-      </p>
+      <!-- Signing in starts main's chat service, whose state pushes take this
+           block away; the chat list is pulled at once, as a mount would. -->
+      <div class="grid gap-2" data-messages-signed-out>
+        <p class="m-0 text-sm text-text-secondary">{$tr("messages.signedOut")}</p>
+        <WfmSignInCard onSignedIn={refresh} />
+      </div>
     {/if}
 
     {#if error}

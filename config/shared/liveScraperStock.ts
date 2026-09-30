@@ -19,6 +19,10 @@ export type StockEntryStatus =
   | "underpriced"
   | "maxPriceDrop";
 
+/** How a row got into the list, when it was not typed in by hand: "trade" is a
+ *  purchase the game confirmed (services/liveScraperTradeSync.ts). */
+export type StockOrigin = "trade";
+
 export interface StockItem {
   id: string;
   wfmId: string;
@@ -38,6 +42,8 @@ export interface StockItem {
    *  re-priced like any other but never deleted by the scraper, and never
    *  re-created once it is gone. */
   adopted?: boolean | undefined;
+  /** Set when a confirmed purchase created or topped up the row. */
+  origin?: StockOrigin | undefined;
   /** Last known warframe.market visibility of the listing (true = hidden); a new
    *  listing is created the same way. Undefined until known. */
   wfmHidden?: boolean | undefined;
@@ -80,6 +86,7 @@ export interface CreateStockItemInput {
   subType?: SubTypeLike | undefined;
   owned: number;
   bought: number;
+  origin?: StockOrigin | undefined;
 }
 
 export interface CreateWishlistItemInput {
@@ -153,6 +160,7 @@ function normalizeStockItem(raw: unknown): StockItem | null {
     minPrice: numOrNull(e.minPrice),
     isHidden: bool(e.isHidden, false),
     adopted: e.adopted === true ? true : undefined,
+    origin: e.origin === "trade" ? "trade" : undefined,
     wfmHidden: typeof e.wfmHidden === "boolean" ? e.wfmHidden : undefined,
     status: normalizeStatus(e.status),
     createdAt: num(e.createdAt, now),
@@ -216,6 +224,14 @@ export function isBlacklisted(
     if (entry.subType === undefined) return true;
     return subTypeEquals(entry.subType, subType);
   });
+}
+
+/** The variant identity a stock or wishlist row is merged and matched on. */
+export function subTypeKey(
+  subType: { rank?: number; variant?: string; subtype?: string } | undefined,
+): string {
+  if (!subType) return "";
+  return `${subType.rank ?? ""}|${subType.variant ?? ""}|${subType.subtype ?? ""}`;
 }
 
 function subTypeEquals(a: SubTypeLike | undefined, b: SubTypeLike | undefined): boolean {

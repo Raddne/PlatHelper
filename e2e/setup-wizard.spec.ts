@@ -12,6 +12,7 @@ import {
 
 import { mainWindow } from "./mainWindow";
 import {
+  ALL_FUNCTIONS_STORAGE,
   closeElectronTestHarness,
   evaluateInMain,
   launchElectronTestHarness,
@@ -45,7 +46,11 @@ async function launchWizard(inventory: unknown | null): Promise<Wizard> {
   const app = await electron.launch({ args: ["--no-sandbox", "--lang=en-US", "."], env });
   const page = await mainWindow(app);
   await expect(page.locator("#app")).toBeVisible({ timeout: 90_000 });
-  await page.evaluate(() => localStorage.setItem("app-language", "en"));
+  // All functions on, so the no-inventory path still lands on a visible World row.
+  await page.evaluate((seed) => {
+    for (const [key, value] of Object.entries(seed)) localStorage.setItem(key, value);
+    localStorage.setItem("app-language", "en");
+  }, ALL_FUNCTIONS_STORAGE);
   await page.reload();
   await expect(page.locator("#content.setup-active")).toBeVisible({ timeout: 90_000 });
   if (inventory) {

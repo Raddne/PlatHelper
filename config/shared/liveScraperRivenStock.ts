@@ -9,7 +9,7 @@
 // riven" entry path, deliberately - a fabricated stat profile could never
 // become a real, sellable auction.
 
-import type { StockEntryStatus } from "./liveScraperStock";
+import type { StockEntryStatus, StockOrigin } from "./liveScraperStock";
 
 export interface StockRivenStat {
   /** Internal stat tag (config/shared/wfmRivenVocabulary.ts's vocabulary),
@@ -48,6 +48,8 @@ export interface StockRiven {
   /** An auction the user already had on warframe.market: never recreated when
    *  it disappears (it was sold or closed), and its row goes with it. */
   adopted?: boolean | undefined;
+  /** Set when a confirmed purchase brought the riven in. */
+  origin?: StockOrigin | undefined;
   /** Last known warframe.market visibility of the auction (true = hidden); a new
    *  auction is created the same way. Undefined until known. */
   wfmHidden?: boolean | undefined;
@@ -66,6 +68,7 @@ export interface CreateStockRivenInput {
   modRank: number;
   stats: StockRivenStat[];
   bought: number;
+  origin?: StockOrigin | undefined;
 }
 
 const STATUSES: readonly StockEntryStatus[] = [
@@ -137,6 +140,7 @@ function normalizeStockRiven(raw: unknown): StockRiven | null {
     auctionId: typeof e.auctionId === "string" && e.auctionId ? e.auctionId : null,
     isHidden: bool(e.isHidden, false),
     adopted: e.adopted === true ? true : undefined,
+    origin: e.origin === "trade" ? "trade" : undefined,
     wfmHidden: typeof e.wfmHidden === "boolean" ? e.wfmHidden : undefined,
     status: normalizeStatus(e.status),
     createdAt: num(e.createdAt, now),

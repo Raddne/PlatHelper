@@ -79,11 +79,16 @@ export const LIVE_SCRAPER_RIVEN_SEARCH_URL = "live-scraper:riven-search-url";
 export const LIVE_SCRAPER_RIVEN_QUOTE = "live-scraper:riven-quote";
 export const LIVE_SCRAPER_RIVEN_QUICK_LIST = "live-scraper:riven-quick-list";
 export const LIVE_SCRAPER_SET_HIDDEN_ON_WFM = "live-scraper:set-hidden-on-wfm";
+export const LIVE_SCRAPER_ITEM_FACTS = "live-scraper:item-facts";
 export const LIVE_SCRAPER_START = "live-scraper:start";
 export const LIVE_SCRAPER_STOP = "live-scraper:stop";
 export const LIVE_SCRAPER_STATUS = "live-scraper:status";
 /** Main -> renderer push: settings, stock/wishlist, or engine status changed. */
 export const LIVE_SCRAPER_CHANGED = "live-scraper:changed";
+export const LIVE_SCRAPER_TRADE_NOTICES = "live-scraper:trade-notices";
+export const LIVE_SCRAPER_TRADE_NOTICE_ACK = "live-scraper:trade-notice-ack";
+/** Main -> renderer push: a purchase's price split was queued for the user. */
+export const LIVE_SCRAPER_TRADE_NOTICE = "live-scraper:trade-notice";
 
 export const WFM_CHAT_STATE = "wfm-chat:state";
 export const WFM_CHAT_REFRESH = "wfm-chat:refresh";

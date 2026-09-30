@@ -204,11 +204,19 @@ export interface PreloadAPI {
     hidden: IpcInvokeMap["liveScraperSetHiddenOnWfm"]["args"][1],
     selection: IpcInvokeMap["liveScraperSetHiddenOnWfm"]["args"][2],
   ) => Promise<IpcInvokeMap["liveScraperSetHiddenOnWfm"]["return"]>;
+  liveScraperItemFacts: () => Promise<IpcInvokeMap["liveScraperItemFacts"]["return"]>;
   liveScraperStart: () => Promise<IpcInvokeMap["liveScraperStart"]["return"]>;
   liveScraperStop: () => Promise<IpcInvokeMap["liveScraperStop"]["return"]>;
   liveScraperStatus: () => Promise<IpcInvokeMap["liveScraperStatus"]["return"]>;
   onLiveScraperChanged: (
     callback: (data: IpcEventMap["live-scraper:changed"]) => void,
+  ) => () => void;
+  liveScraperTradeNotices: () => Promise<IpcInvokeMap["liveScraperTradeNotices"]["return"]>;
+  liveScraperTradeNoticeAck: (
+    id: IpcInvokeMap["liveScraperTradeNoticeAck"]["args"][0],
+  ) => Promise<IpcInvokeMap["liveScraperTradeNoticeAck"]["return"]>;
+  onLiveScraperTradeNotice: (
+    callback: (data: IpcEventMap["live-scraper:trade-notice"]) => void,
   ) => () => void;
   wfmChatState: () => Promise<IpcInvokeMap["wfmChatState"]["return"]>;
   wfmChatRefresh: () => Promise<IpcInvokeMap["wfmChatRefresh"]["return"]>;

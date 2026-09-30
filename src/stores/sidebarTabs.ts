@@ -1,7 +1,8 @@
-import { derived, writable, type Readable, type Writable } from "svelte/store";
+import { derived, get, writable, type Readable, type Writable } from "svelte/store";
 import { persistedBoolean, readStorage, writeStorage } from "../lib/persistence.js";
 import { moveIndex } from "../lib/listOrder.js";
 import {
+  DEFAULT_VISIBLE_VIEWS,
   SIDEBAR_VIEW_ORDER,
   TOGGLEABLE_VIEWS,
   mergeSidebarOrder,
@@ -9,8 +10,17 @@ import {
 } from "../lib/viewRegistry.js";
 import type { ToggleableView, ViewName } from "../types/views.js";
 
+export function tabVisibilityKey(view: ToggleableView): string {
+  return `wf_tab_visible_${view}`;
+}
+
+// An unset switch falls back to the default set, so a fresh profile gets the
+// default sidebar with nothing written and no migration having run.
 export const tabVisibility = Object.fromEntries(
-  TOGGLEABLE_VIEWS.map((view) => [view, persistedBoolean(`wf_tab_visible_${view}`, true)]),
+  TOGGLEABLE_VIEWS.map((view) => [
+    view,
+    persistedBoolean(tabVisibilityKey(view), DEFAULT_VISIBLE_VIEWS.includes(view)),
+  ]),
 ) as Record<ToggleableView, Writable<boolean>>;
 
 /** Views currently switched off, for the sidebar to filter against. */
@@ -24,6 +34,15 @@ export const hiddenTabs: Readable<Set<ViewName>> = derived(
     return hidden;
   },
 );
+
+/** Where a profile without an inventory opens: World, else the Dashboard, else
+    Inventory, whichever of them the sidebar currently shows. */
+export function noInventoryLandingView(): "world" | "dashboard" | "inventory" {
+  const hidden = get(hiddenTabs);
+  if (!hidden.has("world")) return "world";
+  if (!hidden.has("dashboard")) return "dashboard";
+  return "inventory";
+}
 
 const ORDER_KEY = "wf_sidebar_order";
 

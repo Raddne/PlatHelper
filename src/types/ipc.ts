@@ -82,6 +82,8 @@ import type { StockItem, WishlistItem } from "../../config/shared/liveScraperSto
 import type { VisibilitySelection } from "../../config/shared/liveScraperWfmVisibility.js";
 import type { StockRiven, StockRivenStat } from "../../config/shared/liveScraperRivenStock.js";
 import type { LiveScraperEngineStatus } from "../../config/shared/liveScraperEngine.js";
+import type { TradeSyncNotice } from "../../config/shared/liveScraperTradeSync.js";
+import type { WfmItemCategory } from "../../config/shared/wfmItemCategory.js";
 import type { OverlaySettings, OverlayWindowKey } from "../../config/runtime/overlaySettings.js";
 
 export type { HelperStatus } from "../../config/shared/apiHelperTypes.js";
@@ -628,6 +630,10 @@ export interface IpcInvokeMap {
       | { ok: true; switched: number; failed: number; total: number }
       | { ok: false; error: string };
   };
+  liveScraperItemFacts: {
+    args: [];
+    return: Record<string, WfmItemCategory>;
+  };
   liveScraperStart: {
     args: [];
     return: LiveScraperEngineStatus;
@@ -639,6 +645,14 @@ export interface IpcInvokeMap {
   liveScraperStatus: {
     args: [];
     return: LiveScraperEngineStatus;
+  };
+  liveScraperTradeNotices: {
+    args: [];
+    return: TradeSyncNotice[];
+  };
+  liveScraperTradeNoticeAck: {
+    args: [id: string];
+    return: boolean;
   };
   wfmChatState: {
     args: [];
@@ -1034,6 +1048,7 @@ export interface IpcEventMap {
   "notification-sound-play": import("../../config/shared/notificationSound.js").NotificationSoundPlayback;
   "market-alerts:changed": undefined;
   "live-scraper:changed": undefined;
+  "live-scraper:trade-notice": undefined;
   "wfm-chat:event": WfmChatEvent;
   "workbench-state": WorkbenchState;
   "popout-state-changed": PopoutWindowInfo[];

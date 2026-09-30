@@ -2,8 +2,10 @@
   import { tr } from "../lib/i18n.js";
   import { confirmWithDialog, invoke, on } from "../lib/ipc.js";
   import { liveScraperSettings } from "../stores/liveScraperSettings.js";
+  import { marketSession, marketSessionLoaded } from "../stores/market.js";
   import LiveScraperSettingsModal from "../modals/LiveScraperSettingsModal.svelte";
   import LiveScraperListings from "../components/LiveScraperListings.svelte";
+  import WfmSignInCard from "../components/market/WfmSignInCard.svelte";
   import ItemPicker from "../components/ItemPicker.svelte";
   import ItemCategoryIcon from "../components/ItemCategoryIcon.svelte";
   import ThemedInput from "../components/ThemedInput.svelte";
@@ -208,6 +210,15 @@
         </button>
       </div>
     </header>
+
+    <!-- Market may be hidden, and every listing the scraper places needs the account.
+         Held back until main has answered for the session, so it never flashes. -->
+    {#if $marketSessionLoaded && !$marketSession.loggedIn}
+      <div class="grid gap-2" data-live-scraper-sign-in>
+        <p class="m-0 text-sm text-text-secondary">{$tr("liveScraper.signInPrompt")}</p>
+        <WfmSignInCard />
+      </div>
+    {/if}
 
     <div class="rounded-lg border border-border bg-bg-deep p-3 text-sm" data-live-scraper-status>
       <p class="m-0 text-text-primary">

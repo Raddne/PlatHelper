@@ -10,6 +10,7 @@ import {
   type Page,
 } from "@playwright/test";
 
+import { ALL_FUNCTIONS_STORAGE } from "./electronTestHarness";
 import { mainWindow } from "./mainWindow";
 
 test.describe("WFM status pill (fixture mode)", () => {
@@ -41,9 +42,10 @@ test.describe("WFM status pill (fixture mode)", () => {
     page = await mainWindow(app);
 
     await expect(page.locator("#app")).toBeVisible({ timeout: 90_000 });
-    await page.evaluate(() => {
+    await page.evaluate((seed) => {
+      for (const [key, value] of Object.entries(seed)) localStorage.setItem(key, value);
       localStorage.setItem("setup-completed-v2", "1");
-    });
+    }, ALL_FUNCTIONS_STORAGE);
     await page.reload();
     await expect(page.locator("#sidebar")).toBeVisible({ timeout: 90_000 });
     await page.locator('#sidebar [data-view="inventory"]').click();

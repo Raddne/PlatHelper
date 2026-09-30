@@ -13,6 +13,7 @@ import {
 
 import { mainWindow } from "./mainWindow";
 import {
+  ALL_FUNCTIONS_STORAGE,
   closeElectronTestHarness,
   evaluateInMain,
   launchElectronTestHarness,
@@ -69,9 +70,10 @@ test.describe("Market reprice (fixture mode)", () => {
     page = await mainWindow(app);
 
     await expect(page.locator("#app")).toBeVisible({ timeout: 90_000 });
-    await page.evaluate(() => {
+    await page.evaluate((seed) => {
+      for (const [key, value] of Object.entries(seed)) localStorage.setItem(key, value);
       localStorage.setItem("setup-completed-v2", "1");
-    });
+    }, ALL_FUNCTIONS_STORAGE);
     await page.reload();
     await expect(page.locator("#sidebar")).toBeVisible({ timeout: 90_000 });
     await page.locator('#sidebar [data-view="market"]').click();

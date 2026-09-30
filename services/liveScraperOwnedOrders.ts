@@ -1,8 +1,9 @@
 // The warframe.market order IDs the Live Scraper created itself. Anything not
 // in here was placed by the user (on the site or in another tool) and is off
 // limits to every automatic delete: the start-up cleanup, the mode-mismatch
-// cleanup and the catalog-scan buy pass. Deleting by hand from the Listings
-// panel is the user's own call and does not go through this.
+// cleanup, the catalog-scan buy pass and a confirmed trade that emptied a row.
+// Deleting by hand from the Listings panel is the user's own call and does not
+// go through this.
 
 import { createJsonCache } from "./jsonCache";
 

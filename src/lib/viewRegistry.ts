@@ -99,6 +99,31 @@ export function isToggleableView(view: SidebarViewName): view is ToggleableView 
 export const TOGGLEABLE_VIEWS: readonly ToggleableView[] =
   SIDEBAR_VIEW_ORDER.filter(isToggleableView);
 
+// Whether each hideable row shows before the user picks anything: a fresh
+// profile, and the built-in Default preset. Every other view stays in the app,
+// one switch away. A Record over the union, so a new view has to take a side.
+const TOGGLEABLE_VIEW_SHOWN_BY_DEFAULT: Record<ToggleableView, boolean> = {
+  dashboard: true,
+  foundry: false,
+  mastery: false,
+  stats: false,
+  world: false,
+  syndicates: false,
+  market: false,
+  analytics: false,
+  relics: false,
+  wiki: false,
+  rivens: false,
+  arbi: false,
+  liveScraper: true,
+  messages: true,
+};
+
+/** The hideable views a fresh profile shows, in default order. */
+export const DEFAULT_VISIBLE_VIEWS: readonly ToggleableView[] = TOGGLEABLE_VIEWS.filter(
+  (view) => TOGGLEABLE_VIEW_SHOWN_BY_DEFAULT[view],
+);
+
 /** Merge a stored order over a default one. Unknown and repeated ids are dropped,
     and an id the stored order never held is re-inserted after its nearest surviving
     default predecessor. Generic so a test can prove the rule against a default list

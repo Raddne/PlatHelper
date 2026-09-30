@@ -44,6 +44,7 @@ export function createStockRiven(input: CreateStockRivenInput): StockRiven {
     listPrice: null,
     auctionId: null,
     isHidden: false,
+    ...(input.origin ? { origin: input.origin } : {}),
     status: "pending",
     createdAt: now,
     updatedAt: now,

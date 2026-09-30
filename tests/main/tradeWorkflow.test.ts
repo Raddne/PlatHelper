@@ -12,6 +12,7 @@ const h = vi.hoisted(() => ({
   matchTradeToOrders: vi.fn(),
   closeMatchedOrder: vi.fn(),
   getToken: vi.fn(),
+  syncConfirmedTrade: vi.fn(),
 }));
 
 vi.mock("electron", () => ({ app: { getPath: () => "D:/user-data" } }));
@@ -35,6 +36,10 @@ vi.mock("../../services/tradeWfmMatcher", () => ({
 }));
 
 vi.mock("../../services/wfmSession", () => ({ getToken: h.getToken }));
+
+vi.mock("../../services/liveScraperTradeSync", () => ({
+  syncConfirmedTrade: h.syncConfirmedTrade,
+}));
 
 vi.mock("../../services/logger", () => ({
   withScope: () => ({ info: vi.fn(), warn: vi.fn(), error: vi.fn() }),
@@ -62,6 +67,7 @@ async function setup(overrides: Record<string, unknown> = {}) {
   for (const mock of Object.values(h)) mock.mockReset();
   h.recordTradeFromLog.mockReturnValue(EVENT);
   h.getToken.mockReturnValue(null);
+  h.syncConfirmedTrade.mockResolvedValue(undefined);
 
   const ctx = (await import("../../ipc/context")).default;
   ctx.mainWindow = null;
@@ -174,5 +180,52 @@ describe("trade workflow notification routing", () => {
     await flushPromises();
 
     expect(h.showTradeNotification.mock.calls[0][1]).toBe("match-failed");
+  });
+});
+
+describe("trade workflow stock sync", () => {
+  beforeEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("hands the trade to the stock sync once the auto-close is done", async () => {
+    const { workflow } = await setup({ autoCloseWfmOrders: true });
+    h.getToken.mockReturnValue("token");
+    const match = { kind: "order", orderId: "order-1", quantity: 1 };
+    h.matchTradeToOrders.mockResolvedValue([match]);
+    h.closeMatchedOrder.mockResolvedValue(true);
+
+    workflow.handleConfirmedTrade({} as ParsedLogTrade);
+
+    await vi.waitFor(() => expect(h.syncConfirmedTrade).toHaveBeenCalledTimes(1));
+    expect(h.syncConfirmedTrade).toHaveBeenCalledWith(EVENT, [match]);
+    expect(h.closeMatchedOrder.mock.invocationCallOrder[0]).toBeLessThan(
+      h.syncConfirmedTrade.mock.invocationCallOrder[0],
+    );
+  });
+
+  it("hands it over with nothing closed when auto-close is off or fails", async () => {
+    const { workflow } = await setup({ autoCloseWfmOrders: false });
+
+    workflow.handleConfirmedTrade({} as ParsedLogTrade);
+    await vi.waitFor(() => expect(h.syncConfirmedTrade).toHaveBeenCalledWith(EVENT, []));
+
+    const second = await setup({ autoCloseWfmOrders: true });
+    h.getToken.mockReturnValue("token");
+    h.matchTradeToOrders.mockRejectedValue(new Error("warframe.market unreachable"));
+
+    second.workflow.handleConfirmedTrade({} as ParsedLogTrade);
+    await vi.waitFor(() => expect(h.syncConfirmedTrade).toHaveBeenCalledWith(EVENT, []));
+  });
+
+  it("records nothing for the stock when the trade was a duplicate", async () => {
+    const { workflow } = await setup();
+    h.recordTradeFromLog.mockReturnValue(null);
+
+    workflow.handleConfirmedTrade({} as ParsedLogTrade);
+    await flushPromises();
+    await flushPromises();
+
+    expect(h.syncConfirmedTrade).not.toHaveBeenCalled();
   });
 });

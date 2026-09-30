@@ -1,4 +1,4 @@
-import { writable } from "svelte/store";
+import { writable, type Readable, type Writable } from "svelte/store";
 import { readStorage, writeStorage } from "../lib/persistence.js";
 import type {
   MarketTab,
@@ -18,11 +18,30 @@ function restoreMarketTab(): MarketTab {
   return raw && (MARKET_TABS as readonly string[]).includes(raw) ? (raw as MarketTab) : "sell";
 }
 
-export const marketSession = writable<WfmSession>({
-  loggedIn: false,
-  userName: null,
-  platform: "pc",
-});
+const session = writable<WfmSession>({ loggedIn: false, userName: null, platform: "pc" });
+const sessionLoaded = writable(false);
+
+/** False until main has answered for the session once. Until then the signed-out
+ *  default above is a placeholder, and a sign-in prompt shown on it would flash
+ *  for a user who is signed in. Every marketSession write sets it. */
+export const marketSessionLoaded: Readable<boolean> = { subscribe: sessionLoaded.subscribe };
+
+/** For a start-up read that failed: the placeholder then stands as signed out. */
+export function markMarketSessionLoaded(): void {
+  sessionLoaded.set(true);
+}
+
+export const marketSession: Writable<WfmSession> = {
+  subscribe: session.subscribe,
+  set(value: WfmSession): void {
+    session.set(value);
+    sessionLoaded.set(true);
+  },
+  update(fn: (value: WfmSession) => WfmSession): void {
+    session.update(fn);
+    sessionLoaded.set(true);
+  },
+};
 
 export const marketOrders = writable<WfmOrdersResult>({ sell: [], buy: [] });
 export const marketContracts = writable<WfmContractsResult>({
