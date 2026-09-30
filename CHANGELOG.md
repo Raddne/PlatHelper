@@ -4,6 +4,10 @@ Patch notes for every PlatHelper release. The release workflow copies the sectio
 
 Keep every bullet on one line: GitHub shows a line break inside release notes as a line break.
 
+## v0.4.1
+
+- **Fix: Stats, trade history could not be scrolled.** The trade history on the right of the Tracking tab grew to the full length of its list instead of scrolling, so everything below the visible part was cut off, including the "Show more" button. It scrolls again at every window size. The charts and the Personal tab were not affected.
+
 ## v0.4.0
 
 - **Your sidebar changes with this update.** PlatHelper now starts with Dashboard, Inventory, Live Scraper, Messages and Settings only, and every existing install is switched to this new Default once. Nothing was removed: open Customize in the sidebar and apply "All functions" to get every tab back, or apply one of your own presets, which are all still there. Your tab order, names and groups are untouched.
