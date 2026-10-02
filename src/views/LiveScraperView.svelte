@@ -253,12 +253,13 @@
       {/if}
     </div>
 
-    <div class="grid gap-4 md:grid-cols-2">
+    <!-- Side by side only while each form keeps a usable item search (about 10rem). -->
+    <div class="grid grid-cols-[repeat(auto-fit,minmax(min(100%,25rem),1fr))] gap-4">
       <section class="grid gap-2 rounded-lg border border-border p-3">
         <h3 class="m-0 text-sm font-semibold text-text-primary">{$tr("liveScraper.stockTitle")}</h3>
         <div class="flex flex-wrap items-end gap-2">
           {#if stockDraftItem}
-            <div class="grid min-w-0 flex-1 gap-1">
+            <div class="grid min-w-40 flex-1 gap-1">
               <span class="text-xs font-medium text-text-secondary">{$tr("common.item")}</span>
               <div
                 class="flex min-w-0 items-center gap-2 rounded-md border border-accent-dim bg-accent-glow px-2 py-1.5 text-sm"
@@ -276,7 +277,7 @@
               </div>
             </div>
           {:else}
-            <div class="min-w-0 flex-1">
+            <div class="min-w-40 flex-1">
               <ItemPicker onSelect={(item) => (stockDraftItem = item)} />
             </div>
           {/if}
@@ -342,7 +343,7 @@
         </h3>
         <div class="flex flex-wrap items-end gap-2">
           {#if wishlistDraftItem}
-            <div class="grid min-w-0 flex-1 gap-1">
+            <div class="grid min-w-40 flex-1 gap-1">
               <span class="text-xs font-medium text-text-secondary">{$tr("common.item")}</span>
               <div
                 class="flex min-w-0 items-center gap-2 rounded-md border border-accent-dim bg-accent-glow px-2 py-1.5 text-sm"
@@ -360,7 +361,7 @@
               </div>
             </div>
           {:else}
-            <div class="min-w-0 flex-1">
+            <div class="min-w-40 flex-1">
               <ItemPicker onSelect={(item) => (wishlistDraftItem = item)} />
             </div>
           {/if}
@@ -454,7 +455,7 @@
         <!-- Five rows and half of a sixth, so a long list scrolls instead of
              pushing the listings table down. -->
         <div class="max-h-[15rem] overflow-y-auto" data-live-scraper-riven-list>
-          <ul class="m-0 grid gap-1 p-0">
+          <ul class="m-0 grid grid-cols-[minmax(0,1fr)] gap-1 p-0">
             {#each shownStockRivens as riven (riven.id)}
               <li
                 class="flex items-center gap-2 rounded-md border border-border px-2 py-1 text-xs"

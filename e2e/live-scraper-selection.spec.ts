@@ -39,7 +39,7 @@ test.describe("Live Scraper listings selection", () => {
 
   const row = (name: string): Locator => panel.locator("tbody tr", { hasText: name });
   const selected = (): Promise<string[]> =>
-    panel.locator("tbody tr.selected td.name").allInnerTexts();
+    panel.locator("tbody tr.selected [data-ls-name]").allInnerTexts();
 
   test.beforeAll(async () => {
     harness = await launchElectronTestHarness("wfh-ls-selection-e2e-", {

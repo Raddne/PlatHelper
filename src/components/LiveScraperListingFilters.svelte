@@ -73,7 +73,7 @@
   let active = $derived(hasActiveFilters(filters, tab));
 
   let typeOptions = $derived<Option[]>([
-    { value: ALL, label: $t("common.all") },
+    { value: ALL, label: $t("filters.any") },
     ...WFM_ITEM_CATEGORIES.map((category) => ({
       value: category,
       label: $t(TYPE_LABEL_KEYS[category]),
@@ -90,7 +90,7 @@
           : stockRivens.map(rivenRowState),
     );
     const picked = filters[tab].status;
-    const options: Option[] = [{ value: ALL, label: $t("common.all") }];
+    const options: Option[] = [{ value: ALL, label: $t("filters.any") }];
     for (const status of statusOrder) {
       const count = counts.byStatus.get(status) ?? 0;
       if (count === 0 && picked !== status) continue;
@@ -132,12 +132,11 @@
 
   let positiveTags = $derived(keepPicked(rivenOptions.positives, filters.rivens.positives));
   let positivesFull = $derived(filters.rivens.positives.length >= MAX_POSITIVES);
-  let positivesLabel = $derived(
+  // The label sits above the control, so the button shows only the picked stats.
+  let positivesValue = $derived(
     filters.rivens.positives.length === 0
-      ? $t("liveScraper.listings.filter.positivesAny")
-      : $t("liveScraper.listings.filter.positivesPicked", {
-          stats: filters.rivens.positives.map((tag) => statTagToDisplayName(tag)).join(", "),
-        }),
+      ? $t("filters.any")
+      : filters.rivens.positives.map((tag) => statTagToDisplayName(tag)).join(", "),
   );
 
   function togglePositivesList(): void {
@@ -202,8 +201,8 @@
   options: readonly Option[],
   set: (value: string) => void,
 )}
-  <div class="shared-select-group">
-    <span class="shared-chip-label">{label}</span>
+  <div class="ls-filter">
+    <span class="shared-chip-label ls-filter-label">{label}</span>
     <select
       class="shared-filter-select"
       data-ls-filter={id}
@@ -219,154 +218,160 @@
 {/snippet}
 
 <div class="ls-filters" data-ls-filter-row={tab}>
-  {#if tab === "wtb"}
+  <div class="ls-filter-grid">
+    {#if tab === "wtb"}
+      {@render dropdown(
+        "type",
+        $t("common.type"),
+        filters.wtb.type,
+        typeOptions,
+        (v) => (filters.wtb.type = v as WtbFilters["type"]),
+      )}
+      {@render dropdown(
+        "source",
+        $t("liveScraper.listings.col.source"),
+        filters.wtb.source,
+        [
+          { value: ALL, label: $t("filters.any") },
+          { value: "wishlist", label: $t("liveScraper.listings.source.wishlist") },
+          { value: "scan", label: $t("liveScraper.listings.source.scan") },
+        ],
+        (v) => (filters.wtb.source = v as WtbFilters["source"]),
+      )}
+      {@render dropdown(
+        "owned",
+        $t("liveScraper.listings.filter.owned"),
+        filters.wtb.owned,
+        [
+          { value: ALL, label: $t("filters.any") },
+          { value: "yes", label: $t("filters.yes") },
+          { value: "no", label: $t("filters.no") },
+        ],
+        (v) => (filters.wtb.owned = v as WtbFilters["owned"]),
+      )}
+    {:else if tab === "wts"}
+      {@render dropdown(
+        "type",
+        $t("common.type"),
+        filters.wts.type,
+        typeOptions,
+        (v) => (filters.wts.type = v as WtsFilters["type"]),
+      )}
+      {@render dropdown(
+        "origin",
+        $t("liveScraper.listings.filter.origin"),
+        filters.wts.origin,
+        [
+          { value: ALL, label: $t("filters.any") },
+          { value: "trade", label: $t("liveScraper.listings.filter.originTrade") },
+          { value: "manual", label: $t("liveScraper.listings.filter.originManual") },
+          { value: "adopted", label: $t("liveScraper.listings.filter.originAdopted") },
+        ],
+        (v) => (filters.wts.origin = v as WtsFilters["origin"]),
+      )}
+    {:else}
+      {@render dropdown(
+        "weapon",
+        $t("rivens.finder.weapon"),
+        filters.rivens.weapon,
+        [
+          { value: ALL, label: $t("filters.any") },
+          ...keepPicked(rivenOptions.weapons, [filters.rivens.weapon]).map((weapon) => ({
+            value: weapon,
+            label: weapon,
+          })),
+        ],
+        (v) => (filters.rivens.weapon = v),
+      )}
+      <div class="ls-filter">
+        <span id="ls-filter-positives-label" class="shared-chip-label ls-filter-label"
+          >{$t("liveScraper.listings.filter.positives")}</span
+        >
+        <button
+          bind:this={positivesToggle}
+          id="ls-filter-positives"
+          type="button"
+          class="shared-filter-select ls-positives-toggle"
+          data-ls-filter="positives"
+          aria-haspopup="true"
+          aria-expanded={positivesOpen}
+          aria-labelledby="ls-filter-positives-label ls-filter-positives"
+          title={positivesValue}
+          onclick={togglePositivesList}
+        >
+          {positivesValue}
+          <svg class="ls-caret" viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+            <path
+              d="M4 6l4 4 4-4"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            />
+          </svg>
+        </button>
+      </div>
+      {@render dropdown(
+        "negative",
+        $t("marketAlerts.negative"),
+        filters.rivens.negative,
+        [
+          { value: ALL, label: $t("filters.any") },
+          { value: NEGATIVE_NONE, label: $t("common.none") },
+          { value: NEGATIVE_SOME, label: $t("liveScraper.listings.filter.negativeSome") },
+          ...statOptions(keepPicked(rivenOptions.negatives, [filters.rivens.negative])),
+        ],
+        (v) => (filters.rivens.negative = v),
+      )}
+      {@render dropdown(
+        "polarity",
+        $t("marketAlerts.polarity"),
+        filters.rivens.polarity,
+        [
+          { value: ALL, label: $t("filters.any") },
+          ...keepPicked(rivenOptions.polarities, [filters.rivens.polarity]).map((polarity) => ({
+            value: polarity,
+            label: polarityName(polarity),
+          })),
+        ],
+        (v) => (filters.rivens.polarity = v),
+      )}
+      {@render dropdown(
+        "rerolls",
+        $t("liveScraper.listings.col.rerolls"),
+        filters.rivens.rerolls,
+        [
+          { value: ALL, label: $t("filters.any") },
+          { value: "unrolled", label: $t("liveScraper.listings.filter.rerollsUnrolled") },
+          { value: "rolled", label: $t("liveScraper.listings.filter.rerollsRolled") },
+        ],
+        (v) => (filters.rivens.rerolls = v as RivenFilters["rerolls"]),
+      )}
+      {@render dropdown(
+        "mr",
+        $t("liveScraper.listings.col.mastery"),
+        filters.rivens.mr,
+        [
+          { value: ALL, label: $t("filters.any") },
+          ...MR_LIMITS.map((mr) => ({
+            value: mr,
+            label: $t("liveScraper.listings.filter.mrUpTo", { mr }),
+          })),
+        ],
+        (v) => (filters.rivens.mr = v as RivenFilters["mr"]),
+      )}
+    {/if}
     {@render dropdown(
-      "type",
-      $t("common.type"),
-      filters.wtb.type,
-      typeOptions,
-      (v) => (filters.wtb.type = v as WtbFilters["type"]),
+      "status",
+      $t("liveScraper.listings.col.status"),
+      filters[tab].status,
+      statusOptions,
+      (v) => (filters[tab].status = v),
     )}
-    {@render dropdown(
-      "source",
-      $t("liveScraper.listings.col.source"),
-      filters.wtb.source,
-      [
-        { value: ALL, label: $t("common.all") },
-        { value: "wishlist", label: $t("liveScraper.listings.source.wishlist") },
-        { value: "scan", label: $t("liveScraper.listings.source.scan") },
-      ],
-      (v) => (filters.wtb.source = v as WtbFilters["source"]),
-    )}
-    {@render dropdown(
-      "owned",
-      $t("liveScraper.listings.filter.owned"),
-      filters.wtb.owned,
-      [
-        { value: ALL, label: $t("common.all") },
-        { value: "yes", label: $t("filters.yes") },
-        { value: "no", label: $t("filters.no") },
-      ],
-      (v) => (filters.wtb.owned = v as WtbFilters["owned"]),
-    )}
-  {:else if tab === "wts"}
-    {@render dropdown(
-      "type",
-      $t("common.type"),
-      filters.wts.type,
-      typeOptions,
-      (v) => (filters.wts.type = v as WtsFilters["type"]),
-    )}
-    {@render dropdown(
-      "origin",
-      $t("liveScraper.listings.filter.origin"),
-      filters.wts.origin,
-      [
-        { value: ALL, label: $t("common.all") },
-        { value: "trade", label: $t("liveScraper.listings.filter.originTrade") },
-        { value: "manual", label: $t("liveScraper.listings.filter.originManual") },
-        { value: "adopted", label: $t("liveScraper.listings.filter.originAdopted") },
-      ],
-      (v) => (filters.wts.origin = v as WtsFilters["origin"]),
-    )}
-  {:else}
-    {@render dropdown(
-      "weapon",
-      $t("rivens.finder.weapon"),
-      filters.rivens.weapon,
-      [
-        { value: ALL, label: $t("common.all") },
-        ...keepPicked(rivenOptions.weapons, [filters.rivens.weapon]).map((weapon) => ({
-          value: weapon,
-          label: weapon,
-        })),
-      ],
-      (v) => (filters.rivens.weapon = v),
-    )}
-    <div class="shared-select-group">
-      <button
-        bind:this={positivesToggle}
-        id="ls-filter-positives"
-        type="button"
-        class="shared-filter-select ls-positives-toggle"
-        data-ls-filter="positives"
-        aria-haspopup="true"
-        aria-expanded={positivesOpen}
-        title={positivesLabel}
-        onclick={togglePositivesList}
-      >
-        {positivesLabel}
-        <svg class="ls-caret" viewBox="0 0 16 16" aria-hidden="true" focusable="false">
-          <path
-            d="M4 6l4 4 4-4"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-          />
-        </svg>
-      </button>
-    </div>
-    {@render dropdown(
-      "negative",
-      $t("marketAlerts.negative"),
-      filters.rivens.negative,
-      [
-        { value: ALL, label: $t("filters.any") },
-        { value: NEGATIVE_NONE, label: $t("common.none") },
-        { value: NEGATIVE_SOME, label: $t("liveScraper.listings.filter.negativeSome") },
-        ...statOptions(keepPicked(rivenOptions.negatives, [filters.rivens.negative])),
-      ],
-      (v) => (filters.rivens.negative = v),
-    )}
-    {@render dropdown(
-      "polarity",
-      $t("marketAlerts.polarity"),
-      filters.rivens.polarity,
-      [
-        { value: ALL, label: $t("filters.any") },
-        ...keepPicked(rivenOptions.polarities, [filters.rivens.polarity]).map((polarity) => ({
-          value: polarity,
-          label: polarityName(polarity),
-        })),
-      ],
-      (v) => (filters.rivens.polarity = v),
-    )}
-    {@render dropdown(
-      "rerolls",
-      $t("liveScraper.listings.col.rerolls"),
-      filters.rivens.rerolls,
-      [
-        { value: ALL, label: $t("filters.any") },
-        { value: "unrolled", label: $t("liveScraper.listings.filter.rerollsUnrolled") },
-        { value: "rolled", label: $t("liveScraper.listings.filter.rerollsRolled") },
-      ],
-      (v) => (filters.rivens.rerolls = v as RivenFilters["rerolls"]),
-    )}
-    {@render dropdown(
-      "mr",
-      $t("liveScraper.listings.col.mastery"),
-      filters.rivens.mr,
-      [
-        { value: ALL, label: $t("filters.any") },
-        ...MR_LIMITS.map((mr) => ({
-          value: mr,
-          label: $t("liveScraper.listings.filter.mrUpTo", { mr }),
-        })),
-      ],
-      (v) => (filters.rivens.mr = v as RivenFilters["mr"]),
-    )}
-  {/if}
-  {@render dropdown(
-    "status",
-    $t("liveScraper.listings.col.status"),
-    filters[tab].status,
-    statusOptions,
-    (v) => (filters[tab].status = v),
-  )}
+  </div>
   {#if active}
-    <span class="ls-filter-tools">
+    <div class="ls-filter-tools">
       <span class="ls-filter-count" data-ls-filter-count>
         {$t("liveScraper.listings.filter.shownCount", { shown, total })}
       </span>
@@ -378,7 +383,7 @@
       >
         {$t("filters.resetTitle")}
       </button>
-    </span>
+    </div>
   {/if}
 </div>
 
@@ -387,7 +392,7 @@
     class="ls-positives"
     style="left: {positivesAt.x}px; top: {positivesAt.y}px"
     role="group"
-    aria-labelledby="ls-filter-positives"
+    aria-labelledby="ls-filter-positives-label"
     data-ls-positives
   >
     {#each positiveTags as tag (tag)}
@@ -408,17 +413,43 @@
 
 <style>
   .ls-filters {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 0.5rem 0.75rem;
     padding: 0 0.75rem 0.75rem;
+    container: ls-filters / inline-size;
+  }
+  /* Seven equal columns edge to edge: the seven riven filters fill the row and
+     WTB and WTS use the first columns, so a control is equally wide on every tab. */
+  .ls-filter-grid {
+    display: grid;
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+    gap: 0.5rem;
+  }
+  /* Below 5.5rem a control no longer shows its value; four columns make 4 + 3,
+     never one filter alone in a row. */
+  @container ls-filters (width < 41.5rem) {
+    .ls-filter-grid {
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+    }
+  }
+  .ls-filter {
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+    min-width: 0;
+  }
+  .ls-filter-label {
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .ls-filter .shared-filter-select {
+    width: 100%;
+    min-width: 0;
   }
   .ls-filter-tools {
-    margin-left: auto;
-    display: inline-flex;
+    display: flex;
     align-items: center;
+    justify-content: flex-end;
     gap: 0.6rem;
+    margin-top: 0.5rem;
   }
   .ls-filter-count {
     font-size: 0.75rem;
@@ -427,7 +458,6 @@
   }
   .ls-positives-toggle {
     position: relative;
-    max-width: 18rem;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;

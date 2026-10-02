@@ -188,7 +188,7 @@ test.describe("Live Scraper listings filters", () => {
   test("the status filter lists the statuses that occur, with counts", async () => {
     await openTab("wts");
     const status = panel.locator('[data-ls-filter="status"]');
-    await expect(status.locator("option")).toHaveText(["All", "Live (2)", "Pending (1)"]);
+    await expect(status.locator("option")).toHaveText(["Any", "Live (2)", "Pending (1)"]);
 
     await status.selectOption("live");
     await expect(rows()).toHaveCount(2);
@@ -208,7 +208,9 @@ test.describe("Live Scraper listings filters", () => {
     await openTab("rivens");
     await expect(rows()).toHaveCount(3);
     const toggle = panel.locator('[data-ls-filter="positives"]');
-    await expect(toggle).toHaveText("Positives: any");
+    // The label sits above the control, which shows only the picked stats.
+    await expect(panel.locator("#ls-filter-positives-label")).toHaveText("Positives");
+    await expect(toggle).toHaveText("Any");
 
     await toggle.click();
     const list = page.locator("[data-ls-positives]");
@@ -218,7 +220,7 @@ test.describe("Live Scraper listings filters", () => {
     await list.locator('[data-ls-positive="WeaponFireIterationsMod"]').check();
     await expect(rows()).toHaveCount(1);
     await expect(rows().first()).toContainText("r-crit-ms");
-    await expect(toggle).toHaveText("Positives: Critical Chance, Multishot");
+    await expect(toggle).toHaveText("Critical Chance, Multishot");
 
     await list.locator('[data-ls-positive="WeaponDamageAmountMod"]').check();
     await expect(list.locator('[data-ls-positive="WeaponCritDamageMod"]')).toBeDisabled();
@@ -231,7 +233,7 @@ test.describe("Live Scraper listings filters", () => {
 
     await panel.locator("[data-ls-filter-reset]").click();
     await expect(rows()).toHaveCount(3);
-    await expect(toggle).toHaveText("Positives: any");
+    await expect(toggle).toHaveText("Any");
   });
 
   test("a row from a trade shows the Trade badge", async () => {

@@ -469,7 +469,8 @@ test.describe("Live Scraper rivens panel", () => {
     const listings = page.locator("[data-live-scraper-listings]");
     await listings.locator('[data-live-scraper-listings-tab="rivens"]').click();
     const tabRow = (id: string): Locator => listings.locator(`[data-ls-row="${id}"]`);
-    const cell = (id: string): Locator => tabRow(id).locator("[data-ls-riven-stats]");
+    // The chips sit under the name or in their own column, whichever the width shows.
+    const cell = (id: string): Locator => tabRow(id).locator("[data-ls-riven-stats]:visible");
     await expect(cell("tracked-0").locator("[data-riven-stat]")).toHaveCount(4);
     await expect(cell("tracked-1").locator("[data-riven-stat]")).toHaveCount(2);
     expect(

@@ -381,6 +381,11 @@
     });
   }
 
+  /** Hover text of a name the compact layout may cut short. */
+  function fullName(name: string, rank: number | null | undefined): string {
+    return typeof rank === "number" ? `${name} R${rank}` : name;
+  }
+
   const PRICE_STEPS = [-10, -5, 5, 10] as const;
   type PriceCommit = (value: number | null) => Promise<unknown>;
 
@@ -975,7 +980,7 @@
   class="overflow-hidden rounded-lg border border-border bg-bg-deep"
   data-live-scraper-listings
 >
-  <div class="tab-bar px-3 pt-2">
+  <div class="tab-bar ls-tab-bar px-3 pt-2">
     {#each TABS as entry (entry)}
       <button
         type="button"
@@ -1067,17 +1072,20 @@
       {:else if shownWtb.length === 0}
         {@render noMatches()}
       {:else}
-        <table class="ls-table">
+        <table class="ls-table ls-wtb">
           <thead>
             <tr>
               <th>{$t("common.item")}</th>
-              <th>{$t("liveScraper.listings.col.source")}</th>
+              <th class="ls-col-compact">{$t("liveScraper.listings.col.source")}</th>
               <th class="num">{$t("common.quantity")}</th>
               <th class="num">{$t("liveScraper.listings.col.maxPrice")}</th>
               <th class="num">{$t("liveScraper.listings.col.listPrice")}</th>
-              <th class="num">{$t("liveScraper.listings.col.potentialProfit")}</th>
+              <th class="num">
+                <span class="ls-wide-only">{$t("liveScraper.listings.col.potentialProfit")}</span>
+                <span class="ls-compact-only">{$t("liveScraper.listings.col.profit")}</span>
+              </th>
               <th>{$t("liveScraper.listings.col.status")}</th>
-              <th class="num">{$t("liveScraper.listings.col.updated")}</th>
+              <th class="num ls-col-compact">{$t("liveScraper.listings.col.updated")}</th>
               <th></th>
             </tr>
           </thead>
@@ -1102,9 +1110,22 @@
                   )}
               >
                 <td class="name">
-                  {row.itemName}{#if row.rank != null}<span class="ls-sub"> R{row.rank}</span>{/if}
+                  <div class="ls-line">
+                    <span class="ls-name-text" title={fullName(row.itemName, row.rank)} data-ls-name
+                      >{row.itemName}{#if row.rank != null}<span class="ls-sub"
+                          >{" R" + row.rank}</span
+                        >{/if}</span
+                    >
+                  </div>
+                  <div class="ls-line2 ls-compact-only">
+                    {$t(`liveScraper.listings.source.${row.source}`)}
+                    <span aria-hidden="true">·</span>
+                    {timeOf(row.updatedAt)}
+                  </div>
                 </td>
-                <td class="ls-sub">{$t(`liveScraper.listings.source.${row.source}`)}</td>
+                <td class="ls-sub ls-col-compact"
+                  >{$t(`liveScraper.listings.source.${row.source}`)}</td
+                >
                 <td class="num">{row.quantity}</td>
                 <td class="num">
                   {#if row.wishlistId}
@@ -1122,7 +1143,7 @@
                   {plat(row.potentialProfit)}
                 </td>
                 <td>{@render statusBadge(row.status, rowHidden)}</td>
-                <td class="num ls-sub">{timeOf(row.updatedAt)}</td>
+                <td class="num ls-sub ls-col-compact">{timeOf(row.updatedAt)}</td>
                 <td class="num">
                   {#if row.wishlistId}{@render removeButton(
                       "wishlist",
@@ -1141,7 +1162,7 @@
       {:else if shownStock.length === 0}
         {@render noMatches()}
       {:else}
-        <table class="ls-table">
+        <table class="ls-table ls-wts">
           <thead>
             <tr>
               <th>{$t("common.item")}</th>
@@ -1149,9 +1170,9 @@
               <th class="num">{$t("liveScraper.listings.col.minPrice")}</th>
               <th class="num">{$t("liveScraper.listings.col.listPrice")}</th>
               <th class="num">{$t("liveScraper.listings.col.profit")}</th>
-              <th class="num">{$t("liveScraper.listings.col.owned")}</th>
+              <th class="num ls-col-compact">{$t("liveScraper.listings.col.owned")}</th>
               <th>{$t("liveScraper.listings.col.status")}</th>
-              <th class="num">{$t("liveScraper.listings.col.updated")}</th>
+              <th class="num ls-col-compact">{$t("liveScraper.listings.col.updated")}</th>
               <th></th>
             </tr>
           </thead>
@@ -1169,17 +1190,29 @@
                 oncontextmenu={(e) => openMenu(e, item.id, { kind: "stock", item })}
               >
                 <td class="name">
-                  {item.itemName}{#if typeof item.subType?.rank === "number"}<span class="ls-sub">
-                      R{item.subType.rank}</span
-                    >{/if}
-                  {#if item.adopted}
-                    <span class="ls-adopted" title={$t("liveScraper.listings.adoptedHint")}
-                      >{$t("liveScraper.listings.adopted")}</span
+                  <div class="ls-line">
+                    <span
+                      class="ls-name-text"
+                      title={fullName(item.itemName, item.subType?.rank)}
+                      data-ls-name
+                      >{item.itemName}{#if typeof item.subType?.rank === "number"}<span
+                          class="ls-sub">{" R" + item.subType.rank}</span
+                        >{/if}</span
                     >
-                  {/if}
-                  {#if item.origin === "trade"}
-                    {@render tradeBadge()}
-                  {/if}
+                    {#if item.adopted}
+                      <span class="ls-adopted" title={$t("liveScraper.listings.adoptedHint")}
+                        >{$t("liveScraper.listings.adopted")}</span
+                      >
+                    {/if}
+                    {#if item.origin === "trade"}
+                      {@render tradeBadge()}
+                    {/if}
+                  </div>
+                  <div class="ls-line2 ls-compact-only">
+                    {$t("market.ownedCount", { count: item.owned })}
+                    <span aria-hidden="true">·</span>
+                    {timeOf(item.updatedAt)}
+                  </div>
                 </td>
                 <td class="num">{plat(item.bought)}</td>
                 <td class="num"
@@ -1187,9 +1220,9 @@
                 >
                 <td class="num strong">{plat(item.listPrice)}</td>
                 <td class="num" class:pos={(p ?? 0) > 0} class:neg={(p ?? 0) < 0}>{plat(p)}</td>
-                <td class="num">{item.owned}</td>
+                <td class="num ls-col-compact">{item.owned}</td>
                 <td>{@render statusBadge(item.status, itemHidden)}</td>
-                <td class="num ls-sub">{timeOf(item.updatedAt)}</td>
+                <td class="num ls-sub ls-col-compact">{timeOf(item.updatedAt)}</td>
                 <td class="num">{@render removeButton("stock", item.id, item.itemName)}</td>
               </tr>
             {/each}
@@ -1201,13 +1234,13 @@
     {:else if shownRivens.length === 0}
       {@render noMatches()}
     {:else}
-      <table class="ls-table">
+      <table class="ls-table ls-rivens">
         <thead>
           <tr>
             <th>{$t("liveScraper.listings.col.riven")}</th>
-            <th>{$t("liveScraper.listings.col.attributes")}</th>
-            <th class="num">{$t("liveScraper.listings.col.mastery")}</th>
-            <th class="num">{$t("liveScraper.listings.col.rerolls")}</th>
+            <th class="ls-col-compact">{$t("liveScraper.listings.col.attributes")}</th>
+            <th class="num ls-col-medium">{$t("liveScraper.listings.col.mastery")}</th>
+            <th class="num ls-col-medium">{$t("liveScraper.listings.col.rerolls")}</th>
             <th class="num">{$t("liveScraper.listings.col.bought")}</th>
             <th class="num">{$t("liveScraper.listings.col.minPrice")}</th>
             <th class="num">{$t("liveScraper.listings.col.listPrice")}</th>
@@ -1220,6 +1253,7 @@
           {#each shownRivens as riven (riven.id)}
             {@const p = profit(riven.listPrice, riven.bought)}
             {@const rivenHidden = rivenRowState(riven).hidden}
+            {@const suffix = rivenNameSuffix(riven.rivenName, riven.weaponName)}
             <tr
               data-tone={rowTone(riven.status, rivenHidden)}
               data-ls-row={riven.id}
@@ -1230,22 +1264,48 @@
               oncontextmenu={(e) => openMenu(e, riven.id, { kind: "riven", riven })}
             >
               <td class="name">
-                {riven.weaponName}
-                <span class="ls-sub">{rivenNameSuffix(riven.rivenName, riven.weaponName)}</span>
-                {#if riven.adopted}
-                  <span class="ls-adopted" title={$t("liveScraper.listings.adoptedHint")}
-                    >{$t("liveScraper.listings.adopted")}</span
+                <div class="ls-riven-cell">
+                  <div class="ls-line ls-riven-line">
+                    <span class="ls-riven-title">
+                      <span class="ls-name-text" title="{riven.weaponName} {suffix}" data-ls-name
+                        ><span class="ls-weapon">{riven.weaponName}</span>
+                        <span class="ls-sub">{suffix}</span></span
+                      >
+                      {#if riven.adopted}
+                        <span class="ls-adopted" title={$t("liveScraper.listings.adoptedHint")}
+                          >{$t("liveScraper.listings.adopted")}</span
+                        >
+                      {/if}
+                      {#if riven.origin === "trade"}
+                        {@render tradeBadge()}
+                      {/if}
+                    </span>
+                    <span class="ls-riven-meta ls-tight-only" data-ls-riven-meta
+                      ><span data-ls-riven-mr>{$t("rivens.mr", { level: riven.masteryReq })}</span>
+                      <span aria-hidden="true">·</span>
+                      <span data-ls-riven-rerolls
+                        >{$t("rivens.rerollCount", { count: riven.rerolls })}</span
+                      ></span
+                    >
+                  </div>
+                  <div
+                    class="ls-riven-chips ls-compact-only"
+                    title={chipStatsTitle(riven.stats)}
+                    data-ls-riven-stats
                   >
-                {/if}
-                {#if riven.origin === "trade"}
-                  {@render tradeBadge()}
-                {/if}
+                    <RivenStatChips stats={riven.stats} compact />
+                  </div>
+                </div>
               </td>
-              <td class="attrs" title={chipStatsTitle(riven.stats)} data-ls-riven-stats>
+              <td
+                class="attrs ls-col-compact"
+                title={chipStatsTitle(riven.stats)}
+                data-ls-riven-stats
+              >
                 <RivenStatChips stats={riven.stats} compact />
               </td>
-              <td class="num">{riven.masteryReq}</td>
-              <td class="num">{riven.rerolls}</td>
+              <td class="num ls-col-medium">{riven.masteryReq}</td>
+              <td class="num ls-col-medium">{riven.rerolls}</td>
               <td class="num">{plat(riven.bought)}</td>
               <td class="num"
                 >{@render priceCell(
@@ -1344,10 +1404,12 @@
 {/if}
 
 <style>
+  /* The rows follow the panel's width, not the window's: the sidebar may be open. */
   .ls-scroll {
     max-height: 26rem;
     min-height: 9rem;
     overflow: auto;
+    container: ls-rows / inline-size;
   }
   .ls-more {
     margin: 0;
@@ -1399,11 +1461,19 @@
       inset 3px 0 0 var(--ls-tone, transparent),
       inset 0 0 0 1px var(--accent-dim);
   }
+  /* The search box gives way first, down to 9rem; then the tools wrap under the tabs. */
+  .ls-tab-bar {
+    flex-wrap: wrap;
+  }
   .ls-tools {
+    flex: 1 1 auto;
     margin-left: auto;
     display: inline-flex;
+    flex-wrap: wrap;
     align-items: center;
-    gap: 0.75rem;
+    justify-content: flex-end;
+    gap: 0.35rem 0.75rem;
+    min-width: 0;
     padding-bottom: 0.35rem;
   }
   .ls-visibility {
@@ -1411,6 +1481,7 @@
     align-items: center;
     gap: 0.35rem;
     font-size: 0.75rem;
+    white-space: nowrap;
   }
   .ls-visibility-label {
     color: var(--text-muted);
@@ -1470,10 +1541,14 @@
   }
   .ls-selected-count {
     font-size: 0.75rem;
+    white-space: nowrap;
     color: var(--text-secondary);
   }
   .ls-search {
-    width: 14rem;
+    flex: 1 1 auto;
+    width: 9rem;
+    min-width: 9rem;
+    max-width: 14rem;
     border: 1px solid var(--border);
     border-radius: 0.375rem;
     background: transparent;
@@ -1697,5 +1772,155 @@
     font-size: 0.6875rem;
     color: var(--ls-tone);
     background: color-mix(in srgb, var(--ls-tone) 14%, transparent);
+  }
+
+  /* Layouts by the rows' width. Below a tab's threshold (its single-line natural
+     width with worst-case rows, e2e/live-scraper-compact.spec.ts, plus about
+     2rem) the table sets --ls-layout. Rivens step down through "medium" (still
+     one line) before "compact" (two lines); wide is the table as it was. */
+  .ls-line,
+  .ls-riven-cell {
+    display: contents;
+  }
+  .ls-compact-only,
+  .ls-tight-only {
+    display: none;
+  }
+  @container ls-rows (width < 68rem) {
+    .ls-wtb {
+      --ls-layout: compact;
+      --ls-tight: 1;
+    }
+  }
+  @container ls-rows (width < 66.5rem) {
+    .ls-wts {
+      --ls-layout: compact;
+      --ls-tight: 1;
+    }
+  }
+  @container ls-rows (width < 82.5rem) {
+    .ls-rivens {
+      --ls-layout: medium;
+      --ls-tight: 1;
+    }
+  }
+  @container ls-rows (width < 75rem) {
+    .ls-rivens {
+      --ls-layout: compact;
+    }
+  }
+
+  /* Medium and compact: snug columns, and the name column takes the spare width,
+     so a long name ellipsizes on one line while the riven meta never shrinks. */
+  @container style(--ls-tight: 1) {
+    .ls-table th {
+      padding: 0.5rem 0.4rem;
+    }
+    .ls-table td {
+      padding: 0.4rem;
+    }
+    .ls-table .name {
+      width: 100%;
+      max-width: none;
+    }
+    .ls-price {
+      gap: 0.3rem;
+    }
+    .ls-col-medium {
+      display: none;
+    }
+    .ls-line {
+      display: flex;
+      align-items: baseline;
+      gap: 0.35rem;
+      overflow: hidden;
+      contain: inline-size;
+    }
+    .ls-name-text {
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .ls-line .ls-adopted,
+    .ls-line .ls-trade {
+      flex-shrink: 0;
+      margin-left: 0;
+    }
+    .ls-riven-line {
+      gap: 0.5rem;
+    }
+    .ls-riven-title {
+      display: flex;
+      flex: 0 1 auto;
+      align-items: baseline;
+      gap: 0.35rem;
+      min-width: 0;
+    }
+    .ls-weapon {
+      font-weight: 600;
+    }
+    .ls-riven-meta {
+      display: inline;
+      flex-shrink: 0;
+      margin-left: auto;
+      font-size: 0.6875rem;
+      white-space: nowrap;
+      color: var(--text-muted);
+    }
+  }
+
+  /* Two lines per row. */
+  @container style(--ls-layout: compact) {
+    .ls-table td {
+      vertical-align: top;
+    }
+    .ls-col-compact,
+    .ls-wide-only {
+      display: none;
+    }
+    .ls-compact-only {
+      display: block;
+    }
+    .ls-line2 {
+      margin-top: 0.15rem;
+      font-size: 0.6875rem;
+      color: var(--text-muted);
+    }
+    .ls-row-hidden {
+      display: block;
+      width: fit-content;
+      margin: 0.2rem 0 0;
+    }
+    /* Chips and meta follow the cell's own width. Its minimum keeps two
+       worst-case chips side by side; a narrower panel scrolls the rows. */
+    .ls-riven-cell {
+      display: block;
+      min-width: 11rem;
+      container: ls-riven / inline-size;
+    }
+    .ls-riven-chips {
+      margin-top: 0.25rem;
+    }
+  }
+  /* Four worst-case chips take 19.5rem; narrower, two per row, never an orphan. */
+  @container ls-riven (width < 20rem) {
+    .ls-riven-chips > :global(div) {
+      display: grid;
+      grid-template-columns: repeat(2, max-content);
+      justify-items: start;
+    }
+  }
+  /* The weapon name, an ellipsis, a badge and the meta no longer share a line
+     (15.2rem): the meta becomes a subtitle under the name. */
+  @container ls-riven (width < 15.5rem) {
+    .ls-riven-line {
+      flex-direction: column;
+      align-items: stretch;
+      gap: 0.1rem;
+    }
+    .ls-riven-meta {
+      align-self: flex-start;
+      margin-left: 0;
+    }
   }
 </style>
