@@ -4,6 +4,15 @@ param()
 
 $ErrorActionPreference = "Stop"
 
+# services/ocrServer.ts reads stdout and writes stdin as UTF-8. The console's default code
+# page (850 on a German system) turns OCR'd glyphs such as U+2022 into control bytes that
+# break the JSON line, and mangles non-ASCII image paths. No BOM on either stream.
+try {
+    $utf8NoBom = [System.Text.UTF8Encoding]::new($false)
+    [Console]::OutputEncoding = $utf8NoBom
+    [Console]::InputEncoding = $utf8NoBom
+} catch {}
+
 $null = [Windows.Media.Ocr.OcrEngine,                   Windows.Media.Ocr,        ContentType=WindowsRuntime]
 $null = [Windows.Graphics.Imaging.BitmapDecoder,         Windows.Graphics.Imaging, ContentType=WindowsRuntime]
 $null = [Windows.Graphics.Imaging.SoftwareBitmap,        Windows.Graphics.Imaging, ContentType=WindowsRuntime]
