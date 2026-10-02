@@ -4,6 +4,19 @@ Patch notes for every PlatHelper release. The release workflow copies the sectio
 
 Keep every bullet on one line: GitHub shows a line break inside release notes as a line break.
 
+## v0.4.3
+
+- **PlatHelper now ships the "Rolls & Resources" riven table** (by Megrim & Valkyrial, based on the original by 44Bananas; 418 weapons). A riven is a "Good Roll" only when its stats fill a row of that table: every positive fits one of the three columns and the negative is one the table accepts. Everything that rates a riven uses this table now; the old sheet that was downloaded at start, and its Refresh button, are gone.
+- **Riven overlay: rating by the table.** Instead of Great / Good / OK / Bad the overlay says "Good Roll", "Almost: one positive off" (two of three positives fit and the negative is accepted), "Good positives, unlisted negative" or "Not a good roll"; three matching positives without a negative are not a good roll. Below the stats it lists the weapon's good rolls as the table writes them and highlights the stats your riven has. The letter and bar on each stat, which show how high the value rolled, are unchanged.
+- **Rivens tab: same rating.** Cards, list and the detail window show the table rating; sort and filter by "Roll rating" replace the old attribute grade. The letter grade stays.
+- **Live Scraper: new search for "Riven to auto-sell".** The drop-down is now a search with large entries that show each stat with its value (positives green, the negative red), mastery rank, polarity and rerolls, and a "Good Roll" mark. Type a weapon, a riven name or a stat; several words must all match, trader shorthand works (cd, ms, cc, tox, ...), and a leading + or - asks for a positive or a negative stat, for example "rubico +cd -zoom". Rivens you already track are listed last. Arrow keys, Enter and Esc work.
+- **Live Scraper: the riven panel no longer grows with every tracked riven.** The list shows five and a half rows and scrolls, a search finds a tracked riven by name or weapon, and a counter shows how many are tracked. Ctrl+F jumps to that search.
+- **Live Scraper: stats at a glance.** Tracked rivens and the Rivens tab of the Listings table show every stat as a small chip with its value and shorthand instead of internal names such as "WeaponCritChanceMod"; hover a chip for the full name.
+- **Hover hints for every status.** Hover "No sellers", "Too low profit", "No buyers" and the others to read what the status means; the tracked riven list now shows the readable status too.
+- **Riven prices and market alerts follow the table.** When the Live Scraper finds too few listings of the identical roll, it compares by the stats that matter for the weapon, and those now come from the table; the good-roll suggestions in the market alert editor come from it too and show the accepted negatives per roll.
+- **Fix: the weapon name appeared twice** for rivens in the Listings table.
+- **Fix: text recognition could stall for 8 seconds.** When the Windows text recognition read certain symbols (for example the Kuva icon), its answer could not be read and the scan waited for the timeout. It now answers at once; this affects the reward scanner and every other reader that uses it.
+
 ## v0.4.1
 
 - **Fix: Stats, trade history could not be scrolled.** The trade history on the right of the Tracking tab grew to the full length of its list instead of scrolling, so everything below the visible part was cut off, including the "Show more" button. It scrolls again at every window size. The charts and the Personal tab were not affected.
