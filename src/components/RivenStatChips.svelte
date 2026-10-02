@@ -17,9 +17,10 @@
   let { stats, compact = false }: Props = $props();
 </script>
 
+<!-- Unkeyed: a stored riven can repeat a tag, and a repeated key throws. -->
 {#if compact}
   <div class="flex min-w-0 flex-nowrap gap-1 overflow-hidden">
-    {#each orderedChipStats(stats) as stat (stat.tag)}
+    {#each orderedChipStats(stats) as stat}
       <span
         class="inline-flex shrink-0 items-baseline gap-1 rounded bg-bg-raised px-1 text-xs leading-4 whitespace-nowrap"
         title={chipName(stat)}
@@ -34,7 +35,7 @@
   </div>
 {:else}
   <div class="flex flex-wrap gap-1.5">
-    {#each orderedChipStats(stats) as stat (stat.tag)}
+    {#each orderedChipStats(stats) as stat}
       <span
         class="inline-flex items-baseline gap-1 rounded bg-bg-raised px-1.5 py-0.5 text-xs"
         data-riven-stat={stat.positive ? "positive" : "negative"}

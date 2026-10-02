@@ -652,7 +652,7 @@
             >{$tr("browse.volume")}</text
           >
 
-          {#each chart.priceTicks as tick (tick.value)}
+          {#each chart.priceTicks as tick, tickIndex (`${tick.value}:${tickIndex}`)}
             <line
               x1={MARGIN.left}
               y1={tick.offset}
@@ -726,7 +726,7 @@
               stroke-linecap="round"
             />
           {/if}
-          {#each chart.volumeTicks as tick (tick.value)}
+          {#each chart.volumeTicks as tick, tickIndex (`${tick.value}:${tickIndex}`)}
             <text
               x={MARGIN.left - 8}
               y={tick.offset}

@@ -361,7 +361,8 @@ function normalizeSyndicateWts(raw: unknown): SyndicateWtsSettings {
   const e = (raw ?? {}) as Record<string, unknown>;
   const d = defaultSyndicateWts();
   return {
-    syndicates: strArray(e.syndicates, d.syndicates),
+    // The settings modal keys its chips by id, so a repeat would throw there.
+    syndicates: [...new Set(strArray(e.syndicates, d.syndicates))],
     maxRankForType: strArray(e.maxRankForType, d.maxRankForType),
     volumeThreshold: num(e.volumeThreshold, d.volumeThreshold),
     maxStandingCost: num(e.maxStandingCost, d.maxStandingCost),

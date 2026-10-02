@@ -31,6 +31,14 @@ describe("live scraper trade modes", () => {
     });
   });
 
+  it("keeps each syndicate once, the order kept", () => {
+    const wts = normalizeLiveScraperSettings({
+      version: 1,
+      syndicate: { wts: { syndicates: ["perrin", "suda", "perrin"] } },
+    }).syndicate.wts;
+    expect(wts.syndicates).toEqual(["perrin", "suda"]);
+  });
+
   it("drops the retired syndicate mode", () => {
     expect(general({ stockMode: "item", tradeModes: ["syndicate"] }).tradeModes).toEqual([]);
     expect(general({ stockMode: "item", tradeModes: ["buy", "syndicate"] }).tradeModes).toEqual([

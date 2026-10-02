@@ -1,5 +1,6 @@
 <script lang="ts">
   import ModalShell from "./ModalShell.svelte";
+  import { withUniqueKeys } from "../lib/uniqueKeys.js";
   import { locale, tr } from "../lib/i18n.js";
   import {
     clearNotificationHistory,
@@ -43,7 +44,7 @@
       </p>
     {:else}
       <ul class="m-0 grid list-none gap-1 p-0">
-        {#each $notificationHistory as entry (entry.id)}
+        {#each withUniqueKeys($notificationHistory, (row) => row.id) as { key, item: entry } (key)}
           <li
             class="grid grid-cols-[auto_1fr_auto] items-start gap-x-2 rounded-md border border-border px-2.5 py-2"
             data-notification-entry

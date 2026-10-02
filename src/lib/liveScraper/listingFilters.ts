@@ -271,6 +271,8 @@ interface RivenFilterOptions {
   polarities: string[];
 }
 
+const NOT_AN_OPTION = new Set<string>([ALL, NEGATIVE_NONE, NEGATIVE_SOME]);
+
 /** What the Rivens dropdowns offer: only values some tracked riven has. */
 export function rivenFilterOptions(rivens: readonly StockRiven[]): RivenFilterOptions {
   const weapons = new Set<string>();
@@ -282,6 +284,11 @@ export function rivenFilterOptions(rivens: readonly StockRiven[]): RivenFilterOp
     polarities.add(riven.polarity);
     for (const stat of riven.stats) (stat.positive ? positives : negatives).add(stat.tag);
   }
+  // A stored value spelled like a fixed entry ("all", "none") would repeat that
+  // entry's key in the dropdown, which throws each_key_duplicate.
+  weapons.delete(ALL);
+  polarities.delete(ALL);
+  for (const value of NOT_AN_OPTION) negatives.delete(value);
   const byText = (a: string, b: string): number => a.localeCompare(b);
   const byStatName = (a: string, b: string): number =>
     statTagToDisplayName(a).localeCompare(statTagToDisplayName(b));
@@ -292,8 +299,6 @@ export function rivenFilterOptions(rivens: readonly StockRiven[]): RivenFilterOp
     polarities: [...polarities].sort(byText),
   };
 }
-
-const NOT_AN_OPTION = new Set<string>([ALL, NEGATIVE_NONE, NEGATIVE_SOME]);
 
 /** A picked value whose last row went away stays listed, so the dropdown still
  *  shows what filters the table and it can be switched off. */

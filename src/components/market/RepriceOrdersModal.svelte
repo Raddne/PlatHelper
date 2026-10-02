@@ -1,6 +1,7 @@
 <script lang="ts">
   import ModalShell from "../ModalShell.svelte";
   import { tr } from "../../lib/i18n.js";
+  import { withUniqueKeys } from "../../lib/uniqueKeys.js";
   import { invoke, tradeInvoke } from "../../lib/ipc.js";
   import { fetchItemOrderBookBySlug } from "../../lib/wfm/orderBook.js";
   import { loadQueueMarketData } from "../../lib/tradeWorkbench/queueModel.js";
@@ -338,7 +339,7 @@
           <span class="text-right">{$tr("market.reprice.next")}</span>
           <span>{$tr("common.details")}</span>
         </div>
-        {#each shownRows as row (row.rowId)}
+        {#each withUniqueKeys(shownRows, (entry) => entry.rowId) as { key: viewKey, item: row } (viewKey)}
           <div
             class="grid grid-cols-[1.5rem_1fr_5rem_5rem_12rem] items-center gap-2 border-t
                    border-border py-1"

@@ -25,7 +25,7 @@
 
   {#if hasData}
     <div class="flex flex-col gap-1.5">
-      {#each buckets as bucket, i (bucket.label)}
+      {#each buckets as bucket, i (`${bucket.label}:${i}`)}
         <div class="flex items-center gap-2">
           <span class="w-12 shrink-0 text-right font-mono text-xs text-text-secondary"
             >{bucket.label}</span

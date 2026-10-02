@@ -4,6 +4,7 @@ import { toLocalDayKey as toDayKey } from "../../../config/shared/dayKey.js";
 import {
   bestSeller,
   categoryNames,
+  knownCategoryNames,
   computeFlow,
   distinctItemCategories,
   fifoCostBasis,
@@ -482,6 +483,15 @@ describe("distinctItemCategories / categoryNames", () => {
   it("suggests only real categories, never the uncategorized sentinel", () => {
     const rows = distinctItemCategories(events, resolve, {});
     expect(categoryNames(rows)).toEqual(["Warframe"]);
+  });
+
+  it("lists a custom name that matches a kind label of this language once", () => {
+    // "Mods" typed while another language was on was kept as a custom name.
+    expect(knownCategoryNames(["Warframe", "Mods"], ["Mods", "Riven"])).toEqual([
+      "Warframe",
+      "Mods",
+      "Riven",
+    ]);
   });
 });
 

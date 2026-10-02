@@ -7,6 +7,7 @@
   import { inputText, numOrUndef } from "../../../lib/numberInput.js";
   import { getAlertSellLink, setAlertSellLink } from "./alertBulkSell.js";
   import { statLabel } from "./alertResolve.js";
+  import { withUniqueKeys } from "../../../lib/uniqueKeys.js";
   import ThemedInput from "../../ThemedInput.svelte";
   import { titleFromSlug } from "../../../../config/shared/wfm.js";
   import {
@@ -134,6 +135,8 @@
   let itemLabel = $state(item ? titleFromSlug(item.itemUrlName) : "");
   let itemQuery = $state("");
   let itemResults = $state<WfmSearchItem[]>([]);
+  // A catalog entry without an id has a null one, so ids can repeat.
+  const itemResultRows = $derived(withUniqueKeys(itemResults, (result) => result.id));
   let side = $state<"sell" | "buy">(item?.side ?? "sell");
   let minQuantity = $state(item?.minQuantity !== undefined ? String(item.minQuantity) : "");
   let statuses = $state<MarketAlertSellerStatus[]>([...(item?.statuses ?? ["ingame"])]);
@@ -552,7 +555,7 @@
             />
             {#if itemResults.length > 0}
               <div class="flex flex-col rounded border border-border bg-bg-surface">
-                {#each itemResults as result (result.id)}
+                {#each itemResultRows as { key, item: result } (key)}
                   <button class="link-btn px-2 py-1 text-left" onclick={() => pickItem(result)}>
                     {result.item_name}
                   </button>

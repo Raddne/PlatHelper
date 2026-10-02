@@ -1,5 +1,6 @@
 <script lang="ts">
   import { itemLabel } from "../lib/itemLabel.js";
+  import { withUniqueKeys } from "../lib/uniqueKeys.js";
   import type { CraftingTreeFilters, CraftingTreeNode } from "../lib/craftingTree.js";
   import {
     MAX_EXPAND_DEPTH,
@@ -185,7 +186,7 @@
 
     <!-- Children row -->
     <div class="flex items-start">
-      {#each shownChildren as child, i (child.uniqueName)}
+      {#each withUniqueKeys(shownChildren, (entry) => entry.uniqueName) as { key, item: child }, i (key)}
         {@const isFirst = i === 0}
         {@const isLast = i === shownChildren.length - 1}
         <div class="flex flex-col items-center">

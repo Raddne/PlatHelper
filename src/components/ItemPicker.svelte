@@ -10,6 +10,7 @@
   import ThemedInput from "./ThemedInput.svelte";
   import ItemCategoryIcon from "./ItemCategoryIcon.svelte";
   import { categorizeItem } from "../lib/itemCategory.js";
+  import { withUniqueKeys } from "../lib/uniqueKeys.js";
   import type { WfmSearchItem } from "../types/market.js";
 
   const SEARCH_MIN_CHARS = 2;
@@ -30,6 +31,8 @@
 
   let query = $state("");
   let dropdown = $state<WfmSearchItem[]>([]);
+  // A catalog entry without an id has a null one, so ids can repeat.
+  let dropdownRows = $derived(withUniqueKeys(dropdown, (item) => item.id));
   let searchTimer: ReturnType<typeof setTimeout> | null = null;
   let searchRequest = 0;
   let rootEl: HTMLDivElement | null = null;
@@ -87,7 +90,7 @@
       <div
         class="absolute top-[calc(100%+4px)] left-0 right-0 z-20 max-h-[220px] overflow-y-auto rounded-lg border border-border-strong bg-bg-surface shadow-[var(--ui-panel-shadow)]"
       >
-        {#each dropdown as item (item.id)}
+        {#each dropdownRows as { key, item } (key)}
           <button
             type="button"
             class="flex w-full cursor-pointer items-center gap-2 border-0 bg-transparent px-2.5 py-2 text-left text-sm text-text-primary hover:bg-bg-hover"

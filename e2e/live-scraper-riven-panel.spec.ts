@@ -7,6 +7,7 @@ import {
   closeElectronTestHarness,
   launchElectronTestHarness,
   openView,
+  selectOptionValues,
   setLayoutViewport,
   type ElectronTestHarness,
 } from "./electronTestHarness";
@@ -694,6 +695,199 @@ async function finishSetupWithoutInventory(page: Page): Promise<void> {
   await page.locator("[data-setup-without-inventory]").first().click();
   await expect(page.locator("#sidebar")).toBeVisible({ timeout: 30_000 });
 }
+
+// Stored data that repeats a key a list is keyed on. Every case crashed the view
+// with each_key_duplicate in v0.4.4; every row must still show.
+const DUP_TAGS = [
+  "WeaponCritChanceMod",
+  "WeaponCritDamageMod",
+  "WeaponFireIterationsMod",
+  "WeaponDamageAmountMod",
+  "WeaponMeleeDamageMod",
+  "WeaponZoomFovMod",
+  "WeaponStunChanceMod",
+  "WeaponFactionDamageGrineer",
+];
+const DUP_WEAPONS = ["Rubico", "rubico", "RUBICO", "Rubico Prime", "Kuva Bramma", "Lanka"];
+const DUP_POLARITIES = ["madurai", "", "AP_ATTACK", "Madurai", "naramon"];
+
+/** Distinct rows in the shapes the app writes: adopted, from the inventory,
+ *  the same source riven twice, and the oldest shape the normaliser takes. */
+function manyStockRivens(count: number): Record<string, unknown>[] {
+  return Array.from({ length: count }, (_, i) => {
+    const tags = [0, 3, 5].map((offset) => DUP_TAGS[(i + offset) % DUP_TAGS.length]!);
+    const stats = tags.map((tag, n) => stat(tag, n === 2 ? -20 : 50 + i));
+    const weaponName = DUP_WEAPONS[i % DUP_WEAPONS.length]!;
+    const base = { id: `many-${i}`, sourceItemId: `src-many-${i}`, weaponName, rivenName: "x" };
+    if (i % 4 === 0) {
+      return {
+        ...stockRiven({ ...base, sourceItemId: "" }),
+        adopted: true,
+        auctionId: `auction-${i}`,
+        listPrice: 100 + i,
+        status: "live",
+        stats,
+      };
+    }
+    if (i % 4 === 1) return { id: base.id, weaponName, stats: [{ tag: tags[0] }] };
+    return {
+      ...stockRiven(base),
+      ...(i % 4 === 2 ? { sourceItemId: `src-many-${i - 1}` } : {}),
+      polarity: DUP_POLARITIES[i % DUP_POLARITIES.length],
+      stats,
+    };
+  });
+}
+
+const MANY = 250;
+const REPEATED_STOCK_RIVENS = [
+  ...manyStockRivens(MANY),
+  stockRiven({ id: "rep-tag", sourceItemId: "s1", weaponName: "Braton", rivenName: "Crita" }),
+  stockRiven({ id: "pos-neg", sourceItemId: "s2", weaponName: "Lex", rivenName: "Herazeti" }),
+  stockRiven({ id: "dup-id", sourceItemId: "s3", weaponName: "Tigris", rivenName: "Sati" }),
+  stockRiven({ id: "dup-id", sourceItemId: "s4", weaponName: "Soma", rivenName: "Visi" }),
+  stockRiven({ id: "odd", sourceItemId: "s5", weaponName: "all", rivenName: "all" }),
+].map((row) => {
+  if (row.id === "rep-tag") {
+    return {
+      ...row,
+      stats: [
+        stat("WeaponCritChanceMod", 150),
+        stat("WeaponCritChanceMod", 120),
+        stat("WeaponCritDamageMod", 90),
+      ],
+    };
+  }
+  if (row.id === "pos-neg") {
+    return { ...row, stats: [stat("WeaponZoomFovMod", 50), stat("WeaponZoomFovMod", -30)] };
+  }
+  if (row.id === "odd") {
+    return { ...row, polarity: "all", stats: [stat("WeaponCritChanceMod", 10), stat("none", -5)] };
+  }
+  return row;
+});
+
+const listItem = (id: string, extra: Record<string, unknown>) => ({
+  id,
+  wfmId: "serration",
+  wfmUrl: "serration",
+  itemName: "Serration",
+  listPrice: null,
+  minPrice: null,
+  isHidden: false,
+  status: "pending",
+  createdAt: NOW,
+  updatedAt: NOW,
+  ...extra,
+});
+
+const REPEATED_INVENTORY = {
+  Suits: [],
+  Upgrades: [
+    ownedRiven(
+      RIFLE,
+      "ddddddddddddddddddddddd1",
+      BRATON,
+      [
+        ["WeaponCritChanceMod", 0.5],
+        ["WeaponCritChanceMod", 0.6],
+      ],
+      [],
+    ),
+    // An entry without an ItemId decodes with an empty one.
+    { ...ownedRiven(RIFLE, "", BRATON, [["WeaponCritDamageMod", 0.5]], []), ItemId: undefined },
+    { ...ownedRiven(RIFLE, "", BRATON, [["WeaponFireIterationsMod", 0.5]], []), ItemId: undefined },
+  ],
+};
+
+test.describe("Live Scraper view with repeated keys in stored data", () => {
+  test.setTimeout(180_000);
+
+  let harness: ElectronTestHarness;
+  let page: Page;
+
+  const crashed = (): Locator => page.getByRole("heading", { name: "Renderer crashed" });
+  const listings = (): Locator => page.locator("[data-live-scraper-listings]");
+  const tab = (name: string): Locator =>
+    listings().locator(`[data-live-scraper-listings-tab="${name}"]`);
+
+  test.beforeAll(async () => {
+    harness = await launchElectronTestHarness("wfh-ls-repeated-keys-e2e-", {
+      inventory: REPEATED_INVENTORY,
+      userDataFiles: {
+        "live-scraper-riven-stock.json": { version: 1, stockRivens: REPEATED_STOCK_RIVENS },
+        "live-scraper-stock.json": {
+          version: 1,
+          stock: [
+            listItem("s-dup", { owned: 1, bought: 0 }),
+            listItem("s-dup", { owned: 2, bought: 5 }),
+          ],
+          wishlist: [listItem("w-dup", { quantity: 1 }), listItem("w-dup", { quantity: 2 })],
+        },
+      },
+      storage: { wf_live_scraper_listings_tab: "rivens" },
+    });
+    page = harness.page;
+    await openView(page, "liveScraper");
+    await expect(page.locator("[data-live-scraper-riven-row]").first()).toBeVisible({
+      timeout: 30_000,
+    });
+  });
+
+  test.afterAll(async () => {
+    await closeElectronTestHarness(harness);
+  });
+
+  test("the tracked list shows every row and every chip of a repeated stat", async () => {
+    await expect(crashed()).toHaveCount(0);
+    await expect(page.locator("[data-live-scraper-riven-row]")).toHaveCount(MANY + 5);
+    await expect(page.locator('[data-live-scraper-riven-row="dup-id"]')).toHaveCount(2);
+    const chips = (id: string): Locator =>
+      page.locator(`[data-live-scraper-riven-row="${id}"] [data-riven-stat]`);
+    await expect(chips("rep-tag")).toHaveCount(3);
+    expect(
+      await chips("pos-neg").evaluateAll((nodes) =>
+        nodes.map((node) => node.getAttribute("data-riven-stat")),
+      ),
+    ).toEqual(["positive", "negative"]);
+  });
+
+  test("the Rivens tab, its filters and the positives list render", async () => {
+    await expect(tab("rivens")).toHaveClass(/active/);
+    const row = (id: string): Locator => listings().locator(`[data-ls-row="${id}"]`);
+    await expect(row("dup-id")).toHaveCount(2);
+    await expect(
+      row("rep-tag").locator("[data-ls-riven-stats]:visible [data-riven-stat]"),
+    ).toHaveCount(3);
+    for (const id of ["weapon", "negative", "polarity"]) {
+      const values = await selectOptionValues(listings().locator(`[data-ls-filter="${id}"]`));
+      expect(new Set(values).size, id).toBe(values.length);
+    }
+    await listings().locator('[data-ls-filter="positives"]').click();
+    await expect(page.locator("[data-ls-positives]")).toBeVisible();
+    await page.keyboard.press("Escape");
+    await expect(crashed()).toHaveCount(0);
+  });
+
+  test("the WTB and WTS tabs show both rows that share an id", async () => {
+    await tab("wtb").click();
+    await expect(listings().locator('[data-ls-row="w:w-dup"]')).toHaveCount(2);
+    await tab("wts").click();
+    await expect(listings().locator('[data-ls-row="s-dup"]')).toHaveCount(2);
+    await expect(crashed()).toHaveCount(0);
+  });
+
+  test("the picker lists every owned riven, ids missing or not", async () => {
+    const section = page.locator('label[for="riven-picker"]').locator("xpath=ancestor::section[1]");
+    await section.locator("[data-riven-picker-input]").focus();
+    const options = section.locator("[data-riven-picker-option]");
+    await expect(options).toHaveCount(REPEATED_INVENTORY.Upgrades.length);
+    await expect(
+      section.locator('[data-riven-picker-option="ddddddddddddddddddddddd1"] [data-riven-stat]'),
+    ).toHaveCount(2);
+    await expect(crashed()).toHaveCount(0);
+  });
+});
 
 // A fresh install: no saved sidebar, no unlock flags. The panel must be reachable the
 // way a new user reaches it, with nothing seeded by the harness. Setup without

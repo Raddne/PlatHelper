@@ -60,7 +60,7 @@
           {$tr("archon.installedCount", { count: row.installed })} ·
           {$tr("archon.unsocketedCount", { count: row.unsocketed })}
         </span>
-        {#each row.holders as holder, holderIndex (holder.instanceId ?? `${holder.itemType}-${holderIndex}`)}
+        {#each row.holders as holder, holderIndex (`${holder.instanceId ?? holder.itemType}-${holderIndex}`)}
           <button
             type="button"
             class="cursor-pointer rounded-[var(--radius-sm)] border border-border-subtle bg-transparent

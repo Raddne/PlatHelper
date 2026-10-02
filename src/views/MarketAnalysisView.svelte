@@ -124,6 +124,7 @@
   import {
     bestSeller,
     categoryNames,
+    knownCategoryNames,
     computeFlow,
     distinctItemCategories,
     fifoCostBasis,
@@ -575,10 +576,12 @@
   const worth = $derived(worthToday(allEvents, resolveMedian));
 
   const distinctItems = $derived(distinctItemCategories(allEvents, resolveKind, overrides));
-  const knownCategories = $derived([
-    ...TRADE_ITEM_KINDS.map((kind) => kindLabel(kind)),
-    ...categoryNames(distinctItems).filter((name) => !isKindId(name)),
-  ]);
+  const knownCategories = $derived(
+    knownCategoryNames(
+      TRADE_ITEM_KINDS.map((kind) => kindLabel(kind)),
+      categoryNames(distinctItems).filter((name) => !isKindId(name)),
+    ),
+  );
 
   const hasAnyData = $derived(allEvents.length > 0 || (tablePage?.total ?? 0) > 0);
   const filtersActive = $derived(search.trim() !== "" || typeFilter !== "all");

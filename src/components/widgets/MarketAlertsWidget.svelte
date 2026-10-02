@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount } from "svelte";
+  import { withUniqueKeys } from "../../lib/uniqueKeys.js";
 
   import type {
     MarketAlertEngineStatus,
@@ -74,7 +75,7 @@
     </p>
   {/snippet}
   <ul class="m-0 max-h-[340px] flex-1 list-none overflow-y-auto p-0">
-    {#each shown as hit (hit.id)}
+    {#each withUniqueKeys(shown, (entry) => entry.id) as { key: viewKey, item: hit } (viewKey)}
       <li class="flex items-baseline gap-2 py-1 text-sm">
         <span class="shrink-0 tabular-nums text-text-muted">{hitTime(hit.at)}</span>
         <span class="min-w-0 flex-1 truncate text-text-secondary">{hit.ruleName}</span>

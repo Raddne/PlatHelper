@@ -1,5 +1,6 @@
 <script lang="ts">
   import CollapsibleSection from "../CollapsibleSection.svelte";
+  import { withUniqueKeys } from "../../lib/uniqueKeys.js";
   import { nextDailyResetUtc, nextWeeklyResetUtc, parseIsoDate, timeTo } from "../../lib/format.js";
   import { tr, type MessageKey, type Translator } from "../../lib/i18n.js";
   import { send } from "../../lib/ipc.js";
@@ -442,7 +443,7 @@
             {/if}
           </div>
 
-          {#each list as row (row.id)}
+          {#each withUniqueKeys(list, (entry) => entry.id) as { key: viewKey, item: row } (viewKey)}
             {#if row.kind === "header"}
               <p class="dailies-subhead">{row.label}</p>
             {:else}
@@ -593,7 +594,7 @@
               {#if expanded[row.id]}
                 {#if row.lines}
                   <ul class="dailies-sublist">
-                    {#each row.lines as line (line)}
+                    {#each row.lines as line, lineIndex (`${line}:${lineIndex}`)}
                       <li>{line}</li>
                     {/each}
                   </ul>
@@ -606,7 +607,7 @@
                 {/if}
                 {#if row.circuit}
                   <div class="dailies-icons">
-                    {#each row.circuit as choice (circuitChoiceKey(choice))}
+                    {#each withUniqueKeys(row.circuit, circuitChoiceKey) as { key: choiceViewKey, item: choice } (choiceViewKey)}
                       <IconButtonCard
                         name={choice.displayName ?? choice.name}
                         imageUrl={choice.imageUrl}
@@ -621,7 +622,7 @@
                 {/if}
                 {#if row.calendar}
                   <div class="dailies-cal">
-                    {#each row.calendar as day (day.day)}
+                    {#each row.calendar as day, dayIndex (`${day.day}:${dayIndex}`)}
                       {@const perks = day.events.filter((event) => event.kind === "upgrade")}
                       <div class="dailies-cal-day">
                         <p class="dailies-cal-num">

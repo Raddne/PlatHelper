@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount } from "svelte";
+  import { withUniqueKeys } from "../../lib/uniqueKeys.js";
 
   import { formatDuration } from "../../lib/arbi/arbiChartData.js";
   import { tr, locale } from "../../lib/i18n.js";
@@ -52,7 +53,7 @@
       <span class="text-right">{$tr("arbi.col.rotations")}</span>
       <span class="text-right">{$tr("arbi.col.vitus")}</span>
     </div>
-    {#each rows as run (run.id)}
+    {#each withUniqueKeys(rows, (entry) => entry.id) as { key: viewKey, item: run } (viewKey)}
       <div
         class="grid grid-cols-[auto_1fr_auto_auto_auto] items-baseline gap-x-3 py-1 text-sm text-text-secondary"
         data-widget-run={run.id}

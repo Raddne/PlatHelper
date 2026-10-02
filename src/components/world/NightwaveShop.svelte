@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount } from "svelte";
+  import { withUniqueKeys } from "../../lib/uniqueKeys.js";
 
   import type { NightwaveOfferingsDoc } from "../../../config/shared/nightwaveOfferings.js";
   import { NIGHTWAVE_PERMANENT_SHOP } from "../../../config/shared/nightwaveShop.js";
@@ -155,7 +156,7 @@
     </div>
     {#if tabs.length > 0}
       <div class="mb-2 flex flex-wrap gap-1">
-        {#each tabs as tab (tab.name)}
+        {#each withUniqueKeys(tabs, (entry) => entry.name) as { key: viewKey, item: tab } (viewKey)}
           <button
             type="button"
             data-nightwave-tab={tab.name}

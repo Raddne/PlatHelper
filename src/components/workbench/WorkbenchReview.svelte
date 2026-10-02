@@ -1,5 +1,6 @@
 <script lang="ts">
   import type { MessageKey, Translator } from "../../lib/i18n.js";
+  import { withUniqueKeys } from "../../lib/uniqueKeys.js";
   import type {
     WorkbenchReviewClassification,
     WorkbenchReviewReport,
@@ -97,7 +98,7 @@
       </div>
     {/if}
     <div class="mt-2 space-y-1">
-      {#each report.rows as row (row.intentId)}
+      {#each withUniqueKeys(report.rows, (entry) => entry.intentId) as { key: viewKey, item: row } (viewKey)}
         <div class="flex items-center gap-2 border-b border-border-subtle py-1">
           <span class="min-w-0 flex-1 truncate">
             {row.itemName} · {row.quantity}x @ {row.platinum}p ({row.mode})

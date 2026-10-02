@@ -169,6 +169,20 @@ describe("saved selections", () => {
     const mod = await loadModule("{not json");
     expect(get(mod.savedSelections)).toEqual([]);
   });
+
+  it("keeps the first of two stored entries with one name", async () => {
+    const mod = await loadModule(
+      JSON.stringify([
+        { name: "set", keys: ["a"] },
+        { name: "other", keys: ["b"] },
+        { name: "set", keys: ["c"] },
+      ]),
+    );
+    expect(get(mod.savedSelections)).toEqual([
+      { name: "set", keys: ["a"] },
+      { name: "other", keys: ["b"] },
+    ]);
+  });
 });
 
 describe("completion alert baseline", () => {

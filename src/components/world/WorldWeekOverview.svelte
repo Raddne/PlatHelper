@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount } from "svelte";
+  import { withUniqueKeys } from "../../lib/uniqueKeys.js";
   import { nextDailyResetUtc, nextWeeklyResetUtc, parseIsoDate, timeTo } from "../../lib/format.js";
   import { tr } from "../../lib/i18n.js";
   import {
@@ -76,7 +77,7 @@
     <span>{$tr("world.weeklyResets")}: {timeTo(nextWeeklyResetUtc(now), nowMs)}</span>
   </div>
   <div class="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-5">
-    {#each rows as row (row.id)}
+    {#each withUniqueKeys(rows, (entry) => entry.id) as { key: viewKey, item: row } (viewKey)}
       <button
         type="button"
         class="min-w-0 rounded-lg border border-border bg-surface-card p-3 text-left transition-colors hover:border-accent/50"

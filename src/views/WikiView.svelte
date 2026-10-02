@@ -346,7 +346,7 @@
             </tr>
           </thead>
           <tbody>
-            {#each rows as row (row.item + "|" + row.place + "|" + row.kind + "|" + row.rarity + "|" + row.chance)}
+            {#each rows as row, rowIndex (row.item + "|" + row.place + "|" + row.kind + "|" + row.rarity + "|" + row.chance + "|" + rowIndex)}
               {@const kindKey = KIND_LABEL_KEYS[row.kind]}
               {@const liveBounty = liveBountyName(row, liveBounties)}
               {@const placeRelic =

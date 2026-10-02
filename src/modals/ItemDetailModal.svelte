@@ -371,7 +371,7 @@
         {#if shardCopies.length > 0}
           <div class="detail-section" data-archon-slots>
             <h3>{$tr("archon.title")}</h3>
-            {#each shardCopies as copy, copyIndex (copy.instanceId ?? copyIndex)}
+            {#each shardCopies as copy, copyIndex (`${copy.instanceId ?? ""}:${copyIndex}`)}
               {#if shardCopies.length > 1}
                 <div class="mt-1.5 text-xs font-semibold text-text-muted">
                   {$tr("archon.copyLabel", { index: copyIndex + 1 })}

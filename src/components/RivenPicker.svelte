@@ -6,6 +6,7 @@
   import { tr } from "../lib/i18n.js";
   import { rivenNameSuffix } from "../lib/marketContract.js";
   import { rivenMatchesPickerQuery } from "../lib/liveScraper/rivenSearch.js";
+  import { withUniqueKeys } from "../lib/uniqueKeys.js";
   import type { ChipStat } from "../lib/liveScraper/rivenStatChips.js";
   import ThemedInput from "./ThemedInput.svelte";
   import RivenPolarityIcon from "./RivenPolarityIcon.svelte";
@@ -40,6 +41,8 @@
     ),
   );
   let shown = $derived(sorted.filter((riven) => rivenMatchesPickerQuery(riven, query)));
+  // An inventory entry without an ItemId decodes to "", so ids can repeat.
+  let shownRows = $derived(withUniqueKeys(shown, (riven) => riven.itemId));
   let pickable = $derived(shown.filter((riven) => !trackedIds.has(riven.itemId)));
 
   const optionId = (itemId: string): string => `${id}-option-${itemId}`;
@@ -229,7 +232,7 @@
             {$tr("liveScraper.rivenPicker.noMatches", { query: query.trim() })}
           </p>
         {:else}
-          {#each shown as riven (riven.itemId)}
+          {#each shownRows as { key, item: riven } (key)}
             {@const tracked = trackedIds.has(riven.itemId)}
             <button
               type="button"

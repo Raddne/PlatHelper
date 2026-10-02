@@ -716,7 +716,7 @@
               collapsed={collapsed.darvo}
               onToggle={() => toggleSection("darvo")}
             >
-              {#each darvoDeals as deal (deal.uniqueName)}
+              {#each darvoDeals as deal, dealIndex (`${deal.uniqueName}:${dealIndex}`)}
                 {@const dealDb = $itemDb[deal.uniqueName || ""]}
                 {@const dealImg =
                   dealDb?.imageUrl ||

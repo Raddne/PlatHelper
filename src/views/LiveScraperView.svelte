@@ -16,6 +16,7 @@
   import { rivenMatchesQuery } from "../lib/liveScraper/rivenSearch.js";
   import { statusHintKey } from "../lib/liveScraper/statusHints.js";
   import { rivenNameSuffix } from "../lib/marketContract.js";
+  import { withUniqueKeys } from "../lib/uniqueKeys.js";
   import type { StockItem, WishlistItem } from "../../config/shared/liveScraperStock.js";
   import type { StockRiven } from "../../config/shared/liveScraperRivenStock.js";
   import type { DecodedRiven } from "../../config/shared/rivenTypes.js";
@@ -154,6 +155,7 @@
   let rivenQuery = $state("");
   let rivenSearchActive = $derived(rivenQuery.trim() !== "");
   let shownStockRivens = $derived(stockRivens.filter((r) => rivenMatchesQuery(r, rivenQuery)));
+  let trackedRows = $derived(withUniqueKeys(shownStockRivens, (r) => r.id));
 
   async function addStockRiven(): Promise<void> {
     const riven = ownedRivens.find((r) => r.itemId === rivenDraftItemId);
@@ -456,7 +458,7 @@
              pushing the listings table down. -->
         <div class="max-h-[15rem] overflow-y-auto" data-live-scraper-riven-list>
           <ul class="m-0 grid grid-cols-[minmax(0,1fr)] gap-1 p-0">
-            {#each shownStockRivens as riven (riven.id)}
+            {#each trackedRows as { key, item: riven } (key)}
               <li
                 class="flex items-center gap-2 rounded-md border border-border px-2 py-1 text-xs"
                 data-live-scraper-riven-row={riven.id}

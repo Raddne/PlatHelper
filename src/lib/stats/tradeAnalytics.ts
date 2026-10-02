@@ -542,6 +542,12 @@ export function categoryNames(entries: ItemCategoryEntry[]): string[] {
   return [...seen].sort((a, b) => a.localeCompare(b));
 }
 
+/** The kind labels, then the custom names, each once. A name typed in another
+ *  language can match a label of this one, and the editor keys its list by name. */
+export function knownCategoryNames(kindLabels: string[], names: string[]): string[] {
+  return [...new Set([...kindLabels, ...names])];
+}
+
 /** The join fields a trade row can carry; a `TradeItem` satisfies it. */
 interface ItemRef {
   internalName?: string;

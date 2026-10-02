@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onDestroy, untrack } from "svelte";
+  import { withUniqueKeys } from "../../lib/uniqueKeys.js";
 
   // Aliased: a store named `tr` makes svelte-check flag every <tr> row as a lowercase component.
   import { tr as t, type MessageKey, type Translator } from "../../lib/i18n.js";
@@ -312,7 +313,8 @@
         class="max-w-full rounded border border-border bg-bg-raised px-3 py-1.5 text-text-primary"
       >
         <option value="">{$t("common.none")}</option>
-        {#each baselines as candidate (candidate.id)}<option value={candidate.id}
+        {#each withUniqueKeys(baselines, (entry) => entry.id) as { key: viewKey, item: candidate } (viewKey)}<option
+            value={candidate.id}
             >{formatRunDate(candidate.startedAt)} | {formatPtSeconds(
               candidate.durationSec,
             )}s</option

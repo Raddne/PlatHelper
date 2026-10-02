@@ -44,7 +44,7 @@
   </p>
   {#if shown.length > 0}
     <ul class="m-0 max-h-[340px] flex-1 list-none overflow-y-auto p-0">
-      {#each shown as entry (entry.uniqueName ?? entry.item)}
+      {#each shown as entry, entryIndex (`${entry.uniqueName ?? entry.item}:${entryIndex}`)}
         <li class="flex items-baseline gap-2 py-1 text-sm">
           <span class="min-w-0 flex-1 truncate text-text-secondary">{entry.item}</span>
           {#if entry.ducats}

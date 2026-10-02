@@ -329,7 +329,7 @@
                 </tr>
               </thead>
               <tbody>
-                {#each drops as row (row.item + "|" + row.place + "|" + row.kind + "|" + row.rarity + "|" + row.chance)}
+                {#each drops as row, rowIndex (row.item + "|" + row.place + "|" + row.kind + "|" + row.rarity + "|" + row.chance + "|" + rowIndex)}
                   <tr class="border-t border-border/60">
                     <td class="px-2.5 py-1 text-text-primary">{row.item}</td>
                     <td class="px-2.5 py-1 text-text-secondary">{row.place}</td>

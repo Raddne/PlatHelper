@@ -1,6 +1,7 @@
 <script lang="ts">
   import { confirmWithDialog, invoke, on, send } from "../../../lib/ipc.js";
   import { tr } from "../../../lib/i18n.js";
+  import { withUniqueKeys } from "../../../lib/uniqueKeys.js";
   import { addToast } from "../../../stores/toasts.js";
   import { itemDb, parsedItems, wfmItems } from "../../../stores/data.js";
   import { savedSelections } from "../../../stores/inventorySelection.js";
@@ -374,7 +375,7 @@
     <p class="text-sm text-text-secondary">{$tr("marketAlerts.noRules")}</p>
   {:else}
     <div class="grid grid-cols-[repeat(auto-fill,minmax(19rem,1fr))] gap-3" data-alert-card-grid>
-      {#each cards as card (card.rule.id)}
+      {#each withUniqueKeys(cards, (entry) => entry.rule.id) as { key: viewKey, item: card } (viewKey)}
         <MarketAlertCard
           rule={card.rule}
           thumb={card.thumb}
@@ -426,7 +427,7 @@
       </p>
     {:else}
       <div class="flex flex-col gap-1">
-        {#each visibleHits as hit (hit.id)}
+        {#each withUniqueKeys(visibleHits, (entry) => entry.id) as { key: viewKey, item: hit } (viewKey)}
           {@const sellRule = itemRuleById.get(hit.ruleId)}
           <div
             class="flex flex-wrap items-center gap-2 rounded-[var(--radius-md)] border border-border px-2 py-1.5 text-sm"

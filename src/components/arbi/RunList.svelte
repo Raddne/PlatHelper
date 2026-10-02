@@ -7,6 +7,7 @@
   // Aliased: a store named `tr` makes svelte-check flag every <tr> row as a lowercase component.
   import { tr as t } from "../../lib/i18n.js";
   import { confirmWithDialog } from "../../lib/ipc.js";
+  import { withUniqueKeys } from "../../lib/uniqueKeys.js";
   import { formatBytes, formatRunDate } from "../../lib/arbi/arbiChartData.js";
 
   interface Props {
@@ -78,7 +79,7 @@
       </tr>
     </thead>
     <tbody>
-      {#each runs as run (run.id)}
+      {#each withUniqueKeys(runs, (entry) => entry.id) as { key, item: run } (key)}
         <tr
           class="cursor-pointer border-b border-border/50 transition-colors duration-100 hover:bg-bg-raised"
           onclick={() => onSelect(run.id)}

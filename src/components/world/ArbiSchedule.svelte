@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount } from "svelte";
+  import { withUniqueKeys } from "../../lib/uniqueKeys.js";
   import { toBlob } from "html-to-image";
 
   import { confirmWithDialog, invoke } from "../../lib/ipc.js";
@@ -437,7 +438,7 @@
         bind:value={presetSelected}
       >
         <option value="">{$tr("arbisched.presetSelect")}</option>
-        {#each presets as preset (preset.name)}
+        {#each withUniqueKeys(presets, (entry) => entry.name) as { key: viewKey, item: preset } (viewKey)}
           <option value={preset.name}>{preset.name}</option>
         {/each}
       </select>
@@ -554,7 +555,7 @@
             >
               {group.dayLabel}
             </div>
-            {#each group.entries as entry (`${entry.epochMs}:${entry.nodeId}`)}
+            {#each withUniqueKeys(group.entries, (row) => `${row.epochMs}:${row.nodeId}`) as { key: viewKey, item: entry } (viewKey)}
               {@const countdown = formatScheduleCountdown(entry.epochMs, nowMs)}
               {@const key = scheduleEntryKey(entry)}
               {@const belled = occurrenceSet.has(key)}

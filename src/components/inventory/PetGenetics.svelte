@@ -99,7 +99,7 @@
 {/snippet}
 
 <div class="grid gap-3">
-  {#each petBlocks as block, petIndex (block.pet.instanceId ?? petIndex)}
+  {#each petBlocks as block, petIndex (`${block.pet.instanceId ?? ""}:${petIndex}`)}
     <div data-pet-instance={block.pet.instanceId ?? petIndex}>
       <div class="flex flex-wrap items-baseline gap-x-2 gap-y-1 text-xs text-text-muted">
         {#if showName && block.pet.name}
@@ -134,7 +134,7 @@
       <div class="font-display text-xs font-semibold tracking-wide text-text-muted uppercase">
         {$tr("pet.imprints")}
       </div>
-      {#each printBlocks as block, printIndex (block.imprint.instanceId ?? printIndex)}
+      {#each printBlocks as block, printIndex (`${block.imprint.instanceId ?? ""}:${printIndex}`)}
         <div class="mt-2" data-pet-imprint={block.imprint.instanceId ?? printIndex}>
           <div class="flex flex-wrap items-baseline gap-x-2 gap-y-1 text-xs text-text-muted">
             <span class="text-text-secondary">

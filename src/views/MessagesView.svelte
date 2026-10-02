@@ -3,6 +3,7 @@
 
   import { tr } from "../lib/i18n.js";
   import { confirmWithDialog, invoke, send } from "../lib/ipc.js";
+  import { withUniqueKeys } from "../lib/uniqueKeys.js";
   import { currentView } from "../stores/app.js";
   import { onWfmChatMessage, setWfmChatState, wfmChatState } from "../stores/wfmChat.js";
   import WfmSignInCard from "../components/market/WfmSignInCard.svelte";
@@ -221,7 +222,7 @@
           bind:value={search}
         />
         <ul class="m-0 min-h-0 flex-1 list-none overflow-y-auto p-0">
-          {#each chats as chat (chat.id)}
+          {#each withUniqueKeys(chats, (entry) => entry.id) as { key, item: chat } (key)}
             {@const other = partner(chat)}
             <li>
               <div
@@ -310,7 +311,7 @@
             {#if loadingMessages}
               <p class="m-0 p-3 text-sm text-text-muted">{$tr("messages.loading")}</p>
             {/if}
-            {#each messages as message (message.id)}
+            {#each withUniqueKeys(messages, (entry) => entry.id) as { key, item: message } (key)}
               {@const own = isOwn(message, activeChat)}
               <div class="msg-row" class:own data-messages-message={own ? "own" : "other"}>
                 <div class="msg-bubble">

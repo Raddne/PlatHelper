@@ -347,7 +347,7 @@
                     data-item-mark="crafted"
                     title={$t("common.parentItemOwned")}>{$t("common.parentOwned")}</span
                   >{/if}
-                {#each shardCopies as copy, copyIndex (copy.instanceId ?? copyIndex)}
+                {#each shardCopies as copy, copyIndex (`${copy.instanceId ?? ""}:${copyIndex}`)}
                   <ArchonShardPips
                     slots={copy.slots}
                     title={copy.filled === 1

@@ -1,5 +1,6 @@
 <script lang="ts">
   import { locale, tr } from "../../lib/i18n.js";
+  import { withUniqueKeys } from "../../lib/uniqueKeys.js";
   import {
     formatPtLength,
     ptMetricSummary,
@@ -175,7 +176,7 @@
               stroke-width="1.8"
             />
           {/each}
-          {#each summary.eligible as run (run.id)}
+          {#each withUniqueKeys(summary.eligible, (entry) => entry.id) as { key: viewKey, item: run } (viewKey)}
             <g
               data-pt-chart-run={run.id}
               role="button"

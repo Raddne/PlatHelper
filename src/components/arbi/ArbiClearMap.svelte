@@ -79,7 +79,7 @@
     <p class="mb-3 mt-1 text-xs text-text-muted">{$tr(descKey())}</p>
 
     <div class="grid grid-cols-[repeat(auto-fill,minmax(3.25rem,1fr))] gap-1.5" data-arbi-clear-map>
-      {#each cells as cell (cell.index)}
+      {#each cells as cell, cellIndex (`${cell.index}:${cellIndex}`)}
         <div
           class="flex h-11 flex-col items-center justify-center rounded-sm border leading-tight {tone(
             cell.durationSec,

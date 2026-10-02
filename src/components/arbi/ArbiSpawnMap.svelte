@@ -2,6 +2,7 @@
   import { tr } from "../../lib/i18n.js";
   import type { MessageKey } from "../../lib/i18n.js";
   import ThemedPanel from "../ThemedPanel.svelte";
+  import { withUniqueKeys } from "../../lib/uniqueKeys.js";
   import type { ArbiRunRecord, ArbiRunStats } from "../../types/ipc.js";
   import { computeSpawnMap } from "../../lib/arbi/arbiSpawnMap.js";
   import {
@@ -234,7 +235,7 @@
             preserveAspectRatio="xMidYMid meet"
           />
         {/if}
-        {#each view?.bubbles ?? [] as bubble (bubble.id)}
+        {#each withUniqueKeys(view?.bubbles ?? [], (entry) => entry.id) as { key, item: bubble } (key)}
           <circle
             cx={bubble.cx}
             cy={bubble.cy}
@@ -271,7 +272,7 @@
           {$tr("arbi.spawnMap.mostActive")}
         </h4>
         <ul class="m-0 mt-2 flex list-none flex-col gap-1 p-0">
-          {#each map.top as bubble (bubble.id)}
+          {#each withUniqueKeys(map.top, (entry) => entry.id) as { key, item: bubble } (key)}
             <li class="flex items-center gap-2 text-xs">
               <span class="w-10 shrink-0 font-mono text-text-secondary">#{bubble.label}</span>
               <span class="h-1.5 flex-1 overflow-hidden rounded-full bg-bg-raised">

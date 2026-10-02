@@ -982,7 +982,7 @@
                         <span
                           class="absolute left-1.5 bottom-1.5 flex flex-col items-start gap-0.5"
                         >
-                          {#each shardCopies as copy, copyIndex (copy.instanceId ?? copyIndex)}
+                          {#each shardCopies as copy, copyIndex (`${copy.instanceId ?? ""}:${copyIndex}`)}
                             <ArchonShardPips
                               slots={copy.slots}
                               size="lg"

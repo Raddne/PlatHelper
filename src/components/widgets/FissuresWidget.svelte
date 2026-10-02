@@ -1,6 +1,7 @@
 <script lang="ts">
   import { tr, type MessageKey } from "../../lib/i18n.js";
   import { buildFissureRows } from "../../lib/world/useWorldView.js";
+  import { withUniqueKeys } from "../../lib/uniqueKeys.js";
   import { dashboardLayout, settingNumber, widgetSettings } from "../../stores/dashboard.js";
   import { worldData, worldFissureMode, worldLoading } from "../../stores/world.js";
   import WidgetFrame from "./WidgetFrame.svelte";
@@ -41,7 +42,7 @@
     </p>
   {/snippet}
   <ul class="m-0 max-h-[340px] flex-1 list-none overflow-y-auto p-0">
-    {#each shown as fissure (`${fissure.node}|${fissure.tier}|${fissure.expiry}`)}
+    {#each withUniqueKeys(shown, (row) => `${row.node}|${row.tier}|${row.expiry}`) as { key: viewKey, item: fissure } (viewKey)}
       <li class="flex items-baseline gap-2 py-1 text-sm">
         <span
           class="w-12 shrink-0 rounded-[var(--radius-sm)] text-center text-xs font-bold"

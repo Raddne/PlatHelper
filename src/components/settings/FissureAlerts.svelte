@@ -1,6 +1,7 @@
 <script lang="ts">
   import { overlaySettings, applyOverlaySettingsResponse } from "../../stores/overlaySettings.js";
   import { invoke } from "../../lib/ipc.js";
+  import { withUniqueKeys } from "../../lib/uniqueKeys.js";
   import { tr, type MessageKey, type Translator } from "../../lib/i18n.js";
   import type { FissureAlert } from "../../types/ipc.js";
   import { FISSURE_MISSION_TYPES } from "../../../config/shared/missionTypes.js";
@@ -103,7 +104,7 @@
     <p class="text-xs text-text-secondary italic m-0 mb-2">{$tr("settings.fissureNoRules")}</p>
   {:else}
     <ul class="list-none m-0 mb-2 p-0 flex flex-col gap-1">
-      {#each alerts as alert (alert.id)}
+      {#each withUniqueKeys(alerts, (entry) => entry.id) as { key: viewKey, item: alert } (viewKey)}
         <li class="flex items-center gap-1.5 flex-wrap">
           <span
             class="inline-flex items-center rounded-full py-0.5 px-2 text-xs font-semibold border border-border bg-surface-hover text-text-secondary"

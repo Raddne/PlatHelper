@@ -39,6 +39,9 @@ function loadSaved(): SavedSelection[] {
               ...(entry.lastComplete === true ? { lastComplete: true } : {}),
             }))
             .filter((entry) => entry.name.length > 0)
+            // A name is the key of the saved list and of the alert's sell link
+            // select; a hand-edited list repeating one throws each_key_duplicate.
+            .filter((entry, index, all) => all.findIndex((e) => e.name === entry.name) === index)
             .slice(0, MAX_SAVED)
         : [],
     () => [],

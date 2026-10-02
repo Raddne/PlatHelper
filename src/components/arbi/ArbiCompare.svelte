@@ -3,6 +3,7 @@
   import { tr as t } from "../../lib/i18n.js";
   import type { MessageKey } from "../../lib/i18n.js";
   import ThemedPanel from "../ThemedPanel.svelte";
+  import { withUniqueKeys } from "../../lib/uniqueKeys.js";
   import type { ArbiRunRecord } from "../../types/ipc.js";
   import {
     ARBI_SATURATION_THRESHOLD,
@@ -87,7 +88,7 @@
           class="border-b border-border text-left text-xs uppercase tracking-wide text-text-muted"
         >
           <th class="px-3 py-2 font-semibold">{$t("common.mission")}</th>
-          {#each runs as run (run.id)}
+          {#each withUniqueKeys(runs, (entry) => entry.id) as { key, item: run } (key)}
             <th class="px-3 py-2 text-right font-semibold">
               <span class="block text-text-primary">{run.node}</span>
               <span class="block font-normal normal-case tracking-normal">
@@ -104,7 +105,7 @@
             <td class="px-3 py-1.5 text-text-secondary">
               {$t(row.metric.labelKey, { count: String(ARBI_SATURATION_THRESHOLD) })}
             </td>
-            {#each row.cells as cell, i (runs[i].id)}
+            {#each row.cells as cell, i (i)}
               {@const text = formatArbiMetric(cell.value, row.metric.format)}
               <td
                 class="px-3 py-1.5 text-right {cell.best

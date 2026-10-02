@@ -35,6 +35,7 @@
   import { marketContracts } from "../stores/market.js";
   import { addToast } from "../stores/toasts.js";
   import { readStorage, writeStorage } from "../lib/persistence.js";
+  import { withUniqueKeys } from "../lib/uniqueKeys.js";
   import { tr } from "../lib/i18n.js";
   import { RIVEN_TYPE_KEYS } from "../lib/rivenLabels.js";
 
@@ -129,6 +130,8 @@
     );
     return list;
   });
+  // An inventory entry without an ItemId decodes to "", so ids can repeat.
+  const rivenRows = $derived(withUniqueKeys(filteredRivens, (riven) => riven.itemId));
 
   const totalVeiled = $derived(
     veiledRivens.length + veiledUnseen.reduce((sum, g) => sum + g.count, 0),
@@ -529,7 +532,7 @@
           class="grid grid-cols-[repeat(auto-fill,minmax(180px,1fr))] gap-3"
           data-riven-card-size={$rivenCardSize}
         >
-          {#each filteredRivens as riven (riven.itemId)}
+          {#each rivenRows as { key, item: riven } (key)}
             {@const listing = listingByRiven.get(riven.itemId)}
             {@const suffix = rivenNameSuffix(riven.rivenName, riven.weaponName)}
             <div class="relative" data-riven-card={riven.itemId}>
@@ -597,7 +600,7 @@
           class="grid grid-cols-[repeat(auto-fill,minmax(240px,1fr))] gap-5 justify-items-center"
           data-riven-card-size={$rivenCardSize}
         >
-          {#each filteredRivens as riven (riven.itemId)}
+          {#each rivenRows as { key, item: riven } (key)}
             {@const listing = listingByRiven.get(riven.itemId)}
             {@const suffix = rivenNameSuffix(riven.rivenName, riven.weaponName)}
             {@const dissolveEndo = rivenDissolveHint(riven)}

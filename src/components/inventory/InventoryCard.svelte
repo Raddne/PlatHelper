@@ -177,7 +177,7 @@
     {#if shardCopies.length > 0}
       <!-- Absolute so a shardless card keeps exactly the same height. -->
       <span class="absolute bottom-1.5 left-1.5 flex flex-col items-start gap-0.5">
-        {#each shardCopies as copy, copyIndex (copy.instanceId ?? copyIndex)}
+        {#each shardCopies as copy, copyIndex (`${copy.instanceId ?? ""}:${copyIndex}`)}
           <ArchonShardPips
             slots={copy.slots}
             size="lg"

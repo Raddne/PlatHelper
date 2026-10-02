@@ -24,6 +24,7 @@
   import MarketStatsModal from "./market/MarketStatsModal.svelte";
   import RivenStatChips from "./RivenStatChips.svelte";
   import { rivenNameSuffix } from "../lib/marketContract.js";
+  import { withUniqueKeys } from "../lib/uniqueKeys.js";
   import { chipStatsTitle } from "../lib/liveScraper/rivenStatChips.js";
   import { statusHintKey } from "../lib/liveScraper/statusHints.js";
   import LiveScraperListingFilters from "./LiveScraperListingFilters.svelte";
@@ -206,6 +207,10 @@
   let shownWtb = $derived(matchedWtb.slice(0, MAX_ROWS));
   let shownStock = $derived(matchedStock.slice(0, MAX_ROWS));
   let shownRivens = $derived(matchedRivens.slice(0, MAX_ROWS));
+  // Row keys for the tables; a stored id can repeat, the row still shows.
+  let wtbRowsShown = $derived(withUniqueKeys(shownWtb, (row) => row.key));
+  let stockRowsShown = $derived(withUniqueKeys(shownStock, (item) => item.id));
+  let rivenRowsShown = $derived(withUniqueKeys(shownRivens, (riven) => riven.id));
   let hiddenRows = $derived(
     Math.max(
       0,
@@ -1090,7 +1095,7 @@
             </tr>
           </thead>
           <tbody>
-            {#each shownWtb as row (row.key)}
+            {#each wtbRowsShown as { key: viewKey, item: row } (viewKey)}
               {@const wish = row.wishlistId
                 ? wishlist.find((w) => w.id === row.wishlistId)
                 : undefined}
@@ -1177,7 +1182,7 @@
             </tr>
           </thead>
           <tbody>
-            {#each shownStock as item (item.id)}
+            {#each stockRowsShown as { key: viewKey, item } (viewKey)}
               {@const p = profit(item.listPrice, item.bought)}
               {@const itemHidden = stockRowState(item).hidden}
               <tr
@@ -1250,7 +1255,7 @@
           </tr>
         </thead>
         <tbody>
-          {#each shownRivens as riven (riven.id)}
+          {#each rivenRowsShown as { key: viewKey, item: riven } (viewKey)}
             {@const p = profit(riven.listPrice, riven.bought)}
             {@const rivenHidden = rivenRowState(riven).hidden}
             {@const suffix = rivenNameSuffix(riven.rivenName, riven.weaponName)}

@@ -279,6 +279,24 @@ describe("rivenFilter", () => {
       polarities: ["madurai", "naramon"],
     });
   });
+
+  it("never offers a stored value spelled like a fixed entry, which would repeat its key", () => {
+    const odd = [
+      riven({
+        id: "odd",
+        weaponName: ALL,
+        polarity: ALL,
+        stats: [stat(ALL), stat("none", false), stat("some", false), stat(ALL, false)],
+      }),
+      riven({ id: "plain", stats: [stat("WeaponZoomFovMod", false)] }),
+    ];
+    expect(rivenFilterOptions(odd)).toEqual({
+      weapons: ["Boar"],
+      positives: [ALL],
+      negatives: ["WeaponZoomFovMod"],
+      polarities: ["madurai"],
+    });
+  });
 });
 
 describe("filter state", () => {
