@@ -4,6 +4,14 @@ Patch notes for every PlatHelper release. The release workflow copies the sectio
 
 Keep every bullet on one line: GitHub shows a line break inside release notes as a line break.
 
+## v0.4.4
+
+- **Live Scraper: the Listings table fits smaller windows.** When the window is too narrow for the full table, each row switches to two lines instead of scrolling sideways, and nothing is cut off: for rivens the stat chips move under the name, with mastery rank and rerolls at the end of the name line; WTS shows the owned count and the time under the item, WTB the source and the time. Prices keep their step buttons beside them at every size. At the default window size the Rivens tab stays on one line with the stats in their own column.
+- Only in the very smallest window with the sidebar expanded does the table still scroll sideways inside its panel.
+- **Filters in the Listings table are an even grid.** Every filter has the same width with its label above it, the seven riven filters span the full width, and the unrestricted choice reads "Any" everywhere.
+- **Fix: the Stock and Wishlist forms and the tracked riven rows were squeezed or cut off in a narrow window.** The two forms now stack when there is not enough room side by side, and a tracked riven row no longer pushes its Delete button out of view.
+- **Fix: a rank was glued to the item name** in the Listings table ("MutationR10").
+
 ## v0.4.3
 
 - **PlatHelper now ships the "Rolls & Resources" riven table** (by Megrim & Valkyrial, based on the original by 44Bananas; 418 weapons). A riven is a "Good Roll" only when its stats fill a row of that table: every positive fits one of the three columns and the negative is one the table accepts. Everything that rates a riven uses this table now; the old sheet that was downloaded at start, and its Refresh button, are gone.
