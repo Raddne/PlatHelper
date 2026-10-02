@@ -9,7 +9,10 @@
     STAT_ICON_URLS,
   } from "../lib/assetUrls.js";
   import { compareSharedFilterSort, matchesSharedFilters } from "../lib/filters.js";
-  import { attrGradeColor, gradeColor } from "../lib/rivenGradeColors.js";
+  import { gradeColor } from "../lib/rivenGradeColors.js";
+  import RivenSheetRatingBadge from "../components/RivenSheetRatingBadge.svelte";
+  import { SHEET_RATING_KEYS, SHEET_RATINGS, sheetRatingRank } from "../lib/rivens/sheetRating.js";
+  import type { SheetRating } from "../../config/shared/rivenRollSheet.js";
   import { rivenDissolveHint } from "../lib/rivens/dissolve.js";
   import { matchRivenListings, rivenNameSuffix } from "../lib/marketContract.js";
   import {
@@ -33,11 +36,7 @@
   import { addToast } from "../stores/toasts.js";
   import { readStorage, writeStorage } from "../lib/persistence.js";
   import { tr } from "../lib/i18n.js";
-  import {
-    RIVEN_ATTR_GRADE_KEYS,
-    RIVEN_ATTR_GRADE_ORDER,
-    RIVEN_TYPE_KEYS,
-  } from "../lib/rivenLabels.js";
+  import { RIVEN_TYPE_KEYS } from "../lib/rivenLabels.js";
 
   type RivenSortKey = "name" | "disposition" | "rerolls" | "grade" | "attr_grade";
   type RivenViewTab = "unveiled" | "veiled" | "finder";
@@ -55,7 +54,7 @@
   let loading = $state(true);
   let typeFilter = $state("all");
   let gradeFilter = $state("all");
-  let attrGradeFilter = $state("all");
+  let ratingFilter = $state<SheetRating | "all">("all");
   let selectedRiven = $state<DecodedRiven | null>(null);
   let viewTab = $state<RivenViewTab>(restoreViewTab());
   let listingsRefreshing = $state(false);
@@ -76,14 +75,11 @@
       label: value === "all" ? $tr("common.all") : value,
     })),
   );
-  // "?" is not offered: an unknown weapon has no attribute verdict to filter on.
-  const ATTR_GRADES = ["all", "Great", "Good", "OK", "Bad"];
-  const ATTR_GRADE_OPTIONS = $derived(
-    ATTR_GRADES.map((value) => ({
-      value,
-      label: value === "all" ? $tr("common.all") : $tr(RIVEN_ATTR_GRADE_KEYS[value]),
-    })),
-  );
+  // Unrated rivens (a weapon the roll sheet lacks) are not a filter option.
+  const RATING_OPTIONS = $derived([
+    { value: "all" as const, label: $tr("common.all") },
+    ...SHEET_RATINGS.map((value) => ({ value, label: $tr(SHEET_RATING_KEYS[value]) })),
+  ]);
   const VIEW_TABS = $derived([
     { key: "unveiled", label: $tr("rivens.tab.unveiled") },
     { key: "veiled", label: $tr("rivens.tab.veiled") },
@@ -94,7 +90,7 @@
     ["disposition", $tr("rivens.sort.disposition")],
     ["rerolls", $tr("common.rerolls")],
     ["grade", $tr("rivens.sort.grade")],
-    ["attr_grade", $tr("rivens.sort.attributeGrade")],
+    ["attr_grade", $tr("rivens.sheetRating.label")],
   ]);
   const rivenFilters = sharedFilters("rivens");
   function filterableRiven(riven: DecodedRiven): {
@@ -112,7 +108,7 @@
       disposition: riven.disposition,
       rerolls: riven.rerolls,
       grade: riven.overallGrade,
-      attrGradeRank: RIVEN_ATTR_GRADE_ORDER[riven.attributeGrade] ?? null,
+      attrGradeRank: sheetRatingRank(riven.sheetRating),
     };
   }
 
@@ -125,8 +121,8 @@
     if (gradeFilter !== "all") {
       list = list.filter((r) => r.overallGrade.toUpperCase().startsWith(gradeFilter));
     }
-    if (attrGradeFilter !== "all") {
-      list = list.filter((r) => r.attributeGrade === attrGradeFilter);
+    if (ratingFilter !== "all") {
+      list = list.filter((r) => r.sheetRating === ratingFilter);
     }
     list = [...list].sort((a, b) =>
       compareSharedFilterSort(filterableRiven(a), filterableRiven(b), $rivenFilters),
@@ -343,21 +339,13 @@
   </span>
 {/snippet}
 
-{#snippet gradeBadges(riven: DecodedRiven, gradeCls: string, attrCls: string)}
-  {@const attrGradeKey = RIVEN_ATTR_GRADE_KEYS[riven.attributeGrade]}
+{#snippet gradeBadges(riven: DecodedRiven, gradeCls: string, ratingCls: string)}
   <span
     class={gradeCls}
     style="color: {gradeColor(riven.overallGrade)}"
     data-riven-grade={riven.overallGrade}>{riven.overallGrade}</span
   >
-  {#if attrGradeKey}
-    <span
-      class={attrCls}
-      style="color: {attrGradeColor(riven.attributeGrade)}"
-      title={$tr("rivens.sort.attributeGrade")}
-      data-riven-attr-grade={riven.attributeGrade}>{$tr(attrGradeKey)}</span
-    >
-  {/if}
+  <RivenSheetRatingBadge rating={riven.sheetRating} class={ratingCls} />
 {/snippet}
 
 {#snippet statRows(riven: DecodedRiven, rowCls: string, iconCls: string)}
@@ -496,14 +484,14 @@
       </label>
 
       <label class="flex shrink-0 items-center gap-1.5">
-        <span class="text-xs text-text-muted">{$tr("rivens.sort.attributeGrade")}</span>
+        <span class="text-xs text-text-muted">{$tr("rivens.sheetRating.label")}</span>
         <select
           class="shared-filter-select w-24 min-w-24"
-          title={$tr("rivens.sort.attributeGrade")}
-          bind:value={attrGradeFilter}
-          data-riven-attr-grade-select
+          title={$tr("rivens.sheetRating.label")}
+          bind:value={ratingFilter}
+          data-riven-sheet-rating-select
         >
-          {#each ATTR_GRADE_OPTIONS as option (option.value)}
+          {#each RATING_OPTIONS as option (option.value)}
             <option value={option.value}>{option.label}</option>
           {/each}
         </select>

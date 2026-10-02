@@ -181,7 +181,7 @@
     statBounds = [...statBounds, { attribute, min: "", max: "" }];
   }
 
-  // 44bananas god-roll prefill. Keys, never translated strings, so a language
+  // Roll sheet god-roll prefill. Keys, never translated strings, so a language
   // switch while the editor is open still resolves.
   let godRollGroups = $state<RivenGoodRollGroup[]>([]);
   let godRollNegatives = $state<RivenGoodRollAttribute[]>([]);
@@ -237,6 +237,13 @@
       out.push(attribute.wfmUrlName);
     }
     return out;
+  }
+
+  // A row that requires nothing names the stats it takes instead.
+  function godRollLabel(group: RivenGoodRollGroup): string {
+    return group.mandatory.length > 0
+      ? group.mandatory.map((attribute) => attribute.displayName).join(" + ")
+      : group.optional.map((attribute) => attribute.displayName).join(" / ");
   }
 
   function applyGodRoll(index: number): void {
@@ -625,7 +632,12 @@
               data-riven-godroll-group={index}
               onclick={() => applyGodRoll(index)}
             >
-              {index + 1}. {group.mandatory.map((attribute) => attribute.displayName).join(" + ")}
+              {index + 1}. {godRollLabel(group)}
+              {#if group.negatives.length > 0}
+                <span class="text-text-muted" data-riven-godroll-group-negatives
+                  >(−{group.negatives.map((attribute) => attribute.displayName).join(" / ")})</span
+                >
+              {/if}
             </button>
           {/each}
         </div>

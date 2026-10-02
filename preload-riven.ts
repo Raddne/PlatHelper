@@ -16,7 +16,7 @@ import {
   OVERLAY_INTERACTION_MODE,
   RIVEN_GRADING_INITIAL,
   RIVEN_GRADING_ROLL,
-  RIVEN_BEST_ATTRIBUTES,
+  RIVEN_GOOD_ROLLS,
   RIVEN_SIMILAR_LISTINGS,
   RIVEN_RESCAN_REQUEST,
   RIVEN_RESCAN,
@@ -73,8 +73,8 @@ contextBridge.exposeInMainWorld("rivenOverlay", {
     onRivenIpc(RIVEN_GRADING_INITIAL, (_event: unknown, grading: unknown) => cb(grading)),
   onGradingRoll: (cb: (grading: unknown) => void) =>
     onRivenIpc(RIVEN_GRADING_ROLL, (_event: unknown, grading: unknown) => cb(grading)),
-  onBestAttributes: (cb: (attrs: unknown) => void) =>
-    onRivenIpc(RIVEN_BEST_ATTRIBUTES, (_event: unknown, attrs: unknown) => cb(attrs)),
+  onGoodRolls: (cb: (rolls: unknown) => void) =>
+    onRivenIpc(RIVEN_GOOD_ROLLS, (_event: unknown, rolls: unknown) => cb(rolls)),
   onSimilarListings: (cb: (listings: unknown) => void) =>
     onRivenIpc(RIVEN_SIMILAR_LISTINGS, (_event: unknown, listings: unknown) => cb(listings)),
   getThemeVars: () => ipcRenderer.invoke(OVERLAY_GET_THEME_VARS),

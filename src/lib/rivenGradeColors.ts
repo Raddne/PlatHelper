@@ -19,22 +19,6 @@ export function gradeColor(grade: string): string {
   }
 }
 
-/** Return the CSS variable reference for an individual attribute grade. */
-export function attrGradeColor(grade: string): string {
-  switch (grade) {
-    case "Great":
-      return "var(--grade-s)";
-    case "Good":
-      return "var(--grade-a)";
-    case "OK":
-      return "var(--grade-b)";
-    case "Bad":
-      return "var(--grade-f)";
-    default:
-      return "var(--grade-default)";
-  }
-}
-
 /** Return a disposition star string for a given disposition value. */
 export function dispoStars(dispo: number): string {
   if (dispo >= 1.3) return "●●●●●";

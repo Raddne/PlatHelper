@@ -22,6 +22,10 @@
     type ListingFilters,
   } from "../lib/liveScraper/listingFilters.js";
   import MarketStatsModal from "./market/MarketStatsModal.svelte";
+  import RivenStatChips from "./RivenStatChips.svelte";
+  import { rivenNameSuffix } from "../lib/marketContract.js";
+  import { chipStatsTitle } from "../lib/liveScraper/rivenStatChips.js";
+  import { statusHintKey } from "../lib/liveScraper/statusHints.js";
   import LiveScraperListingFilters from "./LiveScraperListingFilters.svelte";
   import { parsedItems, wfmItems } from "../stores/data.js";
   import {
@@ -877,10 +881,6 @@
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
   });
-
-  function statSummary(riven: StockRiven): string {
-    return riven.stats.map((s) => `${s.positive ? "+" : "−"}${s.tag}`).join(", ");
-  }
 </script>
 
 {#snippet priceCell(key: string, value: number | null, commit: PriceCommit)}
@@ -949,13 +949,16 @@
   >
 {/snippet}
 
-{#snippet statusBadge(status: AnyStatus, hidden: boolean)}
+{#snippet statusBadge(status: AnyStatus, hidden: boolean, riven = false)}
   {#if hidden && status === "live"}
-    <span class="ls-status" data-tone="warn" data-ls-status-hidden
-      >{$t("liveScraper.listings.statusHiddenOnWfm")}</span
+    <span
+      class="ls-status"
+      data-tone="warn"
+      title={$t("liveScraper.listings.rowHiddenHint")}
+      data-ls-status-hidden>{$t("liveScraper.listings.statusHiddenOnWfm")}</span
     >
   {:else}
-    <span class="ls-status" data-tone={TONES[status]}
+    <span class="ls-status" data-tone={TONES[status]} title={$t(statusHintKey(status, riven))}
       >{$t(`liveScraper.listings.status.${status}`)}</span
     >
     {#if hidden}
@@ -1227,7 +1230,8 @@
               oncontextmenu={(e) => openMenu(e, riven.id, { kind: "riven", riven })}
             >
               <td class="name">
-                {riven.weaponName} <span class="ls-sub">{riven.rivenName}</span>
+                {riven.weaponName}
+                <span class="ls-sub">{rivenNameSuffix(riven.rivenName, riven.weaponName)}</span>
                 {#if riven.adopted}
                   <span class="ls-adopted" title={$t("liveScraper.listings.adoptedHint")}
                     >{$t("liveScraper.listings.adopted")}</span
@@ -1237,7 +1241,9 @@
                   {@render tradeBadge()}
                 {/if}
               </td>
-              <td class="ls-sub attrs" title={statSummary(riven)}>{statSummary(riven)}</td>
+              <td class="attrs" title={chipStatsTitle(riven.stats)} data-ls-riven-stats>
+                <RivenStatChips stats={riven.stats} compact />
+              </td>
               <td class="num">{riven.masteryReq}</td>
               <td class="num">{riven.rerolls}</td>
               <td class="num">{plat(riven.bought)}</td>
@@ -1250,7 +1256,7 @@
               >
               <td class="num strong">{plat(riven.listPrice)}</td>
               <td class="num" class:pos={(p ?? 0) > 0} class:neg={(p ?? 0) < 0}>{plat(p)}</td>
-              <td>{@render statusBadge(riven.status, rivenHidden)}</td>
+              <td>{@render statusBadge(riven.status, rivenHidden, true)}</td>
               <td class="num">{@render removeButton("riven", riven.id, riven.rivenName)}</td>
             </tr>
           {/each}
@@ -1491,10 +1497,10 @@
     overflow: hidden;
     text-overflow: ellipsis;
   }
+  /* Four compact stat chips side by side; more is clipped, never wrapped. */
   .ls-table .attrs {
-    max-width: 18rem;
+    max-width: 24rem;
     overflow: hidden;
-    text-overflow: ellipsis;
   }
   .ls-table .ls-sub,
   .ls-sub {

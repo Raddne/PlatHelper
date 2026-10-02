@@ -3,13 +3,13 @@ import ctx from "./context";
 import * as rivenFingerprint from "../services/rivenFingerprint";
 import * as wfmRivenSearch from "../services/wfmRivenSearch";
 import * as rivenData from "../services/rivenData";
-import * as rivenBestAttributes from "../services/rivenBestAttributes";
 import { getRivenWeaponSlugs } from "../services/wfmRivenItems";
 import { boundedInt, isObject, stringArray } from "./ipcValidators";
 import { toFiniteNumber } from "../config/shared/numeric";
 import { toNonEmptyString } from "../config/shared/stringValidation";
 import { VARIANT_PREFIXES, VARIANT_SUFFIXES } from "../config/shared/weaponVariants";
 import { polarityToWfm, tagToWfmUrlName } from "../config/shared/wfmRivenVocabulary";
+import { sheetBestAttributes, sheetGoodRollDetail } from "../config/shared/rivenRollSheetGroups";
 import {
   RIVENS_GET,
   RIVENS_GET_WEAPON_NAMES,
@@ -17,7 +17,6 @@ import {
   RIVENS_SEARCH_AUCTIONS,
   RIVENS_GET_BEST_ATTRIBUTES,
   RIVENS_GET_GOOD_ROLL,
-  RIVENS_REFRESH_GOOD_ROLLS,
   RIVENS_CREATE_AUCTION,
   RIVENS_UPDATE_AUCTION,
   RIVENS_DELETE_AUCTION,
@@ -94,8 +93,6 @@ function register(): void {
     if (!ctx.currentInventoryData) {
       return { unveiled: [], veiled: [], veiledUnseen: [] };
     }
-
-    await rivenBestAttributes.ensureRivenGoodRollsLoaded();
     return rivenFingerprint.decodeAllRivens(ctx.currentInventoryData);
   });
 
@@ -135,12 +132,8 @@ function register(): void {
     assertMainRendererSender,
     async (_event, weaponName: unknown) => {
       const weapon = toNonEmptyString(weaponName, 120);
-      await rivenBestAttributes.ensureRivenGoodRollsLoaded();
       return {
-        attributes: weapon
-          ? rivenBestAttributes.getBestAttributes(weapon, rivenData.isMeleeWeapon(weapon))
-          : null,
-        updatedAt: rivenBestAttributes.getRivenGoodRollsUpdatedAt(),
+        attributes: weapon ? sheetBestAttributes(weapon, rivenData.isMeleeWeapon(weapon)) : null,
       };
     },
   );
@@ -151,31 +144,12 @@ function register(): void {
     async (_event, weaponName: unknown) => {
       const weapon = toNonEmptyString(weaponName, 120);
       if (!weapon) return null;
-      await rivenBestAttributes.ensureRivenGoodRollsLoaded();
-      const detail = rivenBestAttributes.getGoodRollDetail(weapon, rivenData.isMeleeWeapon(weapon));
+      const detail = sheetGoodRollDetail(weapon, rivenData.isMeleeWeapon(weapon));
       if (detail) return detail;
       // A saved alert rule carries only the WFM family slug, and slugs spell the
       // ampersand out ("silva_and_aegis"), so the sheet's own name never matches.
       const bySlug = weaponNameForFamilySlug(weapon);
-      return bySlug
-        ? rivenBestAttributes.getGoodRollDetail(bySlug, rivenData.isMeleeWeapon(bySlug))
-        : null;
-    },
-  );
-
-  // Refetches the community sheet on user request, then answers with the same
-  // shape the initial load did so the caller needs one round trip, not two.
-  handleAuthorized(
-    RIVENS_REFRESH_GOOD_ROLLS,
-    assertMainRendererSender,
-    async (_event, weaponName: unknown) => {
-      await rivenBestAttributes.ensureRivenGoodRollsLoaded(true);
-      const updatedAt = rivenBestAttributes.getRivenGoodRollsUpdatedAt();
-      const weapon = toNonEmptyString(weaponName, 120);
-      const attributes = weapon
-        ? rivenBestAttributes.getBestAttributes(weapon, rivenData.isMeleeWeapon(weapon))
-        : null;
-      return { attributes, updatedAt };
+      return bySlug ? sheetGoodRollDetail(bySlug, rivenData.isMeleeWeapon(bySlug)) : null;
     },
   );
 

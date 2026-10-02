@@ -1,3 +1,5 @@
+import type { SheetRating } from "./rivenRollSheet";
+
 export interface DecodedRivenStat {
   tag: string;
   name: string;
@@ -26,7 +28,9 @@ export interface DecodedRiven {
   disposition: number;
   stats: DecodedRivenStat[];
   overallGrade: string;
-  attributeGrade: string;
+  /** Rating against the "Rolls & Resources" sheet; null when the sheet does not list
+   *  the weapon or the stats cannot be judged. */
+  sheetRating: SheetRating | null;
   /** Average rollFloat across all stats - higher = closer to perfect */
   statPerfectness: number;
   /** Riven mod type (Rifle / Shotgun / Pistol / Melee / etc.) */

@@ -1,4 +1,5 @@
-import { canonicalRivenStatName, computeRivenStatSimilarity } from "./riven-similarity.js";
+import { computeRivenStatSimilarity } from "./riven-similarity.js";
+import { sheetCellTokens } from "./riven-sheet-rolls.js";
 
 const _side = new URLSearchParams(window.location.search).get("side") || "left";
 const _isLeft = _side === "left";
@@ -8,8 +9,11 @@ let _overlayInteractiveMode = false;
 /** Whether this panel currently has real stats displayed (not "Waiting for roll..."). */
 let _hasDisplayedStats = false;
 /** Buffered enrichment data - rendered when panel gets stats. */
-let _pendingBestAttrs = null;
+let _pendingGoodRolls = null;
 let _pendingListings = null;
+/** The panel's stat codes by sign and its good sheet row, from the last grading. */
+let _sheetCodes = null;
+let _sheetGoodRow = null;
 
 // Every panel string is rebuilt from this state, so a language change needs no rescan.
 let _scanningKey = "overlay.riven.scanning";
@@ -141,6 +145,11 @@ function renderStats(stats) {
   const errorEl = el("error-banner");
   if (!container || !list) return;
 
+  // New stats drop the codes graded for the old ones until their grading arrives.
+  if (stats !== _renderedStats) {
+    _sheetCodes = null;
+    _sheetGoodRow = null;
+  }
   _renderedStats = Array.isArray(stats) ? stats : [];
   list.innerHTML = "";
 
@@ -155,7 +164,7 @@ function renderStats(stats) {
     container.classList.remove("is-hidden");
     if (errorEl) errorEl.classList.remove("visible");
     // Hide enrichment sections when no stats
-    el("best-attributes").classList.add("is-hidden");
+    el("good-rolls").classList.add("is-hidden");
     el("similar-listings").classList.add("is-hidden");
     return;
   }
@@ -173,7 +182,7 @@ function renderStats(stats) {
   });
 
   // Flush any buffered enrichment now that we have stats
-  if (_pendingBestAttrs) renderBestAttributes(_pendingBestAttrs);
+  if (_pendingGoodRolls) renderGoodRolls(_pendingGoodRolls);
   if (_pendingListings) renderSimilarListings(_pendingListings);
 }
 
@@ -188,7 +197,7 @@ function showScanError(messageKey) {
   _hasDisplayedStats = false;
   _renderedStats = [];
   el("stats-container").classList.add("is-hidden");
-  el("best-attributes").classList.add("is-hidden");
+  el("good-rolls").classList.add("is-hidden");
   el("similar-listings").classList.add("is-hidden");
   _bannerKey = messageKey;
   renderErrorBanner();
@@ -198,7 +207,7 @@ function showScanError(messageKey) {
 
 /** State: current stat names (lowercase) for WFM similarity matching. */
 let _currentStatNamesLc = [];
-/** State: current stats as { name (lowercase), positive } for best-attribute matching. */
+/** State: current stats as { name (lowercase), positive }. */
 let _currentStats = [];
 
 function statsToMatchable(stats) {
@@ -207,27 +216,50 @@ function statsToMatchable(stats) {
   });
 }
 
-function renderOverallGrade(attributeGrade) {
+// The verdict badge per roll sheet rating; a weapon the sheet lacks says so.
+const SHEET_BADGES = {
+  good: { key: "overlay.riven.sheet.goodRoll", look: "attr-grade-great" },
+  "one-positive-off": { key: "overlay.riven.sheet.onePositiveOff", look: "attr-grade-ok" },
+  "unlisted-negative": { key: "overlay.riven.sheet.unlistedNegative", look: "attr-grade-ok" },
+  "not-good": { key: "overlay.riven.sheet.notGood", look: "attr-grade-neutral" },
+};
+const NOT_IN_SHEET_BADGE = { key: "overlay.riven.sheet.notInSheet", look: "attr-grade-neutral" };
+let _verdictBadge = null;
+
+function sheetBadge(sheet) {
+  if (!sheet) return null;
+  if (!sheet.weapon) return NOT_IN_SHEET_BADGE;
+  return SHEET_BADGES[sheet.rating] || null;
+}
+
+function renderOverallGrade(sheet) {
   const wrapper = el("overall-grade");
   const badge = el("overall-grade-badge");
   if (!wrapper || !badge) return;
 
-  if (!attributeGrade) {
+  // Stats the sheet cannot judge get no badge.
+  _verdictBadge = sheetBadge(sheet);
+  if (!_verdictBadge) {
     wrapper.classList.add("is-hidden");
     return;
   }
 
-  badge.className = "attr-grade-badge attr-grade-" + attributeGrade.toLowerCase();
-  badge.textContent = attributeGrade;
+  badge.className = "attr-grade-badge " + _verdictBadge.look;
+  badge.textContent = t(_verdictBadge.key);
   wrapper.classList.remove("is-hidden");
+}
+
+function renderVerdictText() {
+  const badge = el("overall-grade-badge");
+  if (badge && _verdictBadge) badge.textContent = t(_verdictBadge.key);
 }
 
 // Grading arrives through a later IPC event, so rebuild the existing stat rows.
 function applyGradingToStats(gradingResult) {
   if (!gradingResult) return;
-  const { stats, attributeGrade } = gradingResult;
+  const { stats, sheet } = gradingResult;
 
-  renderOverallGrade(attributeGrade);
+  renderOverallGrade(sheet);
 
   if (!Array.isArray(stats)) return;
 
@@ -243,12 +275,15 @@ function applyGradingToStats(gradingResult) {
   }
   container.classList.remove("is-hidden");
 
-  // Update tracked stats for best-attribute matching
   _currentStats = statsToMatchable(stats);
   _currentStatNamesLc = _currentStats.map(function (s) {
     return s.name;
   });
-  refreshBestAttributeHighlights();
+  _sheetCodes = sheet
+    ? { positives: sheet.positives || [], negatives: sheet.negatives || [] }
+    : null;
+  _sheetGoodRow = sheet && sheet.rating === "good" ? sheet.sheetRow : null;
+  refreshGoodRollHighlights();
 }
 
 function onGradingInitial(grading) {
@@ -263,44 +298,59 @@ function onGradingRoll(payload) {
   applyGradingToStats(side);
 }
 
-function fillBestRow(row, names, side, labelKey) {
-  if (!Array.isArray(names) || names.length === 0) return;
-
-  const label = document.createElement("span");
-  label.className = `best-row-label ${side}`;
-  label.textContent = t(labelKey);
-  row.appendChild(label);
-
-  for (const name of names) {
-    const chip = document.createElement("span");
-    chip.className = "best-chip";
-    chip.setAttribute("data-stat", name.toLowerCase());
-    chip.setAttribute("data-side", side);
-    chip.textContent = abbreviateStat(name);
-    row.appendChild(chip);
+/* One sheet cell as a chip of its raw text; each stat token carries its code and,
+   as a hover hint, the stat's full name. The negatives cell reads "- Z / IMP". */
+function buildSheetChip(text, codes, side, labels) {
+  const chip = document.createElement("span");
+  chip.className = "sheet-chip " + side;
+  if (side === "neg") chip.appendChild(document.createTextNode("\u2212 "));
+  for (const part of sheetCellTokens(String(text || ""), codes)) {
+    const span = document.createElement("span");
+    span.textContent = part.text;
+    if (part.code) {
+      span.className = "sheet-token";
+      span.dataset.code = part.code;
+      if (labels[part.code]) span.title = labels[part.code];
+    }
+    chip.appendChild(span);
   }
+  return chip;
 }
 
-function renderBestAttributes(attrs) {
-  _pendingBestAttrs = attrs;
+/* The weapon's sheet rows: three positive cells, then the accepted negatives. */
+function renderGoodRolls(payload) {
+  _pendingGoodRolls = payload;
 
   // Don't render if panel has no stats yet (right panel before first roll)
   if (!_hasDisplayedStats) return;
 
-  const wrapper = el("best-attributes");
-  if (!wrapper || !attrs) return;
+  const wrapper = el("good-rolls");
+  const list = el("good-rolls-list");
+  if (!wrapper || !list) return;
 
-  const posRow = el("best-pos");
-  const negRow = el("best-neg");
-  if (!posRow || !negRow) return;
-
-  posRow.innerHTML = "";
-  negRow.innerHTML = "";
-  fillBestRow(posRow, attrs.positives, "pos", "overlay.riven.bestPositives");
-  fillBestRow(negRow, attrs.negatives, "neg", "overlay.riven.bestNegatives");
+  list.innerHTML = "";
+  const rows = payload && Array.isArray(payload.rows) ? payload.rows : [];
+  if (rows.length === 0) {
+    wrapper.classList.add("is-hidden");
+    return;
+  }
+  const labels = payload.labels || {};
+  for (const row of rows) {
+    const line = document.createElement("div");
+    line.className = "sheet-row";
+    line.dataset.sheetRow = String(row.sheetRow);
+    if (row.note) line.title = row.note;
+    const slotCodes = Array.isArray(row.slotCodes) ? row.slotCodes : [];
+    const positives = Array.isArray(row.positives) ? row.positives : [];
+    for (let i = 0; i < 3; i++) {
+      line.appendChild(buildSheetChip(positives[i], slotCodes[i], "pos", labels));
+    }
+    line.appendChild(buildSheetChip(row.negatives, row.negativeCodes, "neg", labels));
+    list.appendChild(line);
+  }
 
   wrapper.classList.remove("is-hidden");
-  refreshBestAttributeHighlights();
+  refreshGoodRollHighlights();
 }
 
 // Keyed and valued in English: the scan, the grading tables and the WFM search
@@ -335,17 +385,20 @@ function abbreviateStat(name) {
   return STAT_ABBREVIATIONS[name.toLowerCase()] || name;
 }
 
-// Match sign and canonical name so a Damage roll cannot highlight Critical Damage.
-function refreshBestAttributeHighlights() {
-  var chips = document.querySelectorAll(".best-chip");
-  for (var i = 0; i < chips.length; i++) {
-    var chipStat = canonicalRivenStatName(chips[i].getAttribute("data-stat"));
-    var wantPositive = chips[i].getAttribute("data-side") !== "neg";
-    var matched = _currentStats.some(function (s) {
-      return s.positive === wantPositive && canonicalRivenStatName(s.name) === chipStat;
+// A token lights up when the panel's riven has that stat with the cell's sign; the
+// row that made the roll good gets an outline.
+function refreshGoodRollHighlights() {
+  const codes = _sheetCodes || { positives: [], negatives: [] };
+  document.querySelectorAll(".sheet-chip").forEach((chip) => {
+    const owned = chip.classList.contains("neg") ? codes.negatives : codes.positives;
+    chip.querySelectorAll(".sheet-token").forEach((token) => {
+      token.classList.toggle("matched", owned.includes(token.dataset.code));
     });
-    chips[i].classList.toggle("matched", matched);
-  }
+  });
+  document.querySelectorAll(".sheet-row").forEach((row) => {
+    const good = _sheetGoodRow !== null && row.dataset.sheetRow === String(_sheetGoodRow);
+    row.classList.toggle("is-good", good);
+  });
 }
 
 function renderSimilarListings(listings) {
@@ -490,7 +543,7 @@ function onSessionStart(weapon) {
   _currentStatNamesLc = [];
   _currentStats = [];
   _hasDisplayedStats = false;
-  _pendingBestAttrs = null;
+  _pendingGoodRolls = null;
   _pendingListings = null;
 
   el("weapon-name").textContent = weapon || "\u2014";
@@ -504,7 +557,7 @@ function onSessionStart(weapon) {
 
   // Reset grading + enrichment sections
   el("overall-grade").classList.add("is-hidden");
-  el("best-attributes").classList.add("is-hidden");
+  el("good-rolls").classList.add("is-hidden");
   el("similar-listings").classList.add("is-hidden");
 
   // Left panel: show scanning spinner for initial card scan
@@ -614,10 +667,10 @@ function onSessionEnd() {
   _currentStatNamesLc = [];
   _currentStats = [];
   _hasDisplayedStats = false;
-  _pendingBestAttrs = null;
+  _pendingGoodRolls = null;
   _pendingListings = null;
   el("overall-grade").classList.add("is-hidden");
-  el("best-attributes").classList.add("is-hidden");
+  el("good-rolls").classList.add("is-hidden");
   el("similar-listings").classList.add("is-hidden");
 }
 
@@ -632,6 +685,7 @@ function renderDynamicText() {
   renderScanningText();
   renderErrorBanner();
   renderInteractionHint();
+  renderVerdictText();
   // The banner replaces the stat list, so re-rendering stats would resurrect it.
   const banner = el("error-banner");
   if (banner && banner.classList.contains("visible")) return;
@@ -659,8 +713,7 @@ function tagRivenLayoutFields() {
     "#weapon-warning": "weaponWarning",
     ".stat-empty": "emptyText",
     "#interaction-hint": "interactionHint",
-    "#best-pos .best-row-label": "bestPositiveLabel",
-    "#best-neg .best-row-label": "bestNegativeLabel",
+    "#good-rolls-label": "bestPositiveLabel",
     "#similar-header": "listingsLabel",
   }))
     tag(selector, field);
@@ -677,8 +730,8 @@ function tagRivenLayoutFields() {
     if (dot) dot.dataset.layoutTint = "background";
   });
   for (const [selector, field] of [
-    ["#best-pos .best-chip", "bestPositiveChip"],
-    ["#best-neg .best-chip", "bestNegativeChip"],
+    [".sheet-chip.pos", "bestPositiveChip"],
+    [".sheet-chip.neg", "bestNegativeChip"],
   ]) {
     document.querySelectorAll(selector).forEach((element) => {
       element.dataset.rewardField = field;
@@ -695,6 +748,28 @@ function tagRivenLayoutFields() {
     });
   });
 }
+
+const PREVIEW_SHEET_ROW = {
+  sheetRow: 1024,
+  positives: ["MS", "CD", "CC > DMG / FR > TOX / SC"],
+  negatives: "Z / IMP > REC",
+  note: null,
+  slotCodes: [["MS"], ["CD"], ["CC", "DMG", "FR", "TOX", "SC"]],
+  negativeCodes: ["Z", "IMP", "REC"],
+};
+// Game terms, as the sheet's stat labels: not translated text.
+const PREVIEW_SHEET_LABELS = {
+  MS: "Multishot",
+  CD: "Critical Damage",
+  CC: "Critical Chance",
+  DMG: "Damage",
+  FR: "Fire Rate / Attack Speed",
+  TOX: "Toxin",
+  SC: "Status Chance",
+  Z: "Zoom",
+  IMP: "Impact",
+  REC: "Weapon Recoil",
+};
 
 function renderLayoutPreview(state) {
   layoutPreviewState = state;
@@ -726,12 +801,20 @@ function renderLayoutPreview(state) {
     { name: "Multishot", value: 84.3, positive: true, grade: "B+", rollFloat: 0.64 },
     { name: "Zoom", value: 40.2, positive: false, grade: "A-", rollFloat: 0.21 },
   ];
-  renderStats(state.previewVariant === "unrolled" ? [stats[0], stats[1], stats[3]] : stats);
-  renderOverallGrade("Great");
-  renderBestAttributes({
-    positives: ["Critical Chance", "Critical Damage", "Multishot", "Damage"],
-    negatives: ["Zoom", "Ammo Maximum", "Weapon Recoil"],
+  const unrolled = state.previewVariant === "unrolled";
+  renderStats(unrolled ? [stats[0], stats[1], stats[3]] : stats);
+  // Rubico's sheet row: the full card is a good roll, the unrolled one is not.
+  applyGradingToStats({
+    stats: _renderedStats,
+    sheet: {
+      weapon: "Rubico",
+      rating: unrolled ? "not-good" : "good",
+      sheetRow: unrolled ? null : PREVIEW_SHEET_ROW.sheetRow,
+      positives: unrolled ? ["CC", "CD"] : ["CC", "CD", "MS"],
+      negatives: ["Z"],
+    },
   });
+  renderGoodRolls({ weapon: "Rubico", rows: [PREVIEW_SHEET_ROW], labels: PREVIEW_SHEET_LABELS });
   if (state.previewVariant !== "noListings") {
     renderSimilarListings(
       [0, 1, 2, 3, 4, 5].map((index) => ({
@@ -818,7 +901,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   window.rivenOverlay.onGradingInitial((grading) => onGradingInitial(grading));
   window.rivenOverlay.onGradingRoll((payload) => onGradingRoll(payload));
-  window.rivenOverlay.onBestAttributes((attrs) => renderBestAttributes(attrs));
+  window.rivenOverlay.onGoodRolls((rolls) => renderGoodRolls(rolls));
   window.rivenOverlay.onSimilarListings((listings) => renderSimilarListings(listings));
 
   window.overlayI18n.onApply(renderDynamicText);

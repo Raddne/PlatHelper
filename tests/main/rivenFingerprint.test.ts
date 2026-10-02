@@ -39,7 +39,7 @@ describe("decodeAllRivens rank-8 values", () => {
     expect(omitted.masteryReq).toBe(9);
     expect(omitted.statPerfectness).toBe(maxed.statPerfectness);
     expect(omitted.overallGrade).toBe(maxed.overallGrade);
-    expect(omitted.attributeGrade).toBe(maxed.attributeGrade);
+    expect(omitted.sheetRating).toBe(maxed.sheetRating);
     expect(maxed.currentRank).toBe(8);
   });
 
@@ -57,7 +57,7 @@ describe("decodeAllRivens rank-8 values", () => {
         atRank.stats.map((stat) => stat.displayValue),
       );
       expect(atRank.overallGrade).toBe(source.overallGrade);
-      expect(atRank.attributeGrade).toBe(source.attributeGrade);
+      expect(atRank.sheetRating).toBe(source.sheetRating);
     }
   });
 

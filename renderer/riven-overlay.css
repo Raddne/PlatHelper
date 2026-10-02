@@ -286,6 +286,10 @@ body {
 .attr-grade-bad {
   background: #ef4444;
 }
+/* Not a good roll, or a weapon the roll sheet lacks: neutral, never red. */
+.attr-grade-neutral {
+  background: var(--text-dim);
+}
 
 /* Scanning spinner */
 
@@ -495,57 +499,63 @@ body {
   display: none;
 }
 
-/* Best attributes */
+/* Good rolls: the weapon's rows of the roll sheet */
 
-#best-attributes {
+#good-rolls {
   padding: 8px 12px;
   border-top: 1px solid var(--border);
   flex-shrink: 0;
 }
 
-#best-attributes.is-hidden {
+#good-rolls.is-hidden {
   display: none;
 }
 
-.best-row {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 5px 6px;
-  padding: 4px 0;
-  font-size: 12px;
-  color: var(--text-dim);
-}
-
-.best-row-label {
+#good-rolls-label {
   font-weight: 700;
   font-size: 12px;
   text-transform: uppercase;
   letter-spacing: 0.5px;
-  margin-right: 4px;
+  color: var(--text-dim);
+  margin-bottom: 2px;
 }
 
-.best-row-label.pos {
-  color: var(--ok);
-}
-.best-row-label.neg {
-  color: var(--bad);
+.sheet-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px 5px;
+  padding: 3px 4px;
+  margin: 0 -5px;
+  border: 1px solid transparent;
+  border-radius: 6px;
 }
 
-.best-chip {
+/* The row that made the panel's riven a good roll. */
+.sheet-row.is-good {
+  border-color: var(--ok);
+}
+
+.sheet-chip {
   background: var(--raised);
   border: 1px solid var(--border);
   border-radius: 4px;
-  padding: 4px 10px;
+  padding: 3px 8px;
   font-size: 12px;
   color: var(--muted);
   white-space: nowrap;
 }
 
-.best-chip.matched {
-  border-color: var(--ok);
+.sheet-token.matched {
+  font-weight: 700;
+}
+
+.sheet-chip.pos .sheet-token.matched {
   color: var(--ok);
-  background: rgba(39, 174, 96, 0.15);
+}
+
+.sheet-chip.neg .sheet-token.matched {
+  color: var(--bad);
 }
 
 /* Similar listings (card layout) */

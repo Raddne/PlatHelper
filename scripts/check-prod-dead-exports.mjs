@@ -26,6 +26,10 @@ const ALLOWLIST = new Set([
   "priceQueueFullError",
   // Test seam bag, parallel to wfmClient's `__test__`.
   "__schedulerTest__",
+  // Roll sheet data and core API, generated or shared as a whole with the weapon rows.
+  "RIVEN_NAME_PARTS",
+  "sameSheetWeapon",
+  "evaluateSheetRoll",
 ]);
 
 // Where exports are *defined* (main production tree).

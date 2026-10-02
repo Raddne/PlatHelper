@@ -177,7 +177,11 @@ module.exports = [
   },
   {
     // The riven overlay is loaded with <script type="module">.
-    files: ["renderer/riven-overlay.js", "renderer/riven-similarity.js"],
+    files: [
+      "renderer/riven-overlay.js",
+      "renderer/riven-similarity.js",
+      "renderer/riven-sheet-rolls.js",
+    ],
     languageOptions: {
       sourceType: "module",
     },

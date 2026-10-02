@@ -12,20 +12,3 @@ export const RIVEN_TYPE_KEYS: Record<string, MessageKey> = {
   Zaw: "rivens.type.zaw",
   Riven: "rivens.type.riven",
 };
-
-// services/rivenGrading.ts scores attributes as Great/Good/OK/Bad, or "?" when
-// the weapon has no good-roll data; "?" stays unmapped and renders as-is.
-export const RIVEN_ATTR_GRADE_KEYS: Record<string, MessageKey> = {
-  Great: "rivens.grade.great",
-  Good: "rivens.grade.good",
-  OK: "rivens.grade.ok",
-  Bad: "rivens.grade.bad",
-};
-
-/** Sort weight for the attribute grade; "?" (no sheet data) has none. */
-export const RIVEN_ATTR_GRADE_ORDER: Record<string, number> = {
-  Great: 4,
-  Good: 3,
-  OK: 2,
-  Bad: 1,
-};

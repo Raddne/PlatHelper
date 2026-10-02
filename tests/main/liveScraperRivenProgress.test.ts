@@ -14,7 +14,6 @@ const h = vi.hoisted(() => ({
   search: null as null | ((opts: SearchOpts) => Listing[]),
   searchError: null as Error | null,
   searches: [] as SearchOpts[],
-  goodRolls: null as null | { goodAttrs: { mandatory: string[]; optional: string[] }[] },
   created: [] as number[],
   createdNames: [] as string[],
   updated: [] as number[],
@@ -29,9 +28,6 @@ vi.mock("../../services/logger", () => ({
   withScope: () => ({ info: () => {}, warn: () => {}, error: () => {}, debug: () => {} }),
 }));
 vi.mock("../../services/rivenData", () => ({ getRivenFamilySlug: () => "dual_toxocyst" }));
-vi.mock("../../services/rivenBestAttributes", () => ({
-  getGoodRolls: () => (h.goodRolls ? { ...h.goodRolls, acceptedBadAttrs: [] } : null),
-}));
 vi.mock("../../services/liveScraperRivenStock", () => ({
   updateStockRiven: (_id: string, patch: Record<string, unknown>) => h.patches.push(patch),
 }));
@@ -107,7 +103,6 @@ function reset(): void {
   h.search = null;
   h.searchError = null;
   h.searches.length = 0;
-  h.goodRolls = null;
   h.created.length = 0;
   h.createdNames.length = 0;
   h.updated.length = 0;
@@ -292,19 +287,23 @@ describe("progressStockRiven", () => {
   });
 
   it("then to the stats that matter for the weapon", async () => {
-    h.goodRolls = {
-      goodAttrs: [{ mandatory: ["WeaponCritChanceMod"], optional: ["WeaponFireIterationsMod"] }],
-    };
+    // Dual Toxocyst's sheet row is MS | CD | PT / CC > FR / DMG / SC: heat is not in it.
+    const stats = [
+      { tag: "WeaponFireIterationsMod", positive: true, multiplier: false, value: 90 },
+      { tag: "WeaponCritDamageMod", positive: true, multiplier: false, value: 120 },
+      { tag: "WeaponFireDamageMod", positive: true, multiplier: false, value: 80 },
+      { tag: "WeaponZoomFovMod", positive: false, multiplier: false, value: 30 },
+    ];
     h.search = (opts) =>
-      opts.positiveStats?.length === 1
+      opts.positiveStats?.length === 2
         ? [listing("k0", 200), listing("k1", 250), listing("k2", 300)]
         : [listing("one", 5000)];
-    const result = await progressStockRiven(riven({}), WTS, "me");
+    const result = await progressStockRiven(riven({ stats }), WTS, "me");
     expect(result).toMatchObject({ action: "created", price: 250 });
     expect(h.searches.map((s) => s.positiveStats)).toEqual([
-      ["critical_chance", "critical_damage"],
-      ["critical_chance", "critical_damage"],
-      ["critical_chance"],
+      ["multishot", "critical_damage", "heat_damage"],
+      ["multishot", "critical_damage", "heat_damage"],
+      ["multishot", "critical_damage"],
     ]);
   });
 

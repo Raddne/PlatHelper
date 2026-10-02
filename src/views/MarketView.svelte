@@ -226,7 +226,7 @@
       disposition: 1,
       stats: contract.stats.map(toRivenStat),
       overallGrade: "",
-      attributeGrade: "",
+      sheetRating: null,
       statPerfectness: 0,
       rivenType: "Riven Contract",
     };

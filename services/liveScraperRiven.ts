@@ -10,7 +10,6 @@
 
 import { withScope } from "./logger";
 import * as rivenData from "./rivenData";
-import { getGoodRolls } from "./rivenBestAttributes";
 import {
   searchSimilarRivensOrThrow,
   createRivenAuction,
@@ -25,8 +24,8 @@ import {
   comparableSearchTiers,
   MIN_COMPARABLE_LISTINGS,
   type ComparableTierName,
-  type KeyStatGroup,
 } from "../config/shared/liveScraperRivenPricing";
+import { sheetKeyStatGroups } from "../config/shared/rivenRollSheetGroups";
 import { isThresholdDisabled } from "../config/shared/liveScraperPricing";
 import { tagToWfmUrlName, polarityToWfm } from "../config/shared/wfmRivenVocabulary";
 import {
@@ -66,18 +65,6 @@ function isRateLimitError(err: unknown): boolean {
   return /rate limit/i.test(err instanceof Error ? err.message : String(err ?? ""));
 }
 
-/** The weapon's good-roll groups as WFM url names. A group whose mandatory
- *  stat has no WFM attribute is dropped rather than loosened. */
-function keyStatGroups(weaponName: string): KeyStatGroup[] {
-  const data = getGoodRolls(weaponName);
-  if (!data) return [];
-  const urlNames = (tags: readonly string[]) =>
-    tags.map(tagToWfmUrlName).filter((v): v is string => !!v);
-  return data.goodAttrs
-    .map((group) => ({ mandatory: urlNames(group.mandatory), optional: urlNames(group.optional) }))
-    .filter((group, i) => group.mandatory.length === data.goodAttrs[i]!.mandatory.length);
-}
-
 interface ComparablePrices {
   /** Ascending buyout prices of other sellers' fixed-price listings. */
   prices: number[];
@@ -97,7 +84,8 @@ async function findComparablePrices(
   const tiers = comparableSearchTiers(
     statUrlNames(stats, true),
     statUrlNames(stats, false),
-    keyStatGroups(weaponName),
+    // One good-roll group per row of the weapon's roll sheet entry.
+    sheetKeyStatGroups(weaponName),
   );
   for (const tier of tiers) {
     const listings = await searchSimilarRivensOrThrow(weaponSlug, {

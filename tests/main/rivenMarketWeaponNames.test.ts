@@ -17,8 +17,6 @@ vi.mock("../../services/wfmRivenSearch", () => ({}));
 
 vi.mock("../../services/rivenFingerprint", () => ({}));
 
-vi.mock("../../services/rivenBestAttributes", () => ({}));
-
 vi.mock("../../services/wfmRivenItems", () => ({
   getRivenWeaponSlugs: async () => h.families,
 }));

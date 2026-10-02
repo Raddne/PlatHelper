@@ -1,4 +1,4 @@
-import { describe, expect, it, vi, beforeEach, beforeAll } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 // Mock logger before importing rivenGrading (which imports logger via rivenData)
 vi.mock("../../services/logger", () => ({
@@ -16,68 +16,11 @@ import {
   correctScannedStats,
   floatToGrade,
   gradeRiven,
+  sheetGoodRolls,
   unparseBuff,
   unparseCurse,
 } from "../../services/rivenGrading";
-import { setRivenGoodRollsForTest } from "../../services/rivenBestAttributes";
 import * as rivenData from "../../services/rivenData";
-
-beforeAll(() => {
-  setRivenGoodRollsForTest({
-    lex: {
-      goodAttrs: [
-        {
-          mandatory: ["WeaponCritDamageMod"],
-          optional: [
-            "WeaponFireIterationsMod",
-            "WeaponToxinDamageMod",
-            "WeaponDamageAmountMod",
-            "WeaponFireRateMod",
-            "WeaponCritChanceMod",
-            "WeaponPunctureDepthMod",
-          ],
-        },
-      ],
-      acceptedBadAttrs: [
-        "WeaponZoomFovMod",
-        "WeaponRecoilReductionMod",
-        "WeaponArmorPiercingDamageMod",
-      ],
-    },
-    galatine: {
-      goodAttrs: [
-        {
-          mandatory: ["WeaponCritDamageMod", "WeaponFireRateMod", "WeaponMeleeRangeIncMod"],
-          optional: [],
-        },
-      ],
-      acceptedBadAttrs: [
-        "WeaponMeleeComboEfficiencyMod",
-        "SlideAttackCritChanceMod",
-        "WeaponMeleeFinisherDamageMod",
-      ],
-    },
-    angstrum: {
-      goodAttrs: [
-        {
-          mandatory: ["WeaponCritDamageMod"],
-          optional: [
-            "WeaponFireIterationsMod",
-            "WeaponToxinDamageMod",
-            "WeaponDamageAmountMod",
-            "WeaponFireRateMod",
-            "WeaponCritChanceMod",
-          ],
-        },
-        {
-          mandatory: ["WeaponFireIterationsMod", "WeaponDamageAmountMod"],
-          optional: ["WeaponStunChanceMod", "WeaponToxinDamageMod"],
-        },
-      ],
-      acceptedBadAttrs: ["WeaponZoomFovMod"],
-    },
-  });
-});
 
 describe("floatToGrade", () => {
   it("returns S for perfect roll (1.0)", () => {
@@ -767,48 +710,6 @@ describe("correctScannedStats", () => {
   });
 });
 
-describe("rivenBestAttributes", () => {
-  let getBestAttributes: typeof import("../../services/rivenBestAttributes").getBestAttributes;
-
-  beforeEach(async () => {
-    const mod = await import("../../services/rivenBestAttributes");
-    getBestAttributes = mod.getBestAttributes;
-  });
-
-  it("returns per-weapon attributes from the dataset", () => {
-    const attrs = getBestAttributes("Lex");
-    expect(attrs).not.toBeNull();
-    expect(attrs!.positives).toContain("Critical Damage");
-    expect(attrs!.negatives.length).toBeGreaterThan(0);
-  });
-
-  it("labels WeaponFireRateMod as Attack Speed when melee=true", () => {
-    const attrs = getBestAttributes("Galatine", true);
-    expect(attrs).not.toBeNull();
-    expect(attrs!.positives).toContain("Attack Speed");
-    expect(attrs!.positives).not.toContain("Fire Rate");
-  });
-
-  it("uses the sheet-specific Angstrum positives and negatives", () => {
-    const attrs = getBestAttributes("Angstrum");
-    expect(attrs).not.toBeNull();
-    expect(attrs!.positives).toEqual([
-      "Critical Damage",
-      "Multishot",
-      "Damage",
-      "Toxin",
-      "Fire Rate",
-      "Critical Chance",
-      "Status Chance",
-    ]);
-    expect(attrs!.negatives).toEqual(["Zoom"]);
-  });
-
-  it("returns null for unknown weapons (no fallback)", () => {
-    expect(getBestAttributes("NotAWeaponName")).toBeNull();
-  });
-});
-
 describe("x-multiplier faction damage", () => {
   // "x1.51" is a +0.51 multiplier and faction damage is a non-percentage tag, so
   // 0.51 IS the displayed value. Scaling it to 51 counted the scale twice and
@@ -927,5 +828,89 @@ describe("unranked cards", () => {
 
     expect(result).not.toBeNull();
     expect(result!.stats.every((s) => s.rollFloat === 0 || s.rollFloat === 1)).toBe(true);
+  });
+});
+
+// Scanned stats from "+Name" / "-Name"; the sheet rating ignores the values.
+const card = (...specs: string[]) =>
+  specs.map((spec) => ({ name: spec.slice(1), positive: spec.startsWith("+"), value: 50 }));
+const CRIT_CARD = ["+Critical Damage", "+Multishot", "+Critical Chance"];
+// Rubico's one sheet row: MS | CD | CC > DMG / FR > TOX / SC, negatives Z / IMP > REC.
+const RUBICO_ROW = 1024;
+
+describe("gradeRiven sheet rating", () => {
+  it.each([
+    [[...CRIT_CARD, "-Zoom"], "good", RUBICO_ROW],
+    [CRIT_CARD, "not-good", null],
+    [[...CRIT_CARD, "-Magazine Capacity"], "unlisted-negative", RUBICO_ROW],
+    [["+Critical Damage", "+Multishot", "+Heat", "-Zoom"], "one-positive-off", RUBICO_ROW],
+    [["+Critical Chance", "+Heat", "+Cold", "-Zoom"], "not-good", null],
+  ])("Rubico Prime %j -> %s", (specs, rating, sheetRow) => {
+    expect(gradeRiven("Rubico Prime", card(...specs))!.sheet).toMatchObject({
+      weapon: "Rubico",
+      rating,
+      sheetRow,
+    });
+  });
+
+  it("carries the stat codes by sign", () => {
+    expect(gradeRiven("Rubico Prime", card(...CRIT_CARD, "-Zoom"))!.sheet).toMatchObject({
+      positives: ["CD", "MS", "CC"],
+      negatives: ["Z"],
+    });
+  });
+
+  it("names no sheet weapon for one the sheet lacks", () => {
+    const sheet = gradeRiven("Ceti Lacera", card("+Critical Chance", "+Range", "-Impact"))!.sheet;
+    expect(sheet).toMatchObject({ weapon: null, rating: null, sheetRow: null });
+  });
+
+  it.each([
+    ["one positive", ["+Multishot", "-Zoom"]],
+    ["a stat without a code", ["+Multishot", "+Channeling Damage", "-Zoom"]],
+  ])("rates nothing for %s", (_label, specs) => {
+    const sheet = gradeRiven("Rubico Prime", card(...specs))!.sheet;
+    expect(sheet).toMatchObject({ weapon: "Rubico", rating: null, sheetRow: null });
+  });
+});
+
+describe("sheetGoodRolls", () => {
+  it("sends the weapon's rows as raw cells with their codes and labels", () => {
+    expect(sheetGoodRolls("Rubico Prime")).toEqual({
+      weapon: "Rubico",
+      rows: [
+        {
+          sheetRow: RUBICO_ROW,
+          positives: ["MS", "CD", "CC > DMG / FR > TOX / SC"],
+          negatives: "Z / IMP > REC",
+          note: null,
+          slotCodes: [["MS"], ["CD"], ["CC", "DMG", "FR", "TOX", "SC"]],
+          negativeCodes: ["Z", "IMP", "REC"],
+        },
+      ],
+      labels: {
+        MS: "Multishot",
+        CD: "Critical Damage",
+        CC: "Critical Chance",
+        DMG: "Damage",
+        FR: "Fire Rate / Attack Speed",
+        TOX: "Toxin",
+        SC: "Status Chance",
+        Z: "Zoom",
+        IMP: "Impact",
+        REC: "Weapon Recoil",
+      },
+    });
+  });
+
+  it("sends every row of a weapon with several", () => {
+    expect(sheetGoodRolls("Braton")!.rows.map((row) => row.positives)).toEqual([
+      ["MS*", "CD", "CC > TOX > FR / DMG / SC"],
+      ["CC", "CD", "TOX / DMG / FR"],
+    ]);
+  });
+
+  it("is null for a weapon the sheet lacks", () => {
+    expect(sheetGoodRolls("Ceti Lacera")).toBeNull();
   });
 });

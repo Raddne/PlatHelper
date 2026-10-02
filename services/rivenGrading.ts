@@ -10,9 +10,16 @@ import {
   BASE_DRAIN,
   NON_PERCENTAGE_TAGS,
 } from "./rivenConstants";
-import { getGoodRolls, type GoodRollData } from "./rivenBestAttributes";
 import { clamp01 } from "./rewardScannerUtils";
 import { lerp } from "../config/shared/numeric";
+import {
+  findSheetWeapon,
+  rateRivenBySheet,
+  rollCodeForTag,
+  ROLL_STAT_LABELS,
+  type RollStatCode,
+  type SheetRating,
+} from "../config/shared/rivenRollSheet";
 
 const log = withScope("rivenGrading");
 
@@ -26,11 +33,41 @@ interface GradedStat {
   rollFloat: number;
 }
 
+/** The scanned stats rated against the "Rolls & Resources" sheet. */
+interface RivenSheetRating {
+  /** Sheet name of the weapon; null when the sheet does not list it. */
+  weapon: string | null;
+  /** Null when the stats cannot be judged. */
+  rating: SheetRating | null;
+  /** Sheet row that produced the rating; null for "not-good". */
+  sheetRow: number | null;
+  /** Codes of the stats that have one, by sign, to mark them in the sheet rows. */
+  positives: RollStatCode[];
+  negatives: RollStatCode[];
+}
+
 export interface RivenGradeResult {
   stats: GradedStat[];
   overallGrade: string;
-  /** Attribute-based riven quality: "Great" | "Good" | "OK" | "Bad" */
-  attributeGrade: string;
+  sheet: RivenSheetRating;
+}
+
+/** One sheet row as the overlay shows it: the raw cells and their codes. */
+interface SheetRollLine {
+  sheetRow: number;
+  positives: [string, string, string];
+  negatives: string;
+  note: string | null;
+  slotCodes: [RollStatCode[], RollStatCode[], RollStatCode[]];
+  negativeCodes: RollStatCode[];
+}
+
+interface SheetGoodRolls {
+  /** Sheet name of the weapon. */
+  weapon: string;
+  rows: SheetRollLine[];
+  /** Full stat names for the codes in the rows, for hover hints. */
+  labels: Partial<Record<RollStatCode, string>>;
 }
 
 /** Default riven max rank. Most rivens are rank 8 (lvl 0..8). */
@@ -358,89 +395,56 @@ export function correctScannedStats(
   return { stats: corrected, corrections };
 }
 
-/** Scores each attribute as Decisive, Good, Bad, or NotHelping. */
-type AlecaAttrGrade = "Decisive" | "Good" | "NotHelping" | "Bad";
-
-function gradeFromGoodRolls(
-  data: GoodRollData,
-  goodTags: string[],
-  badTags: string[],
-): { positive: AlecaAttrGrade[]; negative: AlecaAttrGrade[]; overall: string } {
-  const positive: AlecaAttrGrade[] = goodTags.map(() => "NotHelping");
-  const negative: AlecaAttrGrade[] = badTags.map(() => "NotHelping");
-
-  // Negative grades.
-  for (let i = 0; i < badTags.length; i++) {
-    const tag = badTags[i];
-    if (data.acceptedBadAttrs.includes(tag)) {
-      negative[i] = "Good";
-    } else if (data.goodAttrs.some((g) => g.mandatory.includes(tag) || g.optional.includes(tag))) {
-      negative[i] = "Bad";
-    } else {
-      negative[i] = "NotHelping";
+/** A weapon's sheet rows for the overlay's "Good rolls" block; null when the sheet
+ *  does not list the weapon. */
+export function sheetGoodRolls(weaponName: string): SheetGoodRolls | null {
+  const weapon = findSheetWeapon(weaponName);
+  if (!weapon) return null;
+  const labels: Partial<Record<RollStatCode, string>> = {};
+  const rows = weapon.rows.map((row): SheetRollLine => {
+    const [first, second, third] = row.slots;
+    const slotCodes: SheetRollLine["slotCodes"] = [
+      [...first.stats],
+      [...second.stats],
+      [...third.stats],
+    ];
+    const negativeCodes = [...row.negatives.stats];
+    for (const code of [...slotCodes.flat(), ...negativeCodes]) {
+      labels[code] = ROLL_STAT_LABELS[code];
     }
-  }
-
-  // Positive grades.
-  for (let i = 0; i < goodTags.length; i++) {
-    const tag = goodTags[i];
-    if (data.goodAttrs.some((g) => g.mandatory.includes(tag))) {
-      positive[i] = "Decisive";
-    } else if (data.goodAttrs.some((g) => g.optional.includes(tag))) {
-      positive[i] = "Good";
-    } else {
-      positive[i] = "NotHelping";
-    }
-  }
-
-  // Does at least one full GoodRoll match? (all mandatory present, and the
-  // user's positives are a subset of mandatory or optional)
-  const goodSet = new Set(goodTags);
-  const matches = data.goodAttrs.filter((g) => {
-    if (!g.mandatory.every((m) => goodSet.has(m))) return false;
-    const allowed = new Set([...g.mandatory, ...g.optional]);
-    return goodTags.every((t) => allowed.has(t));
+    return {
+      sheetRow: row.sheetRow,
+      positives: [...row.raw.positives],
+      negatives: row.raw.negatives,
+      note: row.raw.note,
+      slotCodes,
+      negativeCodes,
+    };
   });
-  const flag = matches.length > 0;
-  const num = positive.filter((p) => p === "Decisive" || p === "Good").length;
-  const hasBadNeg = negative.some((n) => n === "Bad");
-  const hasNotHelpingNeg = negative.some((n) => n === "NotHelping");
-  const hasAnyNeg = negative.length > 0;
-
-  // Flatten the detailed result to the 4-level UI scale already in use.
-  let overall: string;
-  if (hasBadNeg) {
-    overall = (flag && num >= 2) || num >= 3 ? "OK" /* HasPotential */ : "Bad";
-  } else if (hasNotHelpingNeg) {
-    if (flag || num >= 2) overall = "Good";
-    else if (num >= 1) overall = "OK"; /* HasPotential */
-    else overall = "Bad";
-  } else if (flag) {
-    overall = num >= 2 && hasAnyNeg ? "Great" /* Perfect */ : "Good";
-  } else if (num >= 2) {
-    overall = "Good";
-  } else if (num >= 1) {
-    overall = "OK";
-  } else {
-    overall = "Bad";
-  }
-  return { positive, negative, overall };
+  return { weapon: weapon.name, rows, labels };
 }
 
-/** Scores 44bananas' per-weapon good-roll data; unknown weapons return "?". */
-export function computeAttributeGrade(
-  stats: { name: string; positive: boolean }[],
+function sheetRating(
   weaponName: string,
-): string {
-  const positives = stats.filter((s) => s.positive);
-  const negatives = stats.filter((s) => !s.positive);
-
-  const data = getGoodRolls(weaponName);
-  if (!data) return "?";
-
-  const goodTags = positives.map((s) => rivenData.statNameToTag(s.name) ?? s.name);
-  const badTags = negatives.map((s) => rivenData.statNameToTag(s.name) ?? s.name);
-  return gradeFromGoodRolls(data, goodTags, badTags).overall;
+  stats: { name: string; positive: boolean }[],
+): RivenSheetRating {
+  const tagged = stats.map((s) => ({
+    tag: rivenData.statNameToTag(s.name) ?? "",
+    positive: s.positive,
+  }));
+  const { weapon, rating, row } = rateRivenBySheet(weaponName, tagged);
+  const codes = (positive: boolean): RollStatCode[] =>
+    tagged
+      .filter((s) => s.positive === positive)
+      .map((s) => rollCodeForTag(s.tag))
+      .filter((code): code is RollStatCode => code !== null);
+  return {
+    weapon: weapon?.name ?? null,
+    rating,
+    sheetRow: row?.sheetRow ?? null,
+    positives: codes(true),
+    negatives: codes(false),
+  };
 }
 
 /** Grades OCR stats, or returns null when the weapon or riven type is unknown. */
@@ -720,8 +724,5 @@ export function gradeRiven(
     overallGrade = floatToGrade(avgFloat, false);
   }
 
-  // Attribute-based grade (Great/Good/OK/Bad)
-  const attributeGrade = computeAttributeGrade(stats, weaponName);
-
-  return { stats: gradedStats, overallGrade, attributeGrade };
+  return { stats: gradedStats, overallGrade, sheet: sheetRating(weaponName, stats) };
 }

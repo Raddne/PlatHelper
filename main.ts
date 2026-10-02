@@ -78,7 +78,6 @@ import * as eeLogMonitor from "./services/eeLogMonitor";
 import * as rewardScanner from "./services/rewardScanner";
 import * as rewardOcrOnnx from "./services/rewardOcrOnnx";
 import * as autoUpdater from "./services/autoUpdater";
-import * as rivenBestAttributes from "./services/rivenBestAttributes";
 import * as warframeStatus from "./services/warframeStatus";
 import {
   configureWarframeLifecycle,
@@ -581,12 +580,6 @@ function initDataSources(profileStage: ProfileStage): void {
     .ensureLoaded()
     .catch((err: Error) => log.error("[WFMarket] startup fetch failed:", err));
   profileStage("wfm-catalog:ensureLoaded-dispatch", catalogStart);
-
-  const rivenGoodRollsStart = Date.now();
-  void rivenBestAttributes
-    .ensureRivenGoodRollsLoaded(true)
-    .catch((err: Error) => log.error("[Rivens] startup good-roll fetch failed:", err));
-  profileStage("riven-good-rolls:ensureLoaded-dispatch", rivenGoodRollsStart);
 }
 
 function initGameMonitoring(profileStage: ProfileStage): void {

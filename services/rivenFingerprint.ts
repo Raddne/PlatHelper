@@ -15,6 +15,7 @@ import type {
   VeiledRivenGroup,
 } from "../config/shared/rivenTypes";
 import { lerp } from "../config/shared/numeric";
+import { rateRivenBySheet } from "../config/shared/rivenRollSheet";
 
 const log = withScope("rivenFingerprint");
 
@@ -383,13 +384,7 @@ function decodeSingleRiven(entry: {
   const avgRollFloat = scoredCount > 0 ? rollFloatSum / scoredCount : 0.5;
   const overallGrade = rivenGrading.floatToGrade(avgRollFloat, false);
 
-  // Attribute grade (Great/Good/OK/Bad) using the per-weapon good-roll dataset.
-  const positives = decodedStats.filter((s) => s.positive);
-  const negatives = decodedStats.filter((s) => !s.positive);
-  const attributeGrade = rivenGrading.computeAttributeGrade(
-    [...positives, ...negatives].map((s) => ({ name: s.name, positive: s.positive })),
-    weaponName,
-  );
+  const sheetRating = rateRivenBySheet(weaponName, decodedStats).rating;
 
   // Generate the riven suffix name (game rule: buffs by roll Value, descending)
   const rivenSuffix = rivenData.generateRivenSuffix(
@@ -413,7 +408,7 @@ function decodeSingleRiven(entry: {
     disposition,
     stats: decodedStats,
     overallGrade,
-    attributeGrade,
+    sheetRating,
     statPerfectness,
     rivenType: getRivenTypeLabel(entry.ItemType),
   };

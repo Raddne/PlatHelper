@@ -114,7 +114,7 @@ function ownedRiven(itemId: string, rivenName: string): DecodedRiven {
       },
     ],
     overallGrade: "B",
-    attributeGrade: "Good",
+    sheetRating: null,
     statPerfectness: 0.5,
     rivenType: "Rifle",
   };

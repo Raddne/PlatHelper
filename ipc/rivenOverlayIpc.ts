@@ -27,7 +27,6 @@ import type { WeaponLabelMatch } from "../services/rivenData";
 import { sleep } from "../services/sleep";
 import * as rivenGrading from "../services/rivenGrading";
 import * as rivenDataSvc from "../services/rivenData";
-import * as rivenBestAttributes from "../services/rivenBestAttributes";
 import * as wfmRivenSearch from "../services/wfmRivenSearch";
 import * as warframeStatus from "../services/warframeStatus";
 import { withScope } from "../services/logger";
@@ -47,7 +46,7 @@ import {
   RIVEN_OPEN_AUCTION,
   RIVEN_GRADING_INITIAL,
   RIVEN_GRADING_ROLL,
-  RIVEN_BEST_ATTRIBUTES,
+  RIVEN_GOOD_ROLLS,
   RIVEN_SIMILAR_LISTINGS,
   RIVEN_WEAPON_UPDATE,
   RIVEN_RESCAN_REQUEST,
@@ -442,13 +441,8 @@ function sendGradedInitialStats(): void {
 function sendWeaponEnrichment(): void {
   if (!_rivenWeaponName || _rivenWeaponName === "Riven") return;
 
-  // Send best attributes to both panels
-  void rivenBestAttributes.ensureRivenGoodRollsLoaded().then(() => {
-    if (!_rivenWeaponName || _rivenWeaponName === "Riven") return;
-    const isMelee = rivenDataSvc.isMeleeWeapon(_rivenWeaponName);
-    const weaponInfo = rivenBestAttributes.getBestAttributes(_rivenWeaponName, isMelee);
-    if (weaponInfo) sendToRivenWindows(RIVEN_BEST_ATTRIBUTES, weaponInfo);
-  });
+  // The weapon's roll sheet rows; null clears a previous weapon's rows.
+  sendToRivenWindows(RIVEN_GOOD_ROLLS, rivenGrading.sheetGoodRolls(_rivenWeaponName));
 
   // WFM cannot apply the overlay's local similarity ranking.
   const slug = rivenDataSvc.getRivenFamilySlug(_rivenWeaponName);

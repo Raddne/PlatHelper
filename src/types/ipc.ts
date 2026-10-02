@@ -205,7 +205,7 @@ import type {
   RivenGoodRoll,
   RivenGoodRollAttribute,
   RivenGoodRollGroup,
-} from "../../config/shared/rivenGoodRolls.js";
+} from "../../config/shared/rivenRollSheetGroups.js";
 export type { RivenGoodRollAttribute, RivenGoodRollGroup };
 
 import type {
@@ -791,10 +791,6 @@ export interface IpcInvokeMap {
     args: [weaponName: string];
     return: RivenGoodRoll | null;
   };
-  refreshRivenGoodRolls: {
-    args: [weaponName: string];
-    return: RivenGoodRollsResult;
-  };
   createRivenAuction: {
     args: [payload: CreateRivenAuctionPayload];
     return: { ok: boolean; auctionId?: string; error?: string };
@@ -950,11 +946,8 @@ export interface RivenBestAttributes {
 }
 
 interface RivenGoodRollsResult {
-  /** Null when the sheet has no row for this weapon. */
+  /** Null when the roll sheet has no row for this weapon. */
   attributes: RivenBestAttributes | null;
-  /** ISO time the 44bananas sheet was last fetched, set even for an unknown
-   *  weapon so the UI can show the fetch time; null when never cached. */
-  updatedAt: string | null;
 }
 
 interface RivenResult {

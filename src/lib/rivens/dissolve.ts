@@ -1,4 +1,5 @@
 import { rivenDissolveEndo } from "../../../config/shared/rivenEndo.js";
+import type { SheetRating } from "../../../config/shared/rivenRollSheet.js";
 
 /** Rerolls past this make a mediocre roll worth more as endo than as a trade. */
 const DISSOLVE_REROLL_HINT = 5;
@@ -6,16 +7,16 @@ const DISSOLVE_REROLL_HINT = 5;
 const DISSOLVE_ENDO_HINT = 3000;
 
 interface DissolveCandidate {
-  attributeGrade: string;
+  sheetRating: SheetRating | null;
   masteryReq: number;
   currentRank: number;
   rerolls: number;
 }
 
-/** Endo the riven dissolves for, but only when its attributes are weak enough
- *  for dissolving to be worth suggesting. Null means show nothing. */
+/** Endo the riven dissolves for, but only when the roll sheet calls it not a good
+ *  roll and dissolving is worth suggesting. Null means show nothing. */
 export function rivenDissolveHint(riven: DissolveCandidate): number | null {
-  if (riven.attributeGrade !== "Bad" && riven.attributeGrade !== "OK") return null;
+  if (riven.sheetRating !== "not-good") return null;
   const endo = rivenDissolveEndo(riven.masteryReq, riven.currentRank, riven.rerolls);
   if (riven.rerolls < DISSOLVE_REROLL_HINT && endo < DISSOLVE_ENDO_HINT) return null;
   return endo;

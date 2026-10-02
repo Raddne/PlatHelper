@@ -106,7 +106,6 @@ import {
   RIVENS_SEARCH_AUCTIONS,
   RIVENS_GET_BEST_ATTRIBUTES,
   RIVENS_GET_GOOD_ROLL,
-  RIVENS_REFRESH_GOOD_ROLLS,
   RIVENS_CREATE_AUCTION,
   RIVENS_UPDATE_AUCTION,
   RIVENS_DELETE_AUCTION,
@@ -424,7 +423,6 @@ try {
     searchRivenAuctions: inv<"searchRivenAuctions">(RIVENS_SEARCH_AUCTIONS),
     getRivenBestAttributes: inv<"getRivenBestAttributes">(RIVENS_GET_BEST_ATTRIBUTES),
     getRivenGoodRoll: inv<"getRivenGoodRoll">(RIVENS_GET_GOOD_ROLL),
-    refreshRivenGoodRolls: inv<"refreshRivenGoodRolls">(RIVENS_REFRESH_GOOD_ROLLS),
     onHelperDownloadProgress: ipcDataBridge<IpcEventMap["helper-download-progress"]>(
       ipcRenderer,
       HELPER_DOWNLOAD_PROGRESS,

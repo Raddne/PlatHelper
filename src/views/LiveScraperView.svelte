@@ -9,7 +9,13 @@
   import ItemPicker from "../components/ItemPicker.svelte";
   import ItemCategoryIcon from "../components/ItemCategoryIcon.svelte";
   import ThemedInput from "../components/ThemedInput.svelte";
+  import SearchBox from "../components/SearchBox.svelte";
+  import RivenPicker from "../components/RivenPicker.svelte";
+  import RivenStatChips from "../components/RivenStatChips.svelte";
   import { categorizeItem } from "../lib/itemCategory.js";
+  import { rivenMatchesQuery } from "../lib/liveScraper/rivenSearch.js";
+  import { statusHintKey } from "../lib/liveScraper/statusHints.js";
+  import { rivenNameSuffix } from "../lib/marketContract.js";
   import type { StockItem, WishlistItem } from "../../config/shared/liveScraperStock.js";
   import type { StockRiven } from "../../config/shared/liveScraperRivenStock.js";
   import type { DecodedRiven } from "../../config/shared/rivenTypes.js";
@@ -143,6 +149,11 @@
   }
 
   let trackedRivenIds = $derived(new Set(stockRivens.map((r) => r.sourceItemId)));
+
+  // Narrows the tracked list only; the picker below has a search of its own.
+  let rivenQuery = $state("");
+  let rivenSearchActive = $derived(rivenQuery.trim() !== "");
+  let shownStockRivens = $derived(stockRivens.filter((r) => rivenMatchesQuery(r, rivenQuery)));
 
   async function addStockRiven(): Promise<void> {
     const riven = ownedRivens.find((r) => r.itemId === rivenDraftItemId);
@@ -411,27 +422,79 @@
     </div>
 
     <section class="grid gap-2 rounded-lg border border-border p-3">
-      <h3 class="m-0 text-sm font-semibold text-text-primary">{$tr("liveScraper.rivenTitle")}</h3>
+      <div class="flex items-center justify-between gap-2">
+        <h3 class="m-0 text-sm font-semibold text-text-primary">{$tr("liveScraper.rivenTitle")}</h3>
+        {#if stockRivens.length > 0}
+          <span class="text-xs text-text-muted" data-live-scraper-riven-count>
+            {rivenSearchActive
+              ? $tr("liveScraper.rivenCount", {
+                  shown: shownStockRivens.length,
+                  total: stockRivens.length,
+                })
+              : stockRivens.length}
+          </span>
+        {/if}
+      </div>
       {#if stockRivens.length > 0}
-        <ul class="m-0 grid gap-1 p-0">
-          {#each stockRivens as riven (riven.id)}
-            <li class="flex items-center gap-2 rounded-md border border-border px-2 py-1 text-xs">
-              <span class="min-w-0 flex-1 truncate text-text-primary">{riven.rivenName}</span>
-              <span class="text-text-muted"
-                >{riven.listPrice != null ? `${riven.listPrice}p` : riven.status}</span
-              >
-              <button
-                type="button"
-                class="btn-secondary btn-sm"
-                onclick={() => removeEntry("riven", riven.id, riven.rivenName)}
-              >
-                {$tr("common.delete")}
-              </button>
-            </li>
-          {/each}
-        </ul>
-      {:else}
+        <div data-live-scraper-riven-search>
+          <SearchBox
+            class="w-full"
+            bind:value={rivenQuery}
+            placeholder={$tr("liveScraper.rivenSearchPlaceholder")}
+          />
+        </div>
+      {/if}
+      {#if stockRivens.length === 0}
         <p class="m-0 text-xs text-text-muted">{$tr("liveScraper.rivenEmpty")}</p>
+      {:else if shownStockRivens.length === 0}
+        <p class="m-0 text-xs text-text-muted" data-live-scraper-riven-no-matches>
+          {$tr("liveScraper.rivenNoMatches", { query: rivenQuery.trim() })}
+        </p>
+      {:else}
+        <!-- Five rows and half of a sixth, so a long list scrolls instead of
+             pushing the listings table down. -->
+        <div class="max-h-[15rem] overflow-y-auto" data-live-scraper-riven-list>
+          <ul class="m-0 grid gap-1 p-0">
+            {#each shownStockRivens as riven (riven.id)}
+              <li
+                class="flex items-center gap-2 rounded-md border border-border px-2 py-1 text-xs"
+                data-live-scraper-riven-row={riven.id}
+              >
+                <span class="min-w-24 flex-1 truncate text-text-primary"
+                  >{riven.weaponName}
+                  <span class="text-text-muted"
+                    >{rivenNameSuffix(riven.rivenName, riven.weaponName)}</span
+                  ></span
+                >
+                <!-- Fixed widths on the right keep chips, status and buttons in line. -->
+                <div class="min-w-0 overflow-hidden" data-live-scraper-riven-stats>
+                  <RivenStatChips stats={riven.stats} compact />
+                </div>
+                {#if riven.listPrice != null}
+                  <span
+                    class="w-24 shrink-0 truncate text-right text-text-muted"
+                    title={$tr("liveScraper.rivenListPriceHint")}
+                    data-live-scraper-riven-status>{riven.listPrice}p</span
+                  >
+                {:else}
+                  <span
+                    class="w-24 shrink-0 truncate text-right text-text-muted"
+                    title={$tr(statusHintKey(riven.status, true))}
+                    data-live-scraper-riven-status
+                    >{$tr(`liveScraper.listings.status.${riven.status}`)}</span
+                  >
+                {/if}
+                <button
+                  type="button"
+                  class="btn-secondary btn-sm"
+                  onclick={() => removeEntry("riven", riven.id, riven.rivenName)}
+                >
+                  {$tr("common.delete")}
+                </button>
+              </li>
+            {/each}
+          </ul>
+        </div>
       {/if}
       <div class="flex flex-wrap items-end gap-2">
         <div class="grid min-w-0 flex-1 gap-1">
@@ -439,20 +502,11 @@
             >{$tr("liveScraper.rivenPickerLabel")}</label
           >
           {#if ownedRivens.length > 0}
-            <select
-              id="riven-picker"
-              class="shared-filter-select w-full"
+            <RivenPicker
+              rivens={ownedRivens}
+              trackedIds={trackedRivenIds}
               bind:value={rivenDraftItemId}
-            >
-              <option value="">{$tr("liveScraper.rivenPickerPlaceholder")}</option>
-              {#each ownedRivens as riven (riven.itemId)}
-                <option value={riven.itemId} disabled={trackedRivenIds.has(riven.itemId)}>
-                  {riven.rivenName} ({riven.weaponName}){trackedRivenIds.has(riven.itemId)
-                    ? " ✓"
-                    : ""}
-                </option>
-              {/each}
-            </select>
+            />
           {:else}
             <p class="m-0 text-xs text-text-muted">{$tr("liveScraper.rivenNoneOwned")}</p>
           {/if}

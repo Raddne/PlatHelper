@@ -105,7 +105,7 @@ function ownedRiven(itemId: string, weaponName: string, rivenName: string): Deco
       },
     ],
     overallGrade: "B",
-    attributeGrade: "Good",
+    sheetRating: null,
     statPerfectness: 0.5,
     rivenType: "Rifle",
   };

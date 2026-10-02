@@ -134,7 +134,7 @@
     "InteractionMode",
     "GradingInitial",
     "GradingRoll",
-    "BestAttributes",
+    "GoodRolls",
     "SimilarListings",
   ]) {
     window.rivenOverlay[`on${name}`] = () => () => {};
