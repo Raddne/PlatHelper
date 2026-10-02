@@ -4,6 +4,11 @@ Patch notes for every PlatHelper release. The release workflow copies the sectio
 
 Keep every bullet on one line: GitHub shows a line break inside release notes as a line break.
 
+## v0.4.5
+
+- **Fix: the Live Scraper tab crashed with "Renderer crashed" for some accounts with many tracked rivens**, every time it was opened since 0.4.3. A list broke when two of its entries ended up with the same internal key. Lists no longer break in that case; every tracked riven and every listing stays listed, and nothing in your saved data is removed or changed.
+- The same protection now covers the other lists of the app (inventory, Rivens tab, market alerts, notifications, wiki and more).
+
 ## v0.4.4
 
 - **Live Scraper: the Listings table fits smaller windows.** When the window is too narrow for the full table, each row switches to two lines instead of scrolling sideways, and nothing is cut off: for rivens the stat chips move under the name, with mastery rank and rerolls at the end of the name line; WTS shows the owned count and the time under the item, WTB the source and the time. Prices keep their step buttons beside them at every size. At the default window size the Rivens tab stays on one line with the stats in their own column.
